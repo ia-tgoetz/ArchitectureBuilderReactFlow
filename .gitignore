@@ -1,15 +1,16 @@
-# Build artifacts
-**/build/
+
+# Build artifacts (ignore all build directories)
 **/out/
 **/bin/
-**/dist/
-
+/build/checksum/
+/build/moduleContent/
 # Dependencies
 **/node_modules/
-
+.mcp.json
 # IDE and Editor files
 .idea/
 .vscode/
+.tools/
 .gradle/
 .settings/
 .project
@@ -22,14 +23,26 @@
 .DS_Store
 Thumbs.db
 Desktop.ini
-
-# Sensitive — signing credentials, never commit
-sign.props
-/private/
-
-# Misc
+lessons-learned/
+# Project-specific ignores
+reports
+.claude/
+.gemini
+.gemini/*
+.skills/
+.claudeignore
+.playwright-mcp/
+.gemini/g
+*.skill
+trace*
 *.class
 hs_err_pid*
 local.properties
 *.map
 *.log
+sign.props
+/private/
+Ignition-Build/
+claude.md
+GEMINI.md
+ignition-module-primer.md
