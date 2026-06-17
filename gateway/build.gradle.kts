@@ -1,0 +1,31 @@
+import org.gradle.language.jvm.tasks.ProcessResources
+
+plugins {
+    `java-library`
+}
+
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(17))
+    }
+}
+
+dependencies {
+    implementation(projects.common)
+    // modlImplementation(projects.web)
+
+    compileOnly(libs.ignition.common)
+    compileOnly(libs.ignition.gateway.api)
+    implementation(libs.ignition.perspective.gateway)
+    implementation(libs.ignition.perspective.common)
+    compileOnly(libs.ia.gson)
+}
+
+tasks.named<ProcessResources>("processResources") {
+    val webpackTask = project(":web").tasks.named("webpack")
+    dependsOn(webpackTask)
+
+    // Grab the Webpack output (which already contains the 'mounted' folder)
+    // and copy it as-is. No 'into()' block needed!
+    from(webpackTask) 
+}

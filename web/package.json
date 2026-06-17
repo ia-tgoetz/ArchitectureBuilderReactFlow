@@ -1,0 +1,25 @@
+{
+  "name": "reactflow-web-workspace",
+  "version": "1.0.0",
+  "description": "Web workspace for React Flow Perspective components",
+  "main": "dist/index.js",
+  "author": "perry arellano-jones",
+  "license": "MIT",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "yarn workspaces run build",
+    "clean": "yarn workspaces run clean",
+    "check": "yarn workspaces info"
+  },
+    "devDependencies" : {
+        "typescript": "^4.9.5",
+        "webpack": "^5.x.x"
+    },
+    "resolutions": {
+        "fast-uri": "3.1.2",
+        "axios": "0.28.1"
+    }
+}

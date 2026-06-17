@@ -1,0 +1,35 @@
+# Build artifacts
+**/build/
+**/out/
+**/bin/
+**/dist/
+
+# Dependencies
+**/node_modules/
+
+# IDE and Editor files
+.idea/
+.vscode/
+.gradle/
+.settings/
+.project
+.classpath
+.factorypath
+.buildpath
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Sensitive — signing credentials, never commit
+sign.props
+/private/
+
+# Misc
+*.class
+hs_err_pid*
+local.properties
+*.map
+*.log
