@@ -2,6 +2,9 @@
 
 The **Architecture Builder** is a specialized, interactive visualization module for Ignition Perspective, built with React Flow, TypeScript, and Styled Components. It enables users to design complex system architectures, infrastructure maps, and network topologies directly within the Perspective Designer and Runtime.
 
+## 📥 Download
+[Download the latest ArchitectureBuilder.modl](https://github.com/ia-tgoetz/ArchitectureBuilderReactFlow/releases/download/v1.0.0/ArchitectureBuilder.modl)
+
 ---
 
 ## Component Overview
