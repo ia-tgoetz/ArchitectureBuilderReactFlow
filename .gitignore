@@ -2,6 +2,8 @@
 # Build artifacts (ignore all build directories)
 **/out/
 **/bin/
+**/build/
+!/build/
 /build/checksum/
 /build/moduleContent/
 # Dependencies

@@ -4,11 +4,11 @@
     "moduleDescription": "React Flow based Architecture Builder Perspective component",
     "version": "1.0.0",
     "checksum": {
-        "checksum": "ad448d549e7e1d9af3b4b5406e319680166a59cddfd9d73ea83a99ae5748bfe6",
+        "checksum": "3a31db6a3ce5d1dfd1cf2f5d594514be11637ea9418a86b11541cc3a38c31362",
         "algorithm": "SHA256"
     },
     "fileName": "ArchitectureBuilder.modl",
-    "fileSize": 697300,
+    "fileSize": 697316,
     "artifacts": {
         ":common": {
             "projectPath": ":common",
