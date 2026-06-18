@@ -3,7 +3,7 @@
 The **Architecture Builder** is a specialized, interactive visualization module for Ignition Perspective, built with React Flow, TypeScript, and Styled Components. It enables users to design complex system architectures, infrastructure maps, and network topologies directly within the Perspective Designer and Runtime.
 
 ## 📥 Download
-[Download the latest ArchitectureBuilder.modl](https://github.com/ia-tgoetz/ArchitectureBuilderReactFlow/releases/download/v1.0.0/ArchitectureBuilder.modl)
+[Download the latest ArchitectureBuilder.modl](https://github.com/ia-tgoetz/ArchitectureBuilderReactFlow/releases/latest/download/ArchitectureBuilder.modl)
 
 ---
 
@@ -55,15 +55,22 @@ A dictionary keyed by UUID. Each entry represents a node on the canvas.
 | `paletteId` | String | References a `paletteItems[].id` entry to resolve icon and defaults. |
 | `typeId` | String | Logical type identifier (e.g., `"standard-gateway"`, `"sqldb"`). |
 | `label` | String | Display label rendered below the node image. |
-| `position` | `{x, y}` | Canvas coordinates (pixels). |
+| `x` / `y` | Number | Canvas coordinates (pixels). |
 | `width` / `height` | Number | Node dimensions; used by containers and resizable text nodes. |
+| `image` | String | Per-node image override. Accepts a base64 data URL or any image format. Overrides the palette item's image for this node only. |
+| `useOverrideImage` | Boolean | When `true`, displays the `overrideImage` from the palette item instead of the primary image. Has no effect if the palette item has no `overrideImage` set. |
+| `inactive` | Boolean | When `true`, renders the node with a grayscale filter to indicate an offline or pending state. |
+| `text` | String | Editable text content for Note and Label nodes. Ignored by all other node types. |
+| `hideHandles` | Boolean | Per-node override for the global `hideHandles` setting. |
+| `zIndex` | Number | Z-order for container layering; lower values render behind higher values. |
 | `style` | Object | Per-node background, border, and padding overrides. |
 | `labelStyle` | Object | Font, color, and alignment overrides for the label. |
 | `textStyle` | Object | Text style for Note/Label node types. |
 | `tooltip` | String | Hover tooltip text. |
 | `configs` | Object | Arbitrary configuration bag stored per node (e.g., `{unlocked: true}` for containers). |
-| `parentId` | String | UUID of the container node this node lives inside (empty if top-level). |
-| `isInactive` | Boolean | When `true`, renders node at `grayscale(100%)` with blur on its image. |
+| `supportedConnections` | Array | List of `connectionType` keys this node can participate in. Copied from the palette item on drop; can be overridden per node. |
+| `hierarchy` | Array | **Read-only.** Container IDs this node is nested within, ordered outermost to innermost. Computed automatically. |
+| `connections` | Array | **Read-only.** Edge UUIDs connected to this node. Computed automatically. |
 
 #### `edges` (Object)
 
@@ -76,7 +83,10 @@ A dictionary keyed by UUID. Each entry represents a connection between two nodes
 | `connectionType` | String | Key into `connectionTypes` (e.g., `"gateway-network"`, `"mqtt"`). Controls color and label. |
 | `lineType` | String | Visual style: `"step"`, `"smoothstep"`, or `"straight"`. |
 | `animation` | String | Flow animation: `"none"`, `"forward"`, `"bidirectional"`. Auto-disabled for edges on inactive nodes. |
-| `label` | String | Optional text label rendered along the edge midpoint. |
+| `dashed` | Boolean | When `true`, renders the edge as a dashed line. Default `false`. |
+| `arrow` | Boolean | When `true`, renders an arrowhead at the target end. Default `true`. |
+| `showLabel` | Boolean | When `true`, displays the `labelText` along the edge midpoint. Default `false`. |
+| `labelText` | String | Text displayed on the edge when `showLabel` is `true`. |
 | `waypoints` | Array | Ordered `{x, y}` routing points. Empty array = auto-routed; populated = manual routing persists across node moves. Clear via right-click → **Clear Path**. |
 
 #### `paletteItems` (Array)
@@ -112,11 +122,12 @@ A dictionary keyed by connection type ID. Controls how edges of that type are re
 | Field | Description |
 | :--- | :--- |
 | `label` | Human-readable name shown in menus. |
-| `color` | Edge stroke and arrowhead color (hex). |
-| `docsUrl` | Optional URL opened from the edge context menu. |
-| `allowMultiple` | Whether multiple edges of this type between the same node pair are permitted. |
+| `color` | Edge stroke color (hex or CSS variable). |
+| `docs` | Optional URL opened from the edge context menu. |
+| `multiple` | Whether multiple edges of this type between the same node pair are permitted. |
+| `arrow` | Whether edges of this type render an arrowhead at the target end. |
 
-**Built-in connection types:** `gateway-network`, `device-driver`, `client`, `db`, `opc-ua`, `mqtt`, and others.
+**Built-in connection types:** `gateway-network`, `mqtt`, `device-driver`, `opc-ua`, `opc-com`, `kafka`, `db`, `client`, `standard`, `mongodb`, `rest`, `idp`.
 
 ---
 
