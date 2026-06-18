@@ -2,8 +2,14 @@
 # Build artifacts (ignore all build directories)
 **/out/
 **/bin/
+**/build/
+!/build/
 /build/checksum/
 /build/moduleContent/
+common/build/
+designer/build/
+gateway/build/
+web/build/
 # Dependencies
 **/node_modules/
 .mcp.json

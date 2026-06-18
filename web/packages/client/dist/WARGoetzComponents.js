@@ -4266,7 +4266,7 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
                 if (paletteItem.id === 'container') {
                     newNodeData.width = 300;
                     newNodeData.height = 300;
-                    newNodeData.zIndex = -100;
+                    newNodeData.zIndex = -500;
                 }
                 const nextNodes = Object.assign({}, rawNodesDict);
                 nextNodes[newNodeId] = newNodeData;
@@ -4536,7 +4536,7 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
             if (['bringToFront', 'bringForward', 'sendBackward', 'sendToBack'].includes(action) && isNode) {
                 if (store === null || store === void 0 ? void 0 : store.props) {
                     const nextNodes = Object.assign({}, rawNodesDict);
-                    const currentZ = (_d = nextNodes[contextMenu.id].zIndex) !== null && _d !== void 0 ? _d : -100;
+                    const currentZ = (_d = nextNodes[contextMenu.id].zIndex) !== null && _d !== void 0 ? _d : -500;
                     if (action === 'bringForward') {
                         nextNodes[contextMenu.id].zIndex = Math.min(currentZ + 1, -100);
                     }
@@ -4544,7 +4544,7 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
                         nextNodes[contextMenu.id].zIndex = Math.max(currentZ - 1, -1000);
                     }
                     else {
-                        const containerZIndices = Object.values(nextNodes).filter((n) => n.paletteId === 'container').map((n) => { var _a; return (_a = n.zIndex) !== null && _a !== void 0 ? _a : -100; });
+                        const containerZIndices = Object.values(nextNodes).filter((n) => n.paletteId === 'container').map((n) => { var _a; return (_a = n.zIndex) !== null && _a !== void 0 ? _a : -500; });
                         if (action === 'bringToFront')
                             nextNodes[contextMenu.id].zIndex = Math.min(Math.max(...containerZIndices, -1000) + 1, -100);
                         else if (action === 'sendToBack')
