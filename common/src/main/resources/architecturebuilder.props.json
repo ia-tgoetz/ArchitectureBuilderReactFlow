@@ -1738,6 +1738,11 @@
         }
       }
     },
+    "nodeTypeConnectionDefaults": {
+      "type": "object",
+      "description": "Preferred connection type for a node type pair. Key is a sorted, double-underscore-separated pair of typeId values (e.g. 'gateway__mqtt-broker'). Value is a connection type key from connectionTypes.",
+      "default": {}
+    },
     "nodes": {
       "type": "object",
       "patternProperties": {

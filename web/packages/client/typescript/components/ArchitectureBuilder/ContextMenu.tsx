@@ -39,6 +39,10 @@ export interface ContextMenuProps {
     handleLineTypeChange: (newLineType: string) => void;
     handleConnectionTypeChange: (newConnectionType: string) => void;
     handleAnimationChange: (newAnimation: string) => void;
+    handleSetConnectionDefault: () => void;
+    handleSetDefaultForType: (connType: string) => void;
+    handleClearConnectionDefault: () => void;
+    nodeTypeConnectionDefaults: any;
 }
 
 export const ContextMenu = React.memo(({
@@ -57,6 +61,10 @@ export const ContextMenu = React.memo(({
     handleLineTypeChange,
     handleConnectionTypeChange,
     handleAnimationChange,
+    handleSetConnectionDefault,
+    handleSetDefaultForType,
+    handleClearConnectionDefault,
+    nodeTypeConnectionDefaults,
 }: ContextMenuProps) => {
     const containerRef = React.useRef<HTMLDivElement>(null);
     const flyoutRefs = React.useRef<Record<string, HTMLDivElement | null>>({});
@@ -131,6 +139,18 @@ export const ContextMenu = React.memo(({
 
     const currentLineType = contextMenu.type === 'edge' ? (rawEdgesDict[contextMenu.id]?.lineType || 'smoothstep') : 'smoothstep';
     const currentConnectionType = contextMenu.type === 'edge' ? (rawEdgesDict[contextMenu.id]?.connectionType || '') : '';
+
+    const edgeDefaultInfo = React.useMemo(() => {
+        if (contextMenu.type !== 'edge') return null;
+        const edge = rawEdgesDict[contextMenu.id];
+        if (!edge) return null;
+        const srcType = rawNodesDict[edge.source]?.typeId;
+        const tgtType = rawNodesDict[edge.target]?.typeId;
+        if (!srcType || !tgtType) return null;
+        const pairKey = [srcType, tgtType].sort().join('__');
+        const currentDefault = nodeTypeConnectionDefaults?.[pairKey];
+        return { srcType, tgtType, pairKey, isAlreadyDefault: currentDefault === edge.connectionType };
+    }, [contextMenu, rawEdgesDict, rawNodesDict, nodeTypeConnectionDefaults]);
 
     const validSwapItems = React.useMemo(() => {
         if (contextMenu.type !== 'node') return [];
@@ -328,16 +348,52 @@ export const ContextMenu = React.memo(({
                                     <div ref={(el) => { if (el) flyoutRefs.current['connectionType'] = el; }} style={{ ...getFlyoutStyle('connectionType'), ...FLYOUT_PANEL_STYLE, minWidth: '140px' }}>
                                         {availableConnections.length === 0
                                             ? <div style={{ padding: '5px 8px', color: 'var(--neutral-60)' }}>No valid connections</div>
-                                            : availableConnections.map(c => (
-                                                <div key={c} style={{ padding: '5px 8px', cursor: 'pointer', color: 'var(--neutral-90)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', whiteSpace: 'nowrap', gap: '12px' }} onClick={() => handleConnectionTypeChange(c)}>
-                                                    <span><span style={{ color: connectionTypes[c]?.color || 'var(--neutral-90)', marginRight: '4px' }}>●</span>{connectionTypes[c]?.label || c}</span>
-                                                    <span>{currentConnectionType === c ? '✓' : ''}</span>
-                                                </div>
-                                            ))
+                                            : availableConnections.map(c => {
+                                                const isCurrentDefault = edgeDefaultInfo && nodeTypeConnectionDefaults?.[edgeDefaultInfo.pairKey] === c;
+                                                return (
+                                                    <div key={c} style={{ padding: '5px 8px', cursor: 'pointer', color: 'var(--neutral-90)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', whiteSpace: 'nowrap', gap: '8px' }} onClick={() => handleConnectionTypeChange(c)}>
+                                                        <span><span style={{ color: connectionTypes[c]?.color || 'var(--neutral-90)', marginRight: '4px' }}>●</span>{connectionTypes[c]?.label || c}</span>
+                                                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                            <span>{currentConnectionType === c ? '✓' : ''}</span>
+                                                            {edgeDefaultInfo && (
+                                                                <span
+                                                                    title={isCurrentDefault ? 'Clear default for this node pair' : 'Set as default for this node pair'}
+                                                                    style={{ opacity: isCurrentDefault ? 1 : 0.35, fontSize: '11px', cursor: 'pointer' }}
+                                                                    onClick={(e) => { e.stopPropagation(); if (isCurrentDefault) handleClearConnectionDefault(); else handleSetDefaultForType(c); }}
+                                                                >⭐</span>
+                                                            )}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })
                                         }
                                     </div>
                                 )}
                             </div>
+                            {edgeDefaultInfo && (
+                                <>
+                                    <div style={MENU_DIVIDER_STYLE} />
+                                    {edgeDefaultInfo.isAlreadyDefault ? (
+                                        <div
+                                            style={{ ...MENU_ITEM_FLEX_STYLE, whiteSpace: 'nowrap', color: 'var(--neutral-60)' }}
+                                            onMouseEnter={() => setActiveSubMenu(null)}
+                                            onClick={handleClearConnectionDefault}
+                                        >
+                                            <span>✕ Clear Default</span>
+                                            <span style={{ color: 'var(--neutral-50)', fontSize: '11px' }}>{edgeDefaultInfo.srcType} ↔ {edgeDefaultInfo.tgtType}</span>
+                                        </div>
+                                    ) : (
+                                        <div
+                                            style={{ ...MENU_ITEM_FLEX_STYLE, whiteSpace: 'nowrap' }}
+                                            onMouseEnter={() => setActiveSubMenu(null)}
+                                            onClick={handleSetConnectionDefault}
+                                        >
+                                            <span>⭐ Set as Default</span>
+                                            <span style={{ color: 'var(--neutral-60)', fontSize: '11px' }}>{edgeDefaultInfo.srcType} ↔ {edgeDefaultInfo.tgtType}</span>
+                                        </div>
+                                    )}
+                                </>
+                            )}
                         </>
                     )}
 

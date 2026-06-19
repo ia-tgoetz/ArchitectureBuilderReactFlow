@@ -129,6 +129,34 @@ A dictionary keyed by connection type ID. Controls how edges of that type are re
 
 **Built-in connection types:** `gateway-network`, `mqtt`, `device-driver`, `opc-ua`, `opc-com`, `kafka`, `db`, `client`, `standard`, `mongodb`, `rest`, `idp`.
 
+#### `nodeTypeConnectionDefaults` (Object)
+
+A dictionary that stores the **preferred connection type** for each pair of node types. When a new edge is drawn, the component looks up the pair in this map and auto-selects the preferred type — eliminating the need to manually set the connection type after every new connection.
+
+**Key format:** Keys are the two `typeId` values sorted alphabetically and joined with a double underscore (`__`), e.g. `"gateway__mqtt-broker"`. Sorting makes the key order-independent (source/target direction does not matter).
+
+**Value:** A connection type ID that exists in `connectionTypes`. If the stored type is not valid for a given pair at connection time, the component falls back to the first valid type in the intersection.
+
+```json
+{
+  "nodeTypeConnectionDefaults": {
+    "gateway__mqtt-broker": "mqtt",
+    "database__gateway": "db",
+    "gateway__standard-gateway": "gateway-network"
+  }
+}
+```
+
+**Setting defaults from the canvas:**
+
+| Method | How |
+| :--- | :--- |
+| Right-click edge → **⭐ Set as Default** | Saves the edge's current connection type as the default for its node-type pair. Overwrites any existing default. |
+| Right-click edge → **✕ Clear Default** | Removes the preferred type for this pair. Only visible when the edge's type is already the current default. |
+| Right-click edge → **Connection Type** submenu | Each type entry shows a ⭐ icon. Clicking it sets or clears that specific type as the default without changing the edge's connection type. |
+
+Changes made on the canvas write back to this prop immediately; changes made directly in the Designer's prop inspector propagate to the canvas in real time (bidirectional sync).
+
 ---
 
 ### Computed Output Props
@@ -193,7 +221,7 @@ The built-in search feature lets operators and designers quickly locate nodes on
 | Target | Available Actions |
 | :--- | :--- |
 | **Node** | Edit Style, Delete, Copy, Swap, Bring Forward, Send Backward, Toggle Inactive, Edit Configs |
-| **Edge** | Change Line Type, Change Connection Type, Change Animation, Edit Label, Clear Path, Reverse, Delete |
+| **Edge** | Change Line Type, Change Connection Type, Set/Clear Connection Default, Change Animation, Edit Label, Clear Path, Reverse, Delete |
 | **Canvas (empty area)** | Paste, Fit View |
 
 ---
