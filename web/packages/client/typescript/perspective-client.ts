@@ -22,6 +22,7 @@ export class ArchitectureBuilderMeta implements ComponentMeta {
             edges: tree.read('edges'),
             paletteItems: tree.read('paletteItems'),
             connectionTypes: tree.read('connectionTypes'),
+            nodeTypeConnectionDefaults: tree.read('nodeTypeConnectionDefaults'),
 
             enabled: tree.read('enabled', true),
             enableOnClickEvents: tree.read('enableOnClickEvents', true),

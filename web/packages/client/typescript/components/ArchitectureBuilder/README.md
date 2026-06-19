@@ -43,6 +43,7 @@ All props are defined in `architecturebuilder.props.json`.
 | `snapEnabled` | boolean | Enables snap-to-grid when dragging nodes (default true). |
 | `snapPixels` | number | Grid size in pixels (default 15). |
 | `connectionTypes` | object | Map of connection type IDs to type definitions (see below). |
+| `nodeTypeConnectionDefaults` | object | Preferred connection type per node-type pair. Keys are `typeA__typeB`; values are connection type IDs (see below). |
 | `paletteItems` | array | List of palette items available in the sidebar (see below). |
 | `nodes` | object | Map of node IDs to node data (see below). Written back by the component. |
 | `edges` | object | Map of edge IDs to edge data (see below). Written back by the component. |
@@ -180,6 +181,45 @@ Container items appear above the category groups, separated by a divider.
 Each node renders handles on all four sides (Top, Right, Bottom, Left). The number of handles per side is controlled by `handleCount` (global) or `hideHandles` (per-node). All handles use `type="source"` — `ConnectionMode.Loose` in the ReactFlow instance allows source-to-source connections.
 
 Handle positions are evenly distributed along each side. For example, with `handleCount = 5`, handles appear at 10%, 30%, 50%, 70%, and 90% of the side length.
+
+### Connection Defaults
+
+`nodeTypeConnectionDefaults` stores a preferred connection type for each pair of node types. When a new edge is drawn between two nodes, the component checks this map and auto-selects the preferred type if it is valid for that pair — skipping the need to manually set the connection type after every new connection.
+
+#### Key Format
+
+Keys are always **sorted alphabetically** and joined with a **double underscore**: `"typeA__typeB"`. Sorting ensures the key is the same regardless of which node is source and which is target.
+
+```json
+{
+  "nodeTypeConnectionDefaults": {
+    "gateway__mqtt-broker": "sparkplug",
+    "database__gateway": "db"
+  }
+}
+```
+
+#### Value
+
+The value is a connection type ID that must exist in `connectionTypes`. If the stored type is not valid for a given pair (e.g., it was removed from a node's `supportedConnections`), the component falls back to the first valid type in the intersection.
+
+#### Setting and Clearing Defaults
+
+Defaults can be managed from the edge context menu:
+
+- **⭐ Set as Default** — Saves the current edge's connection type as the preferred type for its node-type pair. Overwrites any existing default for that pair.
+- **✕ Clear Default** — Removes the preferred type for this pair; future edges fall back to the first valid type.
+- Inside the **Connection Type submenu**, each available type shows a star icon. A filled star (★) indicates it is the current default; clicking it sets or clears the default for that individual type without switching the edge's connection type.
+
+Defaults are also fully editable in the Ignition Designer's component property inspector — changes made there propagate immediately to the canvas, and changes made on the canvas propagate immediately to the Designer panel (bidirectional sync via Ignition's prop system).
+
+#### Fallback Behavior on New Connections
+
+```
+1. Compute getValidIntersection(source, target)
+2. If nodeTypeConnectionDefaults[pairKey] exists AND is in the valid set → use it
+3. Otherwise → use validTypes[0]
+```
 
 ### Connection Validation
 
@@ -320,11 +360,13 @@ Right-click on a node, edge, or the canvas pane to open the context menu.
 |---|---|
 | Config | Fires `onContextMenuAction` with `action: "config"`. |
 | Line Type | Submenu: Smooth Step, Step, Straight, Bezier. |
-| Connection Type | Submenu: all valid types for this source/target pair. |
+| Connection Type | Submenu: all valid types for this source/target pair. Each entry shows a star icon — click it to set or clear that type as the default for this node-type pair without changing the edge. |
 | Toggle Arrow | Shows/hides the arrowhead. |
 | Toggle Label | Shows/hides the connection type label on the edge. |
 | Toggle Dashed | Switches between solid and dashed rendering. |
 | Reverse Edge | Swaps source and target. |
+| ⭐ Set as Default | Saves this edge's connection type as the preferred type for its node-type pair. Overwrites any existing default. Only shown when the edge's type is not already the default. |
+| ✕ Clear Default | Removes the preferred type for this node-type pair. Only shown when the edge's type is the current default. |
 | Delete | Removes the edge. |
 
 ### Pane Actions

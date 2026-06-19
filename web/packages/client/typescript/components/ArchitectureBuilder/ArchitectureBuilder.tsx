@@ -148,7 +148,7 @@ const computeHierarchyData = (nodesDict: any, edgesDict: any) => {
 export interface ArchitectureBuilderProps {
     enabled?: any; enableOnClickEvents?: any; hideHandles?: any; handleCount?: any;
     refreshHierarchy?: boolean; snapEnabled?: any; snapPixels?: any; edgeWidth?: any;
-    style?: any; connectionTypes: any; paletteItems: any[];
+    style?: any; connectionTypes: any; nodeTypeConnectionDefaults?: any; paletteItems: any[];
     nodes: any; edges: any; hierarchy?: any;
 }
 
@@ -229,6 +229,9 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
         () => JSON.stringify(extractDeep(props.props.connectionTypes) || {}),
         [props.props.connectionTypes]
     );
+    // No useMemo here — Perspective mutates this observable in place on write, so the
+    // reference never changes. Computing without memo lets MobX track deep changes.
+    const nodeTypeConnectionDefaultsJson = JSON.stringify(extractDeep(props.props.nodeTypeConnectionDefaults) || {});
     const paletteItemsJson = React.useMemo(
         () => JSON.stringify(extractDeep(props.props.paletteItems) || []),
         [props.props.paletteItems]
@@ -255,6 +258,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
     const rawNodesDict = React.useMemo(() => JSON.parse(rawNodesJson), [rawNodesJson]);
     const rawEdgesDict = React.useMemo(() => JSON.parse(rawEdgesJson), [rawEdgesJson]);
     const connectionTypes = React.useMemo(() => JSON.parse(connectionTypesJson), [connectionTypesJson]);
+    const nodeTypeConnectionDefaults = React.useMemo(() => JSON.parse(nodeTypeConnectionDefaultsJson), [nodeTypeConnectionDefaultsJson]);
     const paletteItems = React.useMemo(() => JSON.parse(paletteItemsJson), [paletteItemsJson]);
     const rawConfig = React.useMemo(() => JSON.parse(rawConfigJson), [rawConfigJson]);
 
@@ -304,7 +308,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
         handleLabelChange,
         onConnect, onEdgeUpdate, onEdgeUpdateStart, onEdgeUpdateEnd, onConnectStart, onConnectEnd,
         onEdgesDelete, onEdgeContextMenu, onEdgeClick,
-        handleLineTypeChange, handleConnectionTypeChange, handleAnimationChange,
+        handleLineTypeChange, handleConnectionTypeChange, handleAnimationChange, handleSetConnectionDefault, handleSetDefaultForType, handleClearConnectionDefault,
         handleGearClick, handlePaletteItemClick, handleResizeEnd, handleTextChange,
         onNodesChange, onNodeDragStart, onNodeDrag, onNodeDragStop,
         onNodesDelete, onNodeContextMenu, onNodeClick,
@@ -317,6 +321,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
         rawNodesDict,
         rawEdgesDict,
         connectionTypes,
+        nodeTypeConnectionDefaults,
         globalHandleCount,
         paletteItems,
         snapEnabled,
@@ -695,6 +700,10 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
                                 handleLineTypeChange={handleLineTypeChange}
                                 handleConnectionTypeChange={handleConnectionTypeChange}
                                 handleAnimationChange={handleAnimationChange}
+                                handleSetConnectionDefault={handleSetConnectionDefault}
+                                handleSetDefaultForType={handleSetDefaultForType}
+                                handleClearConnectionDefault={handleClearConnectionDefault}
+                                nodeTypeConnectionDefaults={nodeTypeConnectionDefaults}
                             />
                         )}
                     </div>

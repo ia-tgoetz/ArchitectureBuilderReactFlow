@@ -1758,6 +1758,9 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
     const rawNodesJson = React.useMemo(() => JSON.stringify(extractDeep(props.props.nodes) || {}), [props.props.nodes]);
     const rawEdgesJson = React.useMemo(() => JSON.stringify(extractDeep(props.props.edges) || {}), [props.props.edges]);
     const connectionTypesJson = React.useMemo(() => JSON.stringify(extractDeep(props.props.connectionTypes) || {}), [props.props.connectionTypes]);
+    // No useMemo here — Perspective mutates this observable in place on write, so the
+    // reference never changes. Computing without memo lets MobX track deep changes.
+    const nodeTypeConnectionDefaultsJson = JSON.stringify(extractDeep(props.props.nodeTypeConnectionDefaults) || {});
     const paletteItemsJson = React.useMemo(() => JSON.stringify(extractDeep(props.props.paletteItems) || []), [props.props.paletteItems]);
     // Scalar display props use the same extractDeep + JSON pipeline as complex props.
     // Direct property access on Perspective's observable store can miss scalar updates;
@@ -1779,6 +1782,7 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
     const rawNodesDict = React.useMemo(() => JSON.parse(rawNodesJson), [rawNodesJson]);
     const rawEdgesDict = React.useMemo(() => JSON.parse(rawEdgesJson), [rawEdgesJson]);
     const connectionTypes = React.useMemo(() => JSON.parse(connectionTypesJson), [connectionTypesJson]);
+    const nodeTypeConnectionDefaults = React.useMemo(() => JSON.parse(nodeTypeConnectionDefaultsJson), [nodeTypeConnectionDefaultsJson]);
     const paletteItems = React.useMemo(() => JSON.parse(paletteItemsJson), [paletteItemsJson]);
     const rawConfig = React.useMemo(() => JSON.parse(rawConfigJson), [rawConfigJson]);
     const globalHideHandles = rawConfig.hideHandles === true || String((_a = rawConfig.hideHandles) !== null && _a !== void 0 ? _a : '').toLowerCase() === 'true';
@@ -1811,12 +1815,13 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
         props.store.props.write('refreshHierarchy', false);
     }, [props.props.refreshHierarchy, props.store]);
     // ─── Handlers hook ─────────────────────────────────────────────────────
-    const { isUpdatingEdge, isDraggingNode, updatingEdgeRef, rawNodesDictRef, rawEdgesDictRef, closeContextMenu, getValidIntersection, isValidConnection, handleWaypointsChange, handleLabelChange, onConnect, onEdgeUpdate, onEdgeUpdateStart, onEdgeUpdateEnd, onConnectStart, onConnectEnd, onEdgesDelete, onEdgeContextMenu, onEdgeClick, handleLineTypeChange, handleConnectionTypeChange, handleAnimationChange, handleGearClick, handlePaletteItemClick, handleResizeEnd, handleTextChange, onNodesChange, onNodeDragStart, onNodeDrag, onNodeDragStop, onNodesDelete, onNodeContextMenu, onNodeClick, executeCopy, executePaste, onDragOver, onDrop, onMoveStart, onPaneClick, onPaneContextMenu, handleNodeSwap, handleContextMenuAction, } = useArchitectureFlowHandlers_1.useArchitectureFlowHandlers({
+    const { isUpdatingEdge, isDraggingNode, updatingEdgeRef, rawNodesDictRef, rawEdgesDictRef, closeContextMenu, getValidIntersection, isValidConnection, handleWaypointsChange, handleLabelChange, onConnect, onEdgeUpdate, onEdgeUpdateStart, onEdgeUpdateEnd, onConnectStart, onConnectEnd, onEdgesDelete, onEdgeContextMenu, onEdgeClick, handleLineTypeChange, handleConnectionTypeChange, handleAnimationChange, handleSetConnectionDefault, handleSetDefaultForType, handleClearConnectionDefault, handleGearClick, handlePaletteItemClick, handleResizeEnd, handleTextChange, onNodesChange, onNodeDragStart, onNodeDrag, onNodeDragStop, onNodesDelete, onNodeContextMenu, onNodeClick, executeCopy, executePaste, onDragOver, onDrop, onMoveStart, onPaneClick, onPaneContextMenu, handleNodeSwap, handleContextMenuAction, } = useArchitectureFlowHandlers_1.useArchitectureFlowHandlers({
         store: props.store,
         componentEvents: props.componentEvents,
         rawNodesDict,
         rawEdgesDict,
         connectionTypes,
+        nodeTypeConnectionDefaults,
         globalHandleCount,
         paletteItems,
         snapEnabled,
@@ -2119,7 +2124,7 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
                             }
                             setStyleEditorNodeId(null);
                         }, onCancel: () => setStyleEditorNodeId(null) })),
-                    contextMenu && (React.createElement(ContextMenu_1.ContextMenu, { contextMenu: contextMenu, activeSubMenu: activeSubMenu, setActiveSubMenu: setActiveSubMenu, rawNodesDict: rawNodesDict, rawEdgesDict: rawEdgesDict, paletteItems: paletteItems, connectionTypes: connectionTypes, clipboardRef: clipboardRef, wrapperRef: reactFlowWrapper, getValidIntersection: getValidIntersection, handleContextMenuAction: handleContextMenuAction, handleNodeSwap: handleNodeSwap, handleLineTypeChange: handleLineTypeChange, handleConnectionTypeChange: handleConnectionTypeChange, handleAnimationChange: handleAnimationChange })))))));
+                    contextMenu && (React.createElement(ContextMenu_1.ContextMenu, { contextMenu: contextMenu, activeSubMenu: activeSubMenu, setActiveSubMenu: setActiveSubMenu, rawNodesDict: rawNodesDict, rawEdgesDict: rawEdgesDict, paletteItems: paletteItems, connectionTypes: connectionTypes, clipboardRef: clipboardRef, wrapperRef: reactFlowWrapper, getValidIntersection: getValidIntersection, handleContextMenuAction: handleContextMenuAction, handleNodeSwap: handleNodeSwap, handleLineTypeChange: handleLineTypeChange, handleConnectionTypeChange: handleConnectionTypeChange, handleAnimationChange: handleAnimationChange, handleSetConnectionDefault: handleSetConnectionDefault, handleSetDefaultForType: handleSetDefaultForType, handleClearConnectionDefault: handleClearConnectionDefault, nodeTypeConnectionDefaults: nodeTypeConnectionDefaults })))))));
 });
 
 
@@ -2563,7 +2568,7 @@ const SwapIcon = ({ image, label }) => {
     const dataUri = svgSanitize_1.toSafeDataUri(image);
     return dataUri ? React.createElement("img", { src: dataUri, alt: label, style: { width: '100%', height: '100%', objectFit: 'contain' } }) : null;
 };
-exports.ContextMenu = React.memo(({ contextMenu, activeSubMenu, setActiveSubMenu, rawNodesDict, rawEdgesDict, paletteItems, connectionTypes, clipboardRef, wrapperRef, getValidIntersection, handleContextMenuAction, handleNodeSwap, handleLineTypeChange, handleConnectionTypeChange, handleAnimationChange, }) => {
+exports.ContextMenu = React.memo(({ contextMenu, activeSubMenu, setActiveSubMenu, rawNodesDict, rawEdgesDict, paletteItems, connectionTypes, clipboardRef, wrapperRef, getValidIntersection, handleContextMenuAction, handleNodeSwap, handleLineTypeChange, handleConnectionTypeChange, handleAnimationChange, handleSetConnectionDefault, handleSetDefaultForType, handleClearConnectionDefault, nodeTypeConnectionDefaults, }) => {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q;
     const containerRef = React.useRef(null);
     const flyoutRefs = React.useRef({});
@@ -2637,6 +2642,21 @@ exports.ContextMenu = React.memo(({ contextMenu, activeSubMenu, setActiveSubMenu
     }, [contextMenu, rawEdgesDict, getValidIntersection]);
     const currentLineType = contextMenu.type === 'edge' ? (((_a = rawEdgesDict[contextMenu.id]) === null || _a === void 0 ? void 0 : _a.lineType) || 'smoothstep') : 'smoothstep';
     const currentConnectionType = contextMenu.type === 'edge' ? (((_b = rawEdgesDict[contextMenu.id]) === null || _b === void 0 ? void 0 : _b.connectionType) || '') : '';
+    const edgeDefaultInfo = React.useMemo(() => {
+        var _a, _b;
+        if (contextMenu.type !== 'edge')
+            return null;
+        const edge = rawEdgesDict[contextMenu.id];
+        if (!edge)
+            return null;
+        const srcType = (_a = rawNodesDict[edge.source]) === null || _a === void 0 ? void 0 : _a.typeId;
+        const tgtType = (_b = rawNodesDict[edge.target]) === null || _b === void 0 ? void 0 : _b.typeId;
+        if (!srcType || !tgtType)
+            return null;
+        const pairKey = [srcType, tgtType].sort().join('__');
+        const currentDefault = nodeTypeConnectionDefaults === null || nodeTypeConnectionDefaults === void 0 ? void 0 : nodeTypeConnectionDefaults[pairKey];
+        return { srcType, tgtType, pairKey, isAlreadyDefault: currentDefault === edge.connectionType };
+    }, [contextMenu, rawEdgesDict, rawNodesDict, nodeTypeConnectionDefaults]);
     const validSwapItems = React.useMemo(() => {
         if (contextMenu.type !== 'node')
             return [];
@@ -2767,12 +2787,31 @@ exports.ContextMenu = React.memo(({ contextMenu, activeSubMenu, setActiveSubMenu
                         ? React.createElement("div", { style: { padding: '5px 8px', color: 'var(--neutral-60)' } }, "No valid connections")
                         : availableConnections.map(c => {
                             var _a, _b;
-                            return (React.createElement("div", { key: c, style: { padding: '5px 8px', cursor: 'pointer', color: 'var(--neutral-90)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', whiteSpace: 'nowrap', gap: '12px' }, onClick: () => handleConnectionTypeChange(c) },
+                            const isCurrentDefault = edgeDefaultInfo && (nodeTypeConnectionDefaults === null || nodeTypeConnectionDefaults === void 0 ? void 0 : nodeTypeConnectionDefaults[edgeDefaultInfo.pairKey]) === c;
+                            return (React.createElement("div", { key: c, style: { padding: '5px 8px', cursor: 'pointer', color: 'var(--neutral-90)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', whiteSpace: 'nowrap', gap: '8px' }, onClick: () => handleConnectionTypeChange(c) },
                                 React.createElement("span", null,
                                     React.createElement("span", { style: { color: ((_a = connectionTypes[c]) === null || _a === void 0 ? void 0 : _a.color) || 'var(--neutral-90)', marginRight: '4px' } }, "\u25CF"),
                                     ((_b = connectionTypes[c]) === null || _b === void 0 ? void 0 : _b.label) || c),
-                                React.createElement("span", null, currentConnectionType === c ? '✓' : '')));
-                        })))))),
+                                React.createElement("span", { style: { display: 'flex', alignItems: 'center', gap: '6px' } },
+                                    React.createElement("span", null, currentConnectionType === c ? '✓' : ''),
+                                    edgeDefaultInfo && (React.createElement("span", { title: isCurrentDefault ? 'Clear default for this node pair' : 'Set as default for this node pair', style: { opacity: isCurrentDefault ? 1 : 0.35, fontSize: '11px', cursor: 'pointer' }, onClick: (e) => { e.stopPropagation(); if (isCurrentDefault)
+                                            handleClearConnectionDefault();
+                                        else
+                                            handleSetDefaultForType(c); } }, "\u2B50")))));
+                        })))),
+                edgeDefaultInfo && (React.createElement(React.Fragment, null,
+                    React.createElement("div", { style: MENU_DIVIDER_STYLE }),
+                    edgeDefaultInfo.isAlreadyDefault ? (React.createElement("div", { style: Object.assign(Object.assign({}, MENU_ITEM_FLEX_STYLE), { whiteSpace: 'nowrap', color: 'var(--neutral-60)' }), onMouseEnter: () => setActiveSubMenu(null), onClick: handleClearConnectionDefault },
+                        React.createElement("span", null, "\u2715 Clear Default"),
+                        React.createElement("span", { style: { color: 'var(--neutral-50)', fontSize: '11px' } },
+                            edgeDefaultInfo.srcType,
+                            " \u2194 ",
+                            edgeDefaultInfo.tgtType))) : (React.createElement("div", { style: Object.assign(Object.assign({}, MENU_ITEM_FLEX_STYLE), { whiteSpace: 'nowrap' }), onMouseEnter: () => setActiveSubMenu(null), onClick: handleSetConnectionDefault },
+                        React.createElement("span", null, "\u2B50 Set as Default"),
+                        React.createElement("span", { style: { color: 'var(--neutral-60)', fontSize: '11px' } },
+                            edgeDefaultInfo.srcType,
+                            " \u2194 ",
+                            edgeDefaultInfo.tgtType))))))),
             contextMenu.isContainer && (React.createElement("div", { style: { padding: '5px 8px', cursor: 'pointer', color: 'var(--error)', borderTop: '1px solid var(--neutral-40)' }, onMouseEnter: () => setActiveSubMenu(null), onClick: () => handleContextMenuAction('deleteWithContents') }, "\uD83D\uDDD1\uFE0F Delete Area & Contents")),
             React.createElement("div", { style: { padding: '5px 8px', cursor: 'pointer', color: 'var(--error)', borderTop: contextMenu.isContainer ? 'none' : '1px solid var(--neutral-40)' }, onMouseEnter: () => setActiveSubMenu(null), onClick: () => handleContextMenuAction('delete') }, contextMenu.isContainer ? '🗑️ Delete Area Only' : '🗑️ Delete')))));
 });
@@ -3929,7 +3968,7 @@ const getNodesInside = (containerId, allNodes) => {
     });
     return inside;
 };
-const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, connectionTypes, globalHandleCount, paletteItems, snapEnabled, snapPixels, reactFlowInstance, reactFlowWrapper, isEnabled, selectedId, setSelectedId, setLocalNodes, setLocalEdges, contextMenu, setContextMenu, setActiveSubMenu, setStyleEditorNodeId, clipboardRef, draggedItemRef, }) => {
+const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, connectionTypes, nodeTypeConnectionDefaults, globalHandleCount, paletteItems, snapEnabled, snapPixels, reactFlowInstance, reactFlowWrapper, isEnabled, selectedId, setSelectedId, setLocalNodes, setLocalEdges, contextMenu, setContextMenu, setActiveSubMenu, setStyleEditorNodeId, clipboardRef, draggedItemRef, }) => {
     const [isDraggingNode, setIsDraggingNode] = React.useState(false);
     const dragStartPos = React.useRef(null);
     // Stable refs so callbacks that only READ rawNodesDict/rawEdgesDict at call-time
@@ -3949,6 +3988,7 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
         rawNodesDict,
         rawEdgesDict,
         connectionTypes,
+        nodeTypeConnectionDefaults,
         selectedId,
         setSelectedId,
         contextMenu,
@@ -4676,7 +4716,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.useEdgeHandlers = void 0;
 const React = __importStar(__webpack_require__(/*! react */ "react"));
 const utils_1 = __webpack_require__(/*! ./utils */ "./typescript/components/ArchitectureBuilder/utils.ts");
-const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, connectionTypes, selectedId, setSelectedId, contextMenu, setContextMenu, setActiveSubMenu, setLocalEdges, reactFlowWrapper, closeContextMenu, }) => {
+const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, connectionTypes, nodeTypeConnectionDefaults, selectedId, setSelectedId, contextMenu, setContextMenu, setActiveSubMenu, setLocalEdges, reactFlowWrapper, closeContextMenu, }) => {
     const [isUpdatingEdge, setIsUpdatingEdge] = React.useState(false);
     const updatingEdgeRef = React.useRef(null);
     // ─── Validation ──────────────────────────────────────────────────────────
@@ -4706,6 +4746,7 @@ const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, c
         return getValidIntersection(connection.source, connection.target, updatingEdgeRef.current || undefined).length > 0;
     }, [getValidIntersection]);
     // ─── Edge handlers ───────────────────────────────────────────────────────
+    const getPairKey = (typeIdA, typeIdB) => [typeIdA, typeIdB].sort().join('__');
     const handleWaypointsChange = React.useCallback((edgeId, waypoints) => {
         try {
             if (!(store === null || store === void 0 ? void 0 : store.props))
@@ -4724,11 +4765,16 @@ const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, c
         }
     }, [store, rawEdgesDict, componentEvents, setLocalEdges]);
     const onConnect = React.useCallback((connectionParams) => {
+        var _a, _b;
         try {
             const validTypes = getValidIntersection(connectionParams.source, connectionParams.target);
             if (validTypes.length === 0)
                 return;
-            const selectedType = validTypes[0];
+            const sourceTypeId = (_a = rawNodesDict[connectionParams.source]) === null || _a === void 0 ? void 0 : _a.typeId;
+            const targetTypeId = (_b = rawNodesDict[connectionParams.target]) === null || _b === void 0 ? void 0 : _b.typeId;
+            const pairKey = sourceTypeId && targetTypeId ? getPairKey(sourceTypeId, targetTypeId) : null;
+            const preferredType = pairKey ? nodeTypeConnectionDefaults === null || nodeTypeConnectionDefaults === void 0 ? void 0 : nodeTypeConnectionDefaults[pairKey] : null;
+            const selectedType = (preferredType && validTypes.includes(preferredType)) ? preferredType : validTypes[0];
             const typeDef = connectionTypes[selectedType] || {};
             if (store === null || store === void 0 ? void 0 : store.props) {
                 store.props.write('edges', Object.assign(Object.assign({}, rawEdgesDict), { [utils_1.generateShortId()]: Object.assign(Object.assign({}, connectionParams), { lineType: 'smoothstep', dashed: false, arrow: typeDef.arrow !== false, showLabel: false, labelText: '', connectionType: selectedType, waypoints: [] }) }));
@@ -4739,7 +4785,7 @@ const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, c
             if (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)
                 componentEvents.fireComponentEvent('onCanvasError', utils_1.getSafeError(error, 'onConnect'));
         }
-    }, [store, rawEdgesDict, getValidIntersection, connectionTypes, componentEvents]);
+    }, [store, rawEdgesDict, rawNodesDict, getValidIntersection, connectionTypes, nodeTypeConnectionDefaults, componentEvents]);
     const onEdgeUpdate = React.useCallback((oldEdge, newConnection) => {
         var _a, _b, _c, _d;
         try {
@@ -4903,6 +4949,73 @@ const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, c
                 componentEvents.fireComponentEvent('onCanvasError', utils_1.getSafeError(error, 'handleLabelChange'));
         }
     }, [store, rawEdgesDict, componentEvents]);
+    const writeDefaultForPair = React.useCallback((connType) => {
+        var _a, _b;
+        if (!contextMenu || contextMenu.type !== 'edge')
+            return;
+        const edge = rawEdgesDict[contextMenu.id];
+        if (!edge)
+            return;
+        const sourceTypeId = (_a = rawNodesDict[edge.source]) === null || _a === void 0 ? void 0 : _a.typeId;
+        const targetTypeId = (_b = rawNodesDict[edge.target]) === null || _b === void 0 ? void 0 : _b.typeId;
+        if (!sourceTypeId || !targetTypeId)
+            return;
+        const pairKey = getPairKey(sourceTypeId, targetTypeId);
+        if (store === null || store === void 0 ? void 0 : store.props) {
+            store.props.write('nodeTypeConnectionDefaults', Object.assign(Object.assign({}, nodeTypeConnectionDefaults), { [pairKey]: connType }));
+        }
+    }, [contextMenu, rawEdgesDict, rawNodesDict, nodeTypeConnectionDefaults, store]);
+    const handleSetConnectionDefault = React.useCallback(() => {
+        try {
+            const edge = rawEdgesDict[contextMenu === null || contextMenu === void 0 ? void 0 : contextMenu.id];
+            if (!edge)
+                return;
+            writeDefaultForPair(edge.connectionType);
+            closeContextMenu();
+        }
+        catch (error) {
+            console.error("Error in handleSetConnectionDefault:", error);
+            if (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)
+                componentEvents.fireComponentEvent('onCanvasError', utils_1.getSafeError(error, 'handleSetConnectionDefault'));
+        }
+    }, [contextMenu, rawEdgesDict, writeDefaultForPair, closeContextMenu, componentEvents]);
+    const handleSetDefaultForType = React.useCallback((connType) => {
+        try {
+            writeDefaultForPair(connType);
+            closeContextMenu();
+        }
+        catch (error) {
+            console.error("Error in handleSetDefaultForType:", error);
+            if (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)
+                componentEvents.fireComponentEvent('onCanvasError', utils_1.getSafeError(error, 'handleSetDefaultForType'));
+        }
+    }, [writeDefaultForPair, closeContextMenu, componentEvents]);
+    const handleClearConnectionDefault = React.useCallback(() => {
+        var _a, _b;
+        try {
+            if (!contextMenu || contextMenu.type !== 'edge')
+                return;
+            const edge = rawEdgesDict[contextMenu.id];
+            if (!edge)
+                return;
+            const sourceTypeId = (_a = rawNodesDict[edge.source]) === null || _a === void 0 ? void 0 : _a.typeId;
+            const targetTypeId = (_b = rawNodesDict[edge.target]) === null || _b === void 0 ? void 0 : _b.typeId;
+            if (!sourceTypeId || !targetTypeId)
+                return;
+            const pairKey = getPairKey(sourceTypeId, targetTypeId);
+            if (store === null || store === void 0 ? void 0 : store.props) {
+                const next = Object.assign({}, nodeTypeConnectionDefaults);
+                delete next[pairKey];
+                store.props.write('nodeTypeConnectionDefaults', next);
+            }
+            closeContextMenu();
+        }
+        catch (error) {
+            console.error("Error in handleClearConnectionDefault:", error);
+            if (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)
+                componentEvents.fireComponentEvent('onCanvasError', utils_1.getSafeError(error, 'handleClearConnectionDefault'));
+        }
+    }, [contextMenu, rawEdgesDict, rawNodesDict, nodeTypeConnectionDefaults, store, closeContextMenu, componentEvents]);
     return {
         isUpdatingEdge,
         updatingEdgeRef,
@@ -4922,6 +5035,9 @@ const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, c
         handleConnectionTypeChange,
         handleAnimationChange,
         handleLabelChange,
+        handleSetConnectionDefault,
+        handleSetDefaultForType,
+        handleClearConnectionDefault,
     };
 };
 exports.useEdgeHandlers = useEdgeHandlers;
@@ -5199,6 +5315,7 @@ class ArchitectureBuilderMeta {
             edges: tree.read('edges'),
             paletteItems: tree.read('paletteItems'),
             connectionTypes: tree.read('connectionTypes'),
+            nodeTypeConnectionDefaults: tree.read('nodeTypeConnectionDefaults'),
             enabled: tree.read('enabled', true),
             enableOnClickEvents: tree.read('enableOnClickEvents', true),
             snapEnabled: tree.read('snapEnabled', true),

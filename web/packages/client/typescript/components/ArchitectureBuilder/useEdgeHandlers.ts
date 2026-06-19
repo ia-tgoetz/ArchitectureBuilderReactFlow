@@ -10,6 +10,7 @@ export interface UseEdgeHandlersParams {
     rawNodesDict: any;
     rawEdgesDict: any;
     connectionTypes: any;
+    nodeTypeConnectionDefaults: any;
     selectedId: string | null;
     setSelectedId: React.Dispatch<React.SetStateAction<string | null>>;
     contextMenu: ContextMenuState | null;
@@ -26,6 +27,7 @@ export const useEdgeHandlers = ({
     rawNodesDict,
     rawEdgesDict,
     connectionTypes,
+    nodeTypeConnectionDefaults,
     selectedId,
     setSelectedId,
     contextMenu,
@@ -67,6 +69,9 @@ export const useEdgeHandlers = ({
 
     // ─── Edge handlers ───────────────────────────────────────────────────────
 
+    const getPairKey = (typeIdA: string, typeIdB: string): string =>
+        [typeIdA, typeIdB].sort().join('__');
+
     const handleWaypointsChange = React.useCallback((edgeId: string, waypoints: { x: number; y: number }[]) => {
         try {
             if (!store?.props) return;
@@ -86,7 +91,13 @@ export const useEdgeHandlers = ({
         try {
             const validTypes = getValidIntersection(connectionParams.source, connectionParams.target);
             if (validTypes.length === 0) return;
-            const selectedType = validTypes[0];
+
+            const sourceTypeId = rawNodesDict[connectionParams.source]?.typeId;
+            const targetTypeId = rawNodesDict[connectionParams.target]?.typeId;
+            const pairKey = sourceTypeId && targetTypeId ? getPairKey(sourceTypeId, targetTypeId) : null;
+            const preferredType = pairKey ? nodeTypeConnectionDefaults?.[pairKey] : null;
+            const selectedType = (preferredType && validTypes.includes(preferredType)) ? preferredType : validTypes[0];
+
             const typeDef = connectionTypes[selectedType] || {};
             if (store?.props) {
                 store.props.write('edges', {
@@ -98,7 +109,7 @@ export const useEdgeHandlers = ({
             console.error("Error in onConnect:", error);
             if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'onConnect'));
         }
-    }, [store, rawEdgesDict, getValidIntersection, connectionTypes, componentEvents]);
+    }, [store, rawEdgesDict, rawNodesDict, getValidIntersection, connectionTypes, nodeTypeConnectionDefaults, componentEvents]);
 
     const onEdgeUpdate = React.useCallback((oldEdge: Edge, newConnection: Connection) => {
         try {
@@ -249,6 +260,65 @@ export const useEdgeHandlers = ({
         }
     }, [store, rawEdgesDict, componentEvents]);
 
+    const writeDefaultForPair = React.useCallback((connType: string) => {
+        if (!contextMenu || contextMenu.type !== 'edge') return;
+        const edge = rawEdgesDict[contextMenu.id];
+        if (!edge) return;
+        const sourceTypeId = rawNodesDict[edge.source]?.typeId;
+        const targetTypeId = rawNodesDict[edge.target]?.typeId;
+        if (!sourceTypeId || !targetTypeId) return;
+        const pairKey = getPairKey(sourceTypeId, targetTypeId);
+        if (store?.props) {
+            store.props.write('nodeTypeConnectionDefaults', {
+                ...nodeTypeConnectionDefaults,
+                [pairKey]: connType,
+            });
+        }
+    }, [contextMenu, rawEdgesDict, rawNodesDict, nodeTypeConnectionDefaults, store]);
+
+    const handleSetConnectionDefault = React.useCallback(() => {
+        try {
+            const edge = rawEdgesDict[contextMenu?.id];
+            if (!edge) return;
+            writeDefaultForPair(edge.connectionType);
+            closeContextMenu();
+        } catch (error: any) {
+            console.error("Error in handleSetConnectionDefault:", error);
+            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'handleSetConnectionDefault'));
+        }
+    }, [contextMenu, rawEdgesDict, writeDefaultForPair, closeContextMenu, componentEvents]);
+
+    const handleSetDefaultForType = React.useCallback((connType: string) => {
+        try {
+            writeDefaultForPair(connType);
+            closeContextMenu();
+        } catch (error: any) {
+            console.error("Error in handleSetDefaultForType:", error);
+            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'handleSetDefaultForType'));
+        }
+    }, [writeDefaultForPair, closeContextMenu, componentEvents]);
+
+    const handleClearConnectionDefault = React.useCallback(() => {
+        try {
+            if (!contextMenu || contextMenu.type !== 'edge') return;
+            const edge = rawEdgesDict[contextMenu.id];
+            if (!edge) return;
+            const sourceTypeId = rawNodesDict[edge.source]?.typeId;
+            const targetTypeId = rawNodesDict[edge.target]?.typeId;
+            if (!sourceTypeId || !targetTypeId) return;
+            const pairKey = getPairKey(sourceTypeId, targetTypeId);
+            if (store?.props) {
+                const next = { ...nodeTypeConnectionDefaults };
+                delete next[pairKey];
+                store.props.write('nodeTypeConnectionDefaults', next);
+            }
+            closeContextMenu();
+        } catch (error: any) {
+            console.error("Error in handleClearConnectionDefault:", error);
+            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'handleClearConnectionDefault'));
+        }
+    }, [contextMenu, rawEdgesDict, rawNodesDict, nodeTypeConnectionDefaults, store, closeContextMenu, componentEvents]);
+
     return {
         isUpdatingEdge,
         updatingEdgeRef,
@@ -268,5 +338,8 @@ export const useEdgeHandlers = ({
         handleConnectionTypeChange,
         handleAnimationChange,
         handleLabelChange,
+        handleSetConnectionDefault,
+        handleSetDefaultForType,
+        handleClearConnectionDefault,
     };
 };

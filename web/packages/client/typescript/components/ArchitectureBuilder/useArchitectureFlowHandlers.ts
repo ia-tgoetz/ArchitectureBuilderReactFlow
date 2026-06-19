@@ -40,6 +40,7 @@ export interface UseArchitectureFlowHandlersParams {
     rawNodesDict: any;
     rawEdgesDict: any;
     connectionTypes: any;
+    nodeTypeConnectionDefaults: any;
     globalHandleCount: number;
     paletteItems: any[];
     snapEnabled: boolean;
@@ -65,6 +66,7 @@ export const useArchitectureFlowHandlers = ({
     rawNodesDict,
     rawEdgesDict,
     connectionTypes,
+    nodeTypeConnectionDefaults,
     globalHandleCount,
     paletteItems,
     snapEnabled,
@@ -106,6 +108,7 @@ export const useArchitectureFlowHandlers = ({
         rawNodesDict,
         rawEdgesDict,
         connectionTypes,
+        nodeTypeConnectionDefaults,
         selectedId,
         setSelectedId,
         contextMenu,
