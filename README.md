@@ -5,6 +5,8 @@ The **Architecture Builder** is a specialized, interactive visualization module 
 ## 📥 Download
 [Download the latest ArchitectureBuilder.modl](https://github.com/ia-tgoetz/ArchitectureBuilderReactFlow/releases/latest/download/ArchitectureBuilder.modl)
 
+**Latest release (v1.0.2):** Performance fixes to enable better scaling on large diagrams.
+
 ---
 
 ## Component Overview
