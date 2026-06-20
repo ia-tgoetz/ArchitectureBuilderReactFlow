@@ -26,6 +26,51 @@ export interface ArchitectureNodeData {
 
 const TEXT_PALETTE_IDS = new Set(['Note', 'Label']);
 
+// ─── Memoization helpers ──────────────────────────────────────────────────────
+
+const shallowEqualObjects = (a: any, b: any): boolean => {
+    if (a === b) return true;
+    if (!a || !b) return a === b;
+    const aKeys = Object.keys(a);
+    if (aKeys.length !== Object.keys(b).length) return false;
+    for (const k of aKeys) { if (a[k] !== b[k]) return false; }
+    return true;
+};
+
+const areSetsEqual = (a: Set<string> | undefined, b: Set<string> | undefined): boolean => {
+    if (a === b) return true;
+    if (!a || !b || a.size !== b.size) return false;
+    for (const item of a) { if (!b.has(item)) return false; }
+    return true;
+};
+
+const areArchitectureNodePropsEqual = (
+    prev: NodeProps<ArchitectureNodeData>,
+    next: NodeProps<ArchitectureNodeData>
+): boolean => {
+    if (prev.id !== next.id || prev.selected !== next.selected) return false;
+    const pd = prev.data, nd = next.data;
+    if (pd.label !== nd.label) return false;
+    if (pd.image !== nd.image) return false;
+    if (pd.text !== nd.text) return false;
+    if (pd.tooltip !== nd.tooltip) return false;
+    if (pd.paletteId !== nd.paletteId) return false;
+    if (pd.inactive !== nd.inactive) return false;
+    if (pd.hideHandles !== nd.hideHandles) return false;
+    if (pd.globalHideHandles !== nd.globalHideHandles) return false;
+    if (pd.isEditable !== nd.isEditable) return false;
+    if (pd.handleCount !== nd.handleCount) return false;
+    if (!shallowEqualObjects(pd.style, nd.style)) return false;
+    if (!shallowEqualObjects(pd.labelStyle, nd.labelStyle)) return false;
+    if (!shallowEqualObjects(pd.textStyle, nd.textStyle)) return false;
+    if (!shallowEqualObjects(pd.configs, nd.configs)) return false;
+    if (!areSetsEqual(pd.highlightedHandles, nd.highlightedHandles)) return false;
+    if (pd.onGearClick !== nd.onGearClick) return false;
+    if (pd.onTextChange !== nd.onTextChange) return false;
+    if (pd.onResizeEnd !== nd.onResizeEnd) return false;
+    return true;
+};
+
 const NodeImage = React.memo(({ src, label }: { src: string, label: string }) => {
     const scopeId = React.useMemo(() => nextSvgScopeId(), []);
     const svgHtml = React.useMemo(() => extractSvgMarkup(src, scopeId), [src, scopeId]);
@@ -160,10 +205,10 @@ export const ArchitectureNode = React.memo(({ id, data, selected }: NodeProps<Ar
             {data.image && (
                 <div
                     className="arch-node-svg-wrapper"
-                    style={{ 
-                        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                    style={{
+                        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
                         width: '100%', minHeight: 0, zIndex: 1, backgroundColor: imageBg || undefined,
-                        filter: data.inactive ? 'grayscale(100%) blur(2px)' : undefined 
+                        filter: data.inactive ? 'grayscale(100%) blur(2px)' : undefined
                     }}
                 >
                     <NodeImage src={data.image} label={data.label} />
@@ -171,4 +216,4 @@ export const ArchitectureNode = React.memo(({ id, data, selected }: NodeProps<Ar
             )}
         </div>
     );
-});
+}, areArchitectureNodePropsEqual);

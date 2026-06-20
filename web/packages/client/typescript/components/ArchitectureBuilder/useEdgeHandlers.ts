@@ -18,6 +18,7 @@ export interface UseEdgeHandlersParams {
     setActiveSubMenu: React.Dispatch<React.SetStateAction<any>>;
     setLocalEdges: React.Dispatch<React.SetStateAction<any[]>>;
     reactFlowWrapper: React.RefObject<HTMLDivElement>;
+    wrapperBoundsRef: React.MutableRefObject<{ top: number; left: number }>;
     closeContextMenu: () => void;
 }
 
@@ -38,6 +39,7 @@ export const useEdgeHandlers = ({
     setActiveSubMenu,
     setLocalEdges,
     reactFlowWrapper,
+    wrapperBoundsRef,
     closeContextMenu,
 }: UseEdgeHandlersParams) => {
     const [isUpdatingEdge, setIsUpdatingEdge] = React.useState(false);
@@ -180,12 +182,10 @@ export const useEdgeHandlers = ({
     const onEdgeContextMenu = React.useCallback((event: any, edge: any) => {
         event.preventDefault();
         setSelectedId(edge.id);
-        const bounds = reactFlowWrapper.current?.getBoundingClientRect();
-        if (bounds) {
-            setContextMenu({ id: edge.id, top: event.clientY - bounds.top, left: event.clientX - bounds.left, type: 'edge' });
-            setActiveSubMenu(null);
-        }
-    }, [reactFlowWrapper, setSelectedId, setContextMenu, setActiveSubMenu]);
+        const bounds = wrapperBoundsRef.current;
+        setContextMenu({ id: edge.id, top: event.clientY - bounds.top, left: event.clientX - bounds.left, type: 'edge' });
+        setActiveSubMenu(null);
+    }, [wrapperBoundsRef, setSelectedId, setContextMenu, setActiveSubMenu]);
 
     const onEdgeClick = React.useCallback((event: any, edge: any) => {
         closeContextMenu();

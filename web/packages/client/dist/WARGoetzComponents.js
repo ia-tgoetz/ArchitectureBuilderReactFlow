@@ -1588,6 +1588,24 @@ const useLongPress_1 = __webpack_require__(/*! ./useLongPress */ "./typescript/c
 const CanvasSearch_1 = __webpack_require__(/*! ./CanvasSearch */ "./typescript/components/ArchitectureBuilder/CanvasSearch.tsx");
 // ─── Node types registration ──────────────────────────────────────────────────
 const nodeTypes = { architecture: ArchitectureNode_1.ArchitectureNode, container: ContainerNode_1.ContainerNode, Note: NoteLabelNode_1.NoteLabelNode, Label: NoteLabelNode_1.NoteLabelNode };
+const ArchitectureFlowInner = ({ selectedId }) => {
+    const { setNodes } = reactflow_1.useReactFlow();
+    const prevSelectedIdRef = React.useRef(null);
+    React.useEffect(() => {
+        const prev = prevSelectedIdRef.current;
+        prevSelectedIdRef.current = selectedId;
+        if (prev === selectedId)
+            return;
+        setNodes(nds => nds.map(n => {
+            const shouldBeSelected = n.id === selectedId;
+            const wasSelected = n.id === prev;
+            if (!shouldBeSelected && !wasSelected)
+                return n;
+            return Object.assign(Object.assign({}, n), { selected: shouldBeSelected });
+        }));
+    }, [selectedId, setNodes]);
+    return null;
+};
 const EMPTY_HANDLE_SET = new Set();
 // ─── Utility functions (used only by ArchitectureBuilder) ─────────────────────
 const extractDeep = (obj) => {
@@ -1602,7 +1620,7 @@ const extractDeep = (obj) => {
         plain[key] = extractDeep(obj[key]);
     return plain;
 };
-const mapIgnitionToReactFlowNodes = (ignitionNodes, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, selectedId, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEditable) => {
+const mapIgnitionToReactFlowNodes = (ignitionNodes, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEditable) => {
     if (!ignitionNodes)
         return [];
     return Object.entries(ignitionNodes)
@@ -1620,7 +1638,7 @@ const mapIgnitionToReactFlowNodes = (ignitionNodes, paletteMap, handleGearClick,
             type = nodeData.paletteId;
         const isUnlocked = ((_a = nodeData.configs) === null || _a === void 0 ? void 0 : _a.unlocked) === true;
         return {
-            id, type, selected: id === selectedId,
+            id, type, selected: false,
             position: { x: nodeData.x || 0, y: nodeData.y || 0 },
             zIndex: isContainer ? ((_b = nodeData.zIndex) !== null && _b !== void 0 ? _b : -100) : 1000,
             style: {
@@ -1708,6 +1726,7 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
     var _a, _b, _c, _d;
     console.log('DEBUG: ArchitectureBuilder rendering, props:', props);
     const reactFlowWrapper = React.useRef(null);
+    const wrapperBoundsRef = React.useRef({ top: 0, left: 0 });
     const clipboardRef = React.useRef(null);
     const draggedItemRef = React.useRef(null);
     const hierarchyWriteRef = React.useRef('');
@@ -1742,6 +1761,21 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
             window.removeEventListener('error', suppressResizeObserverError, true);
             window.onerror = oldOnError;
         };
+    }, []);
+    // Cache wrapper bounds so context-menu event handlers don't need to call getBoundingClientRect()
+    // on every right-click, avoiding forced reflows during React commit phases at high node counts.
+    React.useEffect(() => {
+        const el = reactFlowWrapper.current;
+        if (!el)
+            return;
+        const update = () => {
+            const r = el.getBoundingClientRect();
+            wrapperBoundsRef.current = { top: r.top, left: r.left };
+        };
+        update();
+        const ro = new ResizeObserver(update);
+        ro.observe(el);
+        return () => ro.disconnect();
     }, []);
     // Set document title and html[lang] for accessibility (WCAG 2.4.2, 3.1.1).
     // Both are restored on unmount so other Ignition views are not affected.
@@ -1836,6 +1870,7 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
         snapPixels,
         reactFlowInstance,
         reactFlowWrapper,
+        wrapperBoundsRef,
         isEnabled,
         selectedId,
         setSelectedId,
@@ -1849,26 +1884,37 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
         draggedItemRef,
     });
     // ─── Derived flow data ─────────────────────────────────────────────────
+    // Stable fingerprint of connection topology only — excludes waypoints, animation, labels.
+    // Recomputes only when a connection endpoint changes, not on every waypoint drag.
+    const edgeTopologyJson = React.useMemo(() => JSON.stringify(Object.entries(rawEdgesDict)
+        .filter(([, e]) => e)
+        .map(([id, e]) => ({
+        id,
+        source: e.source,
+        target: e.target,
+        sourceHandle: e.sourceHandle,
+        targetHandle: e.targetHandle
+    }))
+        .sort((a, b) => a.id.localeCompare(b.id))), [rawEdgesDict]);
     const highlightedHandlesMap = React.useMemo(() => {
+        const parsed = JSON.parse(edgeTopologyJson);
         const map = {};
-        Object.values(rawEdgesDict).forEach((edge) => {
-            if (!edge)
-                return;
-            if (edge.source && edge.sourceHandle) {
-                if (!map[edge.source])
-                    map[edge.source] = new Set();
-                map[edge.source].add(edge.sourceHandle);
+        parsed.forEach(e => {
+            if (e.source && e.sourceHandle) {
+                if (!map[e.source])
+                    map[e.source] = new Set();
+                map[e.source].add(e.sourceHandle);
             }
-            if (edge.target && edge.targetHandle) {
-                if (!map[edge.target])
-                    map[edge.target] = new Set();
-                map[edge.target].add(edge.targetHandle);
+            if (e.target && e.targetHandle) {
+                if (!map[e.target])
+                    map[e.target] = new Set();
+                map[e.target].add(e.targetHandle);
             }
         });
         return map;
-    }, [rawEdgesDict]);
+    }, [edgeTopologyJson]);
     const paletteMap = React.useMemo(() => new Map(paletteItems.map((p) => [p.id, p])), [paletteItems]);
-    const flowNodes = React.useMemo(() => mapIgnitionToReactFlowNodes(rawNodesDict, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, selectedId, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled), [rawNodesDict, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, selectedId, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled]);
+    const flowNodes = React.useMemo(() => mapIgnitionToReactFlowNodes(rawNodesDict, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled), [rawNodesDict, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled]);
     const flowEdges = React.useMemo(() => EdgeUtils_1.mapIgnitionToReactFlowEdges(rawEdgesDict, rawNodesDict, connectionTypes, selectedId, handleWaypointsChange, handleLabelChange, snapEnabled, snapPixels, globalEdgeWidth), [rawEdgesDict, rawNodesDict, connectionTypes, selectedId, handleWaypointsChange, handleLabelChange, snapEnabled, snapPixels, globalEdgeWidth]);
     React.useEffect(() => {
         if (!isDraggingNode) {
@@ -1967,12 +2013,10 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
     }, [reactFlowInstance]);
     // ─── Long-press context menu (mobile/touch support) ─────────────────────
     const handleLongPress = React.useCallback((clientX, clientY, target) => {
-        var _a, _b;
+        var _a;
         if (!isEnabled)
             return;
-        const bounds = (_a = reactFlowWrapper.current) === null || _a === void 0 ? void 0 : _a.getBoundingClientRect();
-        if (!bounds)
-            return;
+        const bounds = wrapperBoundsRef.current;
         const top = clientY - bounds.top;
         const left = clientX - bounds.left;
         // Try to detect node
@@ -1990,7 +2034,7 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
         // Try to detect edge
         const edgeEl = target.closest('.react-flow__edge');
         if (edgeEl) {
-            const id = (_b = edgeEl.getAttribute('data-testid')) === null || _b === void 0 ? void 0 : _b.replace('rf__edge-', '');
+            const id = (_a = edgeEl.getAttribute('data-testid')) === null || _a === void 0 ? void 0 : _a.replace('rf__edge-', '');
             if (id && rawEdgesDictRef.current[id]) {
                 setContextMenu({ id, top, left, type: 'edge', clientX, clientY });
                 setActiveSubMenu(null);
@@ -2116,6 +2160,7 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
                 isEnabled && React.createElement(Sidebar_1.Sidebar, { paletteItems: paletteItems, isOpen: isSidebarOpen, toggleSidebar: () => setIsSidebarOpen(!isSidebarOpen), onDragStartItem: (item) => { draggedItemRef.current = item; }, onItemClick: handlePaletteItemClick }),
                 React.createElement("div", Object.assign({ role: "main", "aria-label": "Architecture Builder Canvas", style: { flexGrow: 1, height: '100%', position: 'relative', overflow: 'hidden' }, ref: reactFlowWrapper, className: isUpdatingEdge ? 'arch-moving-edge' : '' }, longPressHandlers),
                     React.createElement(reactflow_1.ReactFlowProvider, null,
+                        React.createElement(ArchitectureFlowInner, { selectedId: selectedId }),
                         React.createElement(reactflow_1.default, { nodes: localNodes, edges: displayEdges, nodeTypes: nodeTypes, edgeTypes: CustomEdge_1.edgeTypes, isValidConnection: isValidConnection, onInit: setReactFlowInstance, onDrop: isEnabled ? onDrop : undefined, onDragOver: isEnabled ? onDragOver : undefined, onConnect: isEnabled ? onConnect : undefined, onEdgeUpdate: isEnabled ? onEdgeUpdate : undefined, onEdgeUpdateStart: isEnabled ? onEdgeUpdateStart : undefined, onEdgeUpdateEnd: isEnabled ? onEdgeUpdateEnd : undefined, onConnectStart: isEnabled ? onConnectStart : undefined, onConnectEnd: isEnabled ? onConnectEnd : undefined, onNodeDragStart: isEnabled ? onNodeDragStart : undefined, onNodeDrag: isEnabled ? onNodeDrag : undefined, onNodeDragStop: isEnabled ? onNodeDragStop : undefined, onNodesChange: onNodesChange, onNodeClick: onNodeClick, onEdgeClick: onEdgeClick, onNodesDelete: isEnabled ? onNodesDelete : undefined, onEdgesDelete: isEnabled ? onEdgesDelete : undefined, onNodeContextMenu: isEnabled ? onNodeContextMenu : undefined, onEdgeContextMenu: isEnabled ? onEdgeContextMenu : undefined, onEdgeMouseEnter: (_evt, edge) => setHoveredEdgeId(edge.id), onEdgeMouseLeave: () => setHoveredEdgeId(null), onPaneClick: onPaneClick, onPaneContextMenu: isEnabled ? onPaneContextMenu : undefined, onMoveStart: onMoveStart, nodesDraggable: isEnabled, nodesConnectable: isEnabled, elementsSelectable: isEnabled, connectionMode: reactflow_1.ConnectionMode.Loose, snapToGrid: snapEnabled, snapGrid: snapGrid, connectionLineStyle: { stroke: '#cccccc', strokeWidth: 6, fill: 'none' }, elevateNodesOnSelect: false, minZoom: 0.05, panOnScroll: false, zoomOnScroll: true, panOnDrag: true, selectionOnDrag: false, deleteKeyCode: ['Delete', 'Backspace'] },
                             React.createElement(reactflow_1.Background, { gap: snapPixels }),
                             React.createElement(reactflow_1.Controls, { showInteractive: false }))),
@@ -2166,6 +2211,74 @@ const react_1 = __importDefault(__webpack_require__(/*! react */ "react"));
 const reactflow_1 = __webpack_require__(/*! reactflow */ "./node_modules/reactflow/dist/umd/index.js");
 const svgSanitize_1 = __webpack_require__(/*! ./svgSanitize */ "./typescript/components/ArchitectureBuilder/svgSanitize.ts");
 const TEXT_PALETTE_IDS = new Set(['Note', 'Label']);
+// ─── Memoization helpers ──────────────────────────────────────────────────────
+const shallowEqualObjects = (a, b) => {
+    if (a === b)
+        return true;
+    if (!a || !b)
+        return a === b;
+    const aKeys = Object.keys(a);
+    if (aKeys.length !== Object.keys(b).length)
+        return false;
+    for (const k of aKeys) {
+        if (a[k] !== b[k])
+            return false;
+    }
+    return true;
+};
+const areSetsEqual = (a, b) => {
+    if (a === b)
+        return true;
+    if (!a || !b || a.size !== b.size)
+        return false;
+    for (const item of a) {
+        if (!b.has(item))
+            return false;
+    }
+    return true;
+};
+const areArchitectureNodePropsEqual = (prev, next) => {
+    if (prev.id !== next.id || prev.selected !== next.selected)
+        return false;
+    const pd = prev.data, nd = next.data;
+    if (pd.label !== nd.label)
+        return false;
+    if (pd.image !== nd.image)
+        return false;
+    if (pd.text !== nd.text)
+        return false;
+    if (pd.tooltip !== nd.tooltip)
+        return false;
+    if (pd.paletteId !== nd.paletteId)
+        return false;
+    if (pd.inactive !== nd.inactive)
+        return false;
+    if (pd.hideHandles !== nd.hideHandles)
+        return false;
+    if (pd.globalHideHandles !== nd.globalHideHandles)
+        return false;
+    if (pd.isEditable !== nd.isEditable)
+        return false;
+    if (pd.handleCount !== nd.handleCount)
+        return false;
+    if (!shallowEqualObjects(pd.style, nd.style))
+        return false;
+    if (!shallowEqualObjects(pd.labelStyle, nd.labelStyle))
+        return false;
+    if (!shallowEqualObjects(pd.textStyle, nd.textStyle))
+        return false;
+    if (!shallowEqualObjects(pd.configs, nd.configs))
+        return false;
+    if (!areSetsEqual(pd.highlightedHandles, nd.highlightedHandles))
+        return false;
+    if (pd.onGearClick !== nd.onGearClick)
+        return false;
+    if (pd.onTextChange !== nd.onTextChange)
+        return false;
+    if (pd.onResizeEnd !== nd.onResizeEnd)
+        return false;
+    return true;
+};
 const NodeImage = react_1.default.memo(({ src, label }) => {
     const scopeId = react_1.default.useMemo(() => svgSanitize_1.nextSvgScopeId(), []);
     const svgHtml = react_1.default.useMemo(() => svgSanitize_1.extractSvgMarkup(src, scopeId), [src, scopeId]);
@@ -2239,7 +2352,7 @@ exports.ArchitectureNode = react_1.default.memo(({ id, data, selected }) => {
                 filter: data.inactive ? 'grayscale(100%) blur(2px)' : undefined
             } },
             react_1.default.createElement(NodeImage, { src: data.image, label: data.label })))));
-});
+}, areArchitectureNodePropsEqual);
 
 
 /***/ }),
@@ -2472,6 +2585,42 @@ exports.ContainerNode = void 0;
 const react_1 = __importDefault(__webpack_require__(/*! react */ "react"));
 // @ts-ignore
 const reactflow_1 = __webpack_require__(/*! reactflow */ "./node_modules/reactflow/dist/umd/index.js");
+const shallowEqualObjects = (a, b) => {
+    if (a === b)
+        return true;
+    if (!a || !b)
+        return a === b;
+    const aKeys = Object.keys(a);
+    if (aKeys.length !== Object.keys(b).length)
+        return false;
+    for (const k of aKeys) {
+        if (a[k] !== b[k])
+            return false;
+    }
+    return true;
+};
+const areContainerNodePropsEqual = (prev, next) => {
+    if (prev.id !== next.id || prev.selected !== next.selected)
+        return false;
+    const pd = prev.data, nd = next.data;
+    if (pd.label !== nd.label)
+        return false;
+    if (pd.isEditable !== nd.isEditable)
+        return false;
+    if (pd.unlockMovement !== nd.unlockMovement)
+        return false;
+    if (pd.enableResize !== nd.enableResize)
+        return false;
+    if (!shallowEqualObjects(pd.style, nd.style))
+        return false;
+    if (!shallowEqualObjects(pd.labelStyle, nd.labelStyle))
+        return false;
+    if (pd.onGearClick !== nd.onGearClick)
+        return false;
+    if (pd.onResizeEnd !== nd.onResizeEnd)
+        return false;
+    return true;
+};
 exports.ContainerNode = react_1.default.memo(({ id, data, selected }) => {
     var _a, _b, _c, _d, _e;
     const { zoom } = reactflow_1.useViewport();
@@ -2521,7 +2670,7 @@ exports.ContainerNode = react_1.default.memo(({ id, data, selected }) => {
                     react_1.default.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", height: "16px", viewBox: "0 -960 960 960", width: "16px", fill: finalGearColor, "aria-label": "Settings" },
                         react_1.default.createElement("path", { d: "m370-80-16-128q-13-5-24.5-12T307-235l-119 50L78-375l103-78q-1-7-1-13.5v-27q0-6.5 1-13.5L78-585l110-190 119 50q11-8 23-15t24-12l16-128h220l16 128q13 5 24.5 12t22.5 15l119-50 110 190-103 78q1 7 1 13.5v27q0 6.5-2 13.5l103 78-110 190-118-50q-11 8-23 15t-24 12L590-80H370Zm70-80h79l14-106q31-8 57.5-23.5T639-327l99 41 39-68-86-65q5-14 7-29.5t2-31.5q0-16-2-31.5t-7-29.5l86-65-39-68-99 42q-22-23-48.5-38.5T533-694l-13-106h-79l-14 106q-31 8-57.5 23.5T321-633l-99-41-39 68 86 64q-5 15-7 30t-2 32q0 16 2 31t7 30l-86 65 39 68 99-42q22 23 48.5 38.5T427-266l13 106Zm42-180q58 0 99-41t41-99q0-58-41-99t-99-41q-59 0-99.5 41T342-480q0 58 40.5 99t99.5 41Zm-2-140Z" }))),
                 react_1.default.createElement("span", { style: { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 } }, data.label)))));
-});
+}, areContainerNodePropsEqual);
 
 
 /***/ }),
@@ -2579,6 +2728,7 @@ exports.ContextMenu = React.memo(({ contextMenu, activeSubMenu, setActiveSubMenu
     const flyoutRefs = React.useRef({});
     const [adjustment, setAdjustment] = React.useState({ dx: 0, dy: 0 });
     const [flyoutOffsets, setFlyoutOffsets] = React.useState({});
+    const [flipState, setFlipState] = React.useState({ left: false, up: false });
     const isTouchDevice = React.useRef(typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0));
     // Measure menu dimensions and clamp to viewport bounds (wrapper-local coordinates)
     React.useLayoutEffect(() => {
@@ -2600,6 +2750,10 @@ exports.ContextMenu = React.memo(({ contextMenu, activeSubMenu, setActiveSubMenu
         if (contextMenu.top + dy < 8)
             dy = 8 - contextMenu.top;
         setAdjustment({ dx, dy });
+        // Compute flyout flip flags here so they don't force a reflow during render
+        const flipsLeft = contextMenu.left + dx + 310 > wrapW;
+        const flipsUp = contextMenu.top + dy + menuH > wrapH - 8;
+        setFlipState({ left: flipsLeft, up: flipsUp });
     }, [contextMenu.top, contextMenu.left]);
     // Measure flyouts and position them to fit within bounds (shift upward if needed)
     React.useLayoutEffect(() => {
@@ -2673,12 +2827,8 @@ exports.ContextMenu = React.memo(({ contextMenu, activeSubMenu, setActiveSubMenu
             return [];
         return paletteItems.filter((p) => currentPaletteItem.swappableWith.includes(p.id));
     }, [contextMenu, rawNodesDict, paletteItems]);
-    const flyoutFlipsLeft = wrapperRef.current
-        ? (contextMenu.left + adjustment.dx + 310 > wrapperRef.current.clientWidth)
-        : false;
-    const flyoutFlipsUp = (wrapperRef.current && containerRef.current)
-        ? (contextMenu.top + adjustment.dy + containerRef.current.offsetHeight > wrapperRef.current.clientHeight - 8)
-        : false;
+    const flyoutFlipsLeft = flipState.left;
+    const flyoutFlipsUp = flipState.up;
     // Build flyout style with dynamic positioning
     const getFlyoutStyle = (submenuKey) => {
         var _a;
@@ -3969,7 +4119,7 @@ const getNodesInside = (containerId, allNodes) => {
     });
     return inside;
 };
-const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, connectionTypes, nodeTypeConnectionDefaults, globalHandleCount, paletteItems, snapEnabled, snapPixels, reactFlowInstance, reactFlowWrapper, isEnabled, selectedId, setSelectedId, setLocalNodes, setLocalEdges, contextMenu, setContextMenu, setActiveSubMenu, setStyleEditorNodeId, clipboardRef, draggedItemRef, }) => {
+const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, connectionTypes, nodeTypeConnectionDefaults, globalHandleCount, paletteItems, snapEnabled, snapPixels, reactFlowInstance, reactFlowWrapper, wrapperBoundsRef, isEnabled, selectedId, setSelectedId, setLocalNodes, setLocalEdges, contextMenu, setContextMenu, setActiveSubMenu, setStyleEditorNodeId, clipboardRef, draggedItemRef, }) => {
     const [isDraggingNode, setIsDraggingNode] = React.useState(false);
     const dragStartPos = React.useRef(null);
     // Stable refs so callbacks that only READ rawNodesDict/rawEdgesDict at call-time
@@ -3997,6 +4147,7 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
         setActiveSubMenu,
         setLocalEdges,
         reactFlowWrapper,
+        wrapperBoundsRef,
         closeContextMenu,
     });
     // ─── Node handlers ────────────────────────────────────────────────────────
@@ -4185,16 +4336,14 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
         }
     }, [store, rawNodesDict, rawEdgesDict, selectedId, setSelectedId, componentEvents]);
     const onNodeContextMenu = React.useCallback((event, node) => {
-        var _a, _b;
+        var _a;
         event.preventDefault();
         setSelectedId(node.id);
-        const bounds = (_a = reactFlowWrapper.current) === null || _a === void 0 ? void 0 : _a.getBoundingClientRect();
-        const isContainer = ((_b = rawNodesDict[node.id]) === null || _b === void 0 ? void 0 : _b.paletteId) === 'container';
-        if (bounds) {
-            setContextMenu({ id: node.id, top: event.clientY - bounds.top, left: event.clientX - bounds.left, type: 'node', isContainer, clientX: event.clientX, clientY: event.clientY });
-            setActiveSubMenu(null);
-        }
-    }, [rawNodesDict, reactFlowWrapper, setSelectedId, setContextMenu, setActiveSubMenu]);
+        const bounds = wrapperBoundsRef.current;
+        const isContainer = ((_a = rawNodesDict[node.id]) === null || _a === void 0 ? void 0 : _a.paletteId) === 'container';
+        setContextMenu({ id: node.id, top: event.clientY - bounds.top, left: event.clientX - bounds.left, type: 'node', isContainer, clientX: event.clientX, clientY: event.clientY });
+        setActiveSubMenu(null);
+    }, [rawNodesDict, wrapperBoundsRef, setSelectedId, setContextMenu, setActiveSubMenu]);
     const onNodeClick = React.useCallback((event, node) => {
         closeContextMenu();
         setSelectedId(node.id);
@@ -4334,10 +4483,9 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
         }
     }, [setSelectedId, closeContextMenu, componentEvents]);
     const onPaneContextMenu = React.useCallback((event) => {
-        var _a;
         event.preventDefault();
-        const bounds = (_a = reactFlowWrapper.current) === null || _a === void 0 ? void 0 : _a.getBoundingClientRect();
-        if (bounds && reactFlowInstance) {
+        const bounds = wrapperBoundsRef.current;
+        if (reactFlowInstance) {
             const flowPos = reactFlowInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
             const containerEntry = Object.entries(rawNodesDict)
                 .filter(([id, n]) => n && n.paletteId === 'container')
@@ -4355,7 +4503,7 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
             }
             setActiveSubMenu(null);
         }
-    }, [reactFlowWrapper, reactFlowInstance, rawNodesDict, setContextMenu, setActiveSubMenu]);
+    }, [wrapperBoundsRef, reactFlowInstance, rawNodesDict, setContextMenu, setActiveSubMenu]);
     // ─── Context menu actions ──────────────────────────────────────────────────
     const handleNodeSwap = React.useCallback((newId) => {
         var _a;
@@ -4718,7 +4866,7 @@ exports.useEdgeHandlers = void 0;
 const React = __importStar(__webpack_require__(/*! react */ "react"));
 const utils_1 = __webpack_require__(/*! ./utils */ "./typescript/components/ArchitectureBuilder/utils.ts");
 const getPairKey = (typeIdA, typeIdB) => [typeIdA, typeIdB].sort().join('__');
-const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, connectionTypes, nodeTypeConnectionDefaults, selectedId, setSelectedId, contextMenu, setContextMenu, setActiveSubMenu, setLocalEdges, reactFlowWrapper, closeContextMenu, }) => {
+const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, connectionTypes, nodeTypeConnectionDefaults, selectedId, setSelectedId, contextMenu, setContextMenu, setActiveSubMenu, setLocalEdges, reactFlowWrapper, wrapperBoundsRef, closeContextMenu, }) => {
     const [isUpdatingEdge, setIsUpdatingEdge] = React.useState(false);
     const updatingEdgeRef = React.useRef(null);
     // ─── Validation ──────────────────────────────────────────────────────────
@@ -4850,15 +4998,12 @@ const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, c
         }
     }, [store, rawEdgesDict, selectedId, setSelectedId, componentEvents]);
     const onEdgeContextMenu = React.useCallback((event, edge) => {
-        var _a;
         event.preventDefault();
         setSelectedId(edge.id);
-        const bounds = (_a = reactFlowWrapper.current) === null || _a === void 0 ? void 0 : _a.getBoundingClientRect();
-        if (bounds) {
-            setContextMenu({ id: edge.id, top: event.clientY - bounds.top, left: event.clientX - bounds.left, type: 'edge' });
-            setActiveSubMenu(null);
-        }
-    }, [reactFlowWrapper, setSelectedId, setContextMenu, setActiveSubMenu]);
+        const bounds = wrapperBoundsRef.current;
+        setContextMenu({ id: edge.id, top: event.clientY - bounds.top, left: event.clientX - bounds.left, type: 'edge' });
+        setActiveSubMenu(null);
+    }, [wrapperBoundsRef, setSelectedId, setContextMenu, setActiveSubMenu]);
     const onEdgeClick = React.useCallback((event, edge) => {
         closeContextMenu();
         setSelectedId(edge.id);

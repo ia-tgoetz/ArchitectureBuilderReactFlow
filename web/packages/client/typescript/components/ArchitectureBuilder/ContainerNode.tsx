@@ -13,6 +13,32 @@ export interface ContainerNodeData {
     onResizeEnd?: (id: string, x: number, y: number, width: number, height: number) => void;
 }
 
+const shallowEqualObjects = (a: any, b: any): boolean => {
+    if (a === b) return true;
+    if (!a || !b) return a === b;
+    const aKeys = Object.keys(a);
+    if (aKeys.length !== Object.keys(b).length) return false;
+    for (const k of aKeys) { if (a[k] !== b[k]) return false; }
+    return true;
+};
+
+const areContainerNodePropsEqual = (
+    prev: NodeProps<ContainerNodeData>,
+    next: NodeProps<ContainerNodeData>
+): boolean => {
+    if (prev.id !== next.id || prev.selected !== next.selected) return false;
+    const pd = prev.data, nd = next.data;
+    if (pd.label !== nd.label) return false;
+    if (pd.isEditable !== nd.isEditable) return false;
+    if (pd.unlockMovement !== nd.unlockMovement) return false;
+    if (pd.enableResize !== nd.enableResize) return false;
+    if (!shallowEqualObjects(pd.style, nd.style)) return false;
+    if (!shallowEqualObjects(pd.labelStyle, nd.labelStyle)) return false;
+    if (pd.onGearClick !== nd.onGearClick) return false;
+    if (pd.onResizeEnd !== nd.onResizeEnd) return false;
+    return true;
+};
+
 export const ContainerNode = React.memo(({ id, data, selected }: NodeProps<ContainerNodeData>) => {
     const { zoom } = useViewport();
     const finalLabelBg = data.labelStyle?.backgroundColor || 'var(--neutral-30)';
@@ -121,4 +147,4 @@ export const ContainerNode = React.memo(({ id, data, selected }: NodeProps<Conta
             </div>
         </>
     );
-});
+}, areContainerNodePropsEqual);

@@ -2,7 +2,7 @@ import * as React from 'react';
 import { ComponentProps } from '@inductiveautomation/perspective-client';
 import { observer } from 'mobx-react';
 // @ts-ignore
-import ReactFlow, { ReactFlowProvider, Background, Controls, ConnectionMode } from 'reactflow';
+import ReactFlow, { ReactFlowProvider, Background, Controls, ConnectionMode, useReactFlow } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { Sidebar, PaletteItem } from './Sidebar';
 import { ArchitectureNode } from './ArchitectureNode';
@@ -23,6 +23,32 @@ import { CanvasSearch } from './CanvasSearch';
 
 const nodeTypes = { architecture: ArchitectureNode, container: ContainerNode, Note: NoteLabelNode, Label: NoteLabelNode };
 
+// ─── Selection sync (must live inside ReactFlowProvider) ──────────────────────
+// Surgically flips `selected` on only the 2 affected nodes when selectedId changes,
+// avoiding a full flowNodes reconstruction for every click.
+
+interface ArchitectureFlowInnerProps { selectedId: string | null; }
+
+const ArchitectureFlowInner: React.FC<ArchitectureFlowInnerProps> = ({ selectedId }) => {
+    const { setNodes } = useReactFlow();
+    const prevSelectedIdRef = React.useRef<string | null>(null);
+
+    React.useEffect(() => {
+        const prev = prevSelectedIdRef.current;
+        prevSelectedIdRef.current = selectedId;
+        if (prev === selectedId) return;
+
+        setNodes(nds => nds.map(n => {
+            const shouldBeSelected = n.id === selectedId;
+            const wasSelected = n.id === prev;
+            if (!shouldBeSelected && !wasSelected) return n;
+            return { ...n, selected: shouldBeSelected };
+        }));
+    }, [selectedId, setNodes]);
+
+    return null;
+};
+
 const EMPTY_HANDLE_SET = new Set<string>();
 
 // ─── Utility functions (used only by ArchitectureBuilder) ─────────────────────
@@ -42,7 +68,6 @@ const mapIgnitionToReactFlowNodes = (
     handleGearClick: (id: string) => void,
     handleResizeEnd: (id: string, x: number, y: number, w: number, h: number) => void,
     handleTextChange: (id: string, text: string) => void,
-    selectedId: string | null,
     globalHideHandles: boolean,
     globalHandleCount: number,
     highlightedHandlesMap: Record<string, Set<string>>,
@@ -64,7 +89,7 @@ const mapIgnitionToReactFlowNodes = (
             const isUnlocked = nodeData.configs?.unlocked === true;
 
             return {
-                id, type, selected: id === selectedId,
+                id, type, selected: false,
                 position: { x: nodeData.x || 0, y: nodeData.y || 0 },
                 zIndex: isContainer ? (nodeData.zIndex ?? -100) : 1000,
                 style: {
@@ -162,6 +187,7 @@ export interface ArchitectureBuilderProps {
 export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureBuilderProps>) => {
     console.log('DEBUG: ArchitectureBuilder rendering, props:', props);
     const reactFlowWrapper = React.useRef<HTMLDivElement>(null);
+    const wrapperBoundsRef = React.useRef<{ top: number; left: number }>({ top: 0, left: 0 });
     const clipboardRef = React.useRef<any>(null);
     const draggedItemRef = React.useRef<PaletteItem | null>(null);
     const hierarchyWriteRef = React.useRef<string>('');
@@ -201,6 +227,21 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
             window.removeEventListener('error', suppressResizeObserverError, true);
             window.onerror = oldOnError;
         };
+    }, []);
+
+    // Cache wrapper bounds so context-menu event handlers don't need to call getBoundingClientRect()
+    // on every right-click, avoiding forced reflows during React commit phases at high node counts.
+    React.useEffect(() => {
+        const el = reactFlowWrapper.current;
+        if (!el) return;
+        const update = () => {
+            const r = el.getBoundingClientRect();
+            wrapperBoundsRef.current = { top: r.top, left: r.left };
+        };
+        update();
+        const ro = new ResizeObserver(update);
+        ro.observe(el);
+        return () => ro.disconnect();
     }, []);
 
     // Set document title and html[lang] for accessibility (WCAG 2.4.2, 3.1.1).
@@ -335,6 +376,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
         snapPixels,
         reactFlowInstance,
         reactFlowWrapper,
+        wrapperBoundsRef,
         isEnabled,
         selectedId,
         setSelectedId,
@@ -350,21 +392,39 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
 
     // ─── Derived flow data ─────────────────────────────────────────────────
 
+    // Stable fingerprint of connection topology only — excludes waypoints, animation, labels.
+    // Recomputes only when a connection endpoint changes, not on every waypoint drag.
+    const edgeTopologyJson = React.useMemo(() =>
+        JSON.stringify(
+            Object.entries(rawEdgesDict as Record<string, any>)
+                .filter(([, e]) => e)
+                .map(([id, e]) => ({
+                    id,
+                    source: e.source,
+                    target: e.target,
+                    sourceHandle: e.sourceHandle,
+                    targetHandle: e.targetHandle
+                }))
+                .sort((a, b) => a.id.localeCompare(b.id))
+        ),
+    [rawEdgesDict]);
+
     const highlightedHandlesMap = React.useMemo<Record<string, Set<string>>>(() => {
+        const parsed: Array<{ id: string; source: string; target: string; sourceHandle?: string; targetHandle?: string }> =
+            JSON.parse(edgeTopologyJson);
         const map: Record<string, Set<string>> = {};
-        Object.values(rawEdgesDict).forEach((edge: any) => {
-            if (!edge) return;
-            if (edge.source && edge.sourceHandle) {
-                if (!map[edge.source]) map[edge.source] = new Set();
-                map[edge.source].add(edge.sourceHandle);
+        parsed.forEach(e => {
+            if (e.source && e.sourceHandle) {
+                if (!map[e.source]) map[e.source] = new Set();
+                map[e.source].add(e.sourceHandle);
             }
-            if (edge.target && edge.targetHandle) {
-                if (!map[edge.target]) map[edge.target] = new Set();
-                map[edge.target].add(edge.targetHandle);
+            if (e.target && e.targetHandle) {
+                if (!map[e.target]) map[e.target] = new Set();
+                map[e.target].add(e.targetHandle);
             }
         });
         return map;
-    }, [rawEdgesDict]);
+    }, [edgeTopologyJson]);
 
     const paletteMap = React.useMemo(
         () => new Map(paletteItems.map((p: any) => [p.id, p])),
@@ -372,8 +432,8 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
     );
 
     const flowNodes = React.useMemo(
-        () => mapIgnitionToReactFlowNodes(rawNodesDict, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, selectedId, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled),
-        [rawNodesDict, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, selectedId, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled]
+        () => mapIgnitionToReactFlowNodes(rawNodesDict, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled),
+        [rawNodesDict, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled]
     );
     const flowEdges = React.useMemo(() =>
         mapIgnitionToReactFlowEdges(rawEdgesDict, rawNodesDict, connectionTypes, selectedId, handleWaypointsChange, handleLabelChange, snapEnabled, snapPixels, globalEdgeWidth),
@@ -484,8 +544,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
 
     const handleLongPress = React.useCallback((clientX: number, clientY: number, target: Element) => {
         if (!isEnabled) return;
-        const bounds = reactFlowWrapper.current?.getBoundingClientRect();
-        if (!bounds) return;
+        const bounds = wrapperBoundsRef.current;
 
         const top = clientY - bounds.top;
         const left = clientX - bounds.left;
@@ -640,6 +699,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
 
                     <div role="main" aria-label="Architecture Builder Canvas" style={{ flexGrow: 1, height: '100%', position: 'relative', overflow: 'hidden' }} ref={reactFlowWrapper} className={isUpdatingEdge ? 'arch-moving-edge' : ''} {...longPressHandlers}>
                         <ReactFlowProvider>
+                            <ArchitectureFlowInner selectedId={selectedId} />
                             <ReactFlow
                                 nodes={localNodes} edges={displayEdges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
                                 isValidConnection={isValidConnection} onInit={setReactFlowInstance}
