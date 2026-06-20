@@ -2,7 +2,7 @@ import * as React from 'react';
 import { ComponentProps } from '@inductiveautomation/perspective-client';
 import { observer } from 'mobx-react';
 // @ts-ignore
-import ReactFlow, { ReactFlowProvider, Background, Controls, ConnectionMode } from 'reactflow';
+import ReactFlow, { ReactFlowProvider, Background, Controls, ConnectionMode, useReactFlow } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { Sidebar, PaletteItem } from './Sidebar';
 import { ArchitectureNode } from './ArchitectureNode';
@@ -23,6 +23,34 @@ import { CanvasSearch } from './CanvasSearch';
 
 const nodeTypes = { architecture: ArchitectureNode, container: ContainerNode, Note: NoteLabelNode, Label: NoteLabelNode };
 
+// ─── Selection sync (must live inside ReactFlowProvider) ──────────────────────
+// Surgically flips `selected` on only the 2 affected nodes when selectedId changes,
+// avoiding a full flowNodes reconstruction for every click.
+
+interface ArchitectureFlowInnerProps { selectedId: string | null; }
+
+const ArchitectureFlowInner: React.FC<ArchitectureFlowInnerProps> = ({ selectedId }) => {
+    const { setNodes } = useReactFlow();
+    const prevSelectedIdRef = React.useRef<string | null>(null);
+
+    React.useEffect(() => {
+        const prev = prevSelectedIdRef.current;
+        prevSelectedIdRef.current = selectedId;
+        if (prev === selectedId) return;
+
+        setNodes(nds => nds.map(n => {
+            const shouldBeSelected = n.id === selectedId;
+            const wasSelected = n.id === prev;
+            if (!shouldBeSelected && !wasSelected) return n;
+            return { ...n, selected: shouldBeSelected };
+        }));
+    }, [selectedId, setNodes]);
+
+    return null;
+};
+
+const EMPTY_HANDLE_SET = new Set<string>();
+
 // ─── Utility functions (used only by ArchitectureBuilder) ─────────────────────
 
 const extractDeep = (obj: any): any => {
@@ -36,21 +64,20 @@ const extractDeep = (obj: any): any => {
 
 const mapIgnitionToReactFlowNodes = (
     ignitionNodes: any,
-    paletteItems: any[],
+    paletteMap: Map<string, any>,
     handleGearClick: (id: string) => void,
     handleResizeEnd: (id: string, x: number, y: number, w: number, h: number) => void,
     handleTextChange: (id: string, text: string) => void,
-    selectedId: string | null,
     globalHideHandles: boolean,
     globalHandleCount: number,
-    highlightedHandlesMap: Record<string, string[]>,
+    highlightedHandlesMap: Record<string, Set<string>>,
     isEditable: boolean
 ) => {
     if (!ignitionNodes) return [];
     return Object.entries(ignitionNodes)
         .filter(([id, nodeData]: any) => nodeData !== null && nodeData !== undefined)
         .map(([id, nodeData]: any) => {
-            const palette = paletteItems.find((p: any) => p.id === nodeData.paletteId);
+            const palette = paletteMap.get(nodeData.paletteId);
             const isContainer = nodeData.paletteId === 'container';
             const isTextNode = TEXT_NODE_PALETTE_IDS.has(nodeData.paletteId);
             const paletteImage = (nodeData.useOverrideImage && palette?.overrideImage) ? palette.overrideImage : palette?.image || '';
@@ -62,7 +89,7 @@ const mapIgnitionToReactFlowNodes = (
             const isUnlocked = nodeData.configs?.unlocked === true;
 
             return {
-                id, type, selected: id === selectedId,
+                id, type, selected: false,
                 position: { x: nodeData.x || 0, y: nodeData.y || 0 },
                 zIndex: isContainer ? (nodeData.zIndex ?? -100) : 1000,
                 style: {
@@ -76,7 +103,7 @@ const mapIgnitionToReactFlowNodes = (
                     style: nodeData.style || {}, labelStyle: nodeData.labelStyle || {}, textStyle: nodeData.textStyle || {},
                     paletteId: nodeData.paletteId || 'unknown', inactive: nodeData.inactive || false,
                     hideHandles: nodeData.hideHandles, globalHideHandles, handleCount: globalHandleCount,
-                    highlightedHandles: highlightedHandlesMap[id] || [],
+                    highlightedHandles: highlightedHandlesMap[id] ?? EMPTY_HANDLE_SET,
                     isEditable,
                     unlockMovement: isUnlocked,
                     enableResize: isContainer || isTextNode,
@@ -111,10 +138,15 @@ const computeHierarchyData = (nodesDict: any, edgesDict: any) => {
     });
     Object.values(connectionsByNode).forEach(arr => arr.sort());
 
-    const getChain = (item: any): any[] =>
-        containers
+    const cachedChains = new Map<string, any[]>();
+    const getChain = (item: any): any[] => {
+        if (cachedChains.has(item.id)) return cachedChains.get(item.id)!;
+        const chain = containers
             .filter(c => c.id !== item.id && isInsideContainer(item, c))
             .sort((a, b) => ((b.width || 300) * (b.height || 300)) - ((a.width || 300) * (a.height || 300)));
+        cachedChains.set(item.id, chain);
+        return chain;
+    };
 
     const getDirectParent = (item: any): string | null => {
         const chain = getChain(item);
@@ -155,6 +187,7 @@ export interface ArchitectureBuilderProps {
 export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureBuilderProps>) => {
     console.log('DEBUG: ArchitectureBuilder rendering, props:', props);
     const reactFlowWrapper = React.useRef<HTMLDivElement>(null);
+    const wrapperBoundsRef = React.useRef<{ top: number; left: number }>({ top: 0, left: 0 });
     const clipboardRef = React.useRef<any>(null);
     const draggedItemRef = React.useRef<PaletteItem | null>(null);
     const hierarchyWriteRef = React.useRef<string>('');
@@ -194,6 +227,21 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
             window.removeEventListener('error', suppressResizeObserverError, true);
             window.onerror = oldOnError;
         };
+    }, []);
+
+    // Cache wrapper bounds so context-menu event handlers don't need to call getBoundingClientRect()
+    // on every right-click, avoiding forced reflows during React commit phases at high node counts.
+    React.useEffect(() => {
+        const el = reactFlowWrapper.current;
+        if (!el) return;
+        const update = () => {
+            const r = el.getBoundingClientRect();
+            wrapperBoundsRef.current = { top: r.top, left: r.left };
+        };
+        update();
+        const ro = new ResizeObserver(update);
+        ro.observe(el);
+        return () => ro.disconnect();
     }, []);
 
     // Set document title and html[lang] for accessibility (WCAG 2.4.2, 3.1.1).
@@ -328,6 +376,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
         snapPixels,
         reactFlowInstance,
         reactFlowWrapper,
+        wrapperBoundsRef,
         isEnabled,
         selectedId,
         setSelectedId,
@@ -343,25 +392,48 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
 
     // ─── Derived flow data ─────────────────────────────────────────────────
 
-    const highlightedHandlesMap = React.useMemo<Record<string, string[]>>(() => {
-        const map: Record<string, string[]> = {};
-        Object.values(rawEdgesDict).forEach((edge: any) => {
-            if (!edge) return;
-            if (edge.source && edge.sourceHandle) {
-                if (!map[edge.source]) map[edge.source] = [];
-                if (!map[edge.source].includes(edge.sourceHandle)) map[edge.source].push(edge.sourceHandle);
+    // Stable fingerprint of connection topology only — excludes waypoints, animation, labels.
+    // Recomputes only when a connection endpoint changes, not on every waypoint drag.
+    const edgeTopologyJson = React.useMemo(() =>
+        JSON.stringify(
+            Object.entries(rawEdgesDict as Record<string, any>)
+                .filter(([, e]) => e)
+                .map(([id, e]) => ({
+                    id,
+                    source: e.source,
+                    target: e.target,
+                    sourceHandle: e.sourceHandle,
+                    targetHandle: e.targetHandle
+                }))
+                .sort((a, b) => a.id.localeCompare(b.id))
+        ),
+    [rawEdgesDict]);
+
+    const highlightedHandlesMap = React.useMemo<Record<string, Set<string>>>(() => {
+        const parsed: Array<{ id: string; source: string; target: string; sourceHandle?: string; targetHandle?: string }> =
+            JSON.parse(edgeTopologyJson);
+        const map: Record<string, Set<string>> = {};
+        parsed.forEach(e => {
+            if (e.source && e.sourceHandle) {
+                if (!map[e.source]) map[e.source] = new Set();
+                map[e.source].add(e.sourceHandle);
             }
-            if (edge.target && edge.targetHandle) {
-                if (!map[edge.target]) map[edge.target] = [];
-                if (!map[edge.target].includes(edge.targetHandle)) map[edge.target].push(edge.targetHandle);
+            if (e.target && e.targetHandle) {
+                if (!map[e.target]) map[e.target] = new Set();
+                map[e.target].add(e.targetHandle);
             }
         });
         return map;
-    }, [rawEdgesDict]);
+    }, [edgeTopologyJson]);
+
+    const paletteMap = React.useMemo(
+        () => new Map(paletteItems.map((p: any) => [p.id, p])),
+        [paletteItems]
+    );
 
     const flowNodes = React.useMemo(
-        () => mapIgnitionToReactFlowNodes(rawNodesDict, paletteItems, handleGearClick, handleResizeEnd, handleTextChange, selectedId, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled),
-        [rawNodesDict, paletteItems, handleGearClick, handleResizeEnd, handleTextChange, selectedId, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled]
+        () => mapIgnitionToReactFlowNodes(rawNodesDict, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled),
+        [rawNodesDict, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled]
     );
     const flowEdges = React.useMemo(() =>
         mapIgnitionToReactFlowEdges(rawEdgesDict, rawNodesDict, connectionTypes, selectedId, handleWaypointsChange, handleLabelChange, snapEnabled, snapPixels, globalEdgeWidth),
@@ -409,10 +481,14 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
         }
     }, [globalHandleCount]);
 
+    const localEdgeMap = React.useMemo(
+        () => new Map(localEdges.map((e: any) => [e.id, e])),
+        [localEdges]
+    );
+
     const displayEdges = React.useMemo(() => {
-        const localMap = new Map(localEdges.map((e: any) => [e.id, e]));
         return flowEdges.filter(e => !isUpdatingEdge || e.id !== updatingEdgeRef.current).map((fresh: any) => {
-            const local = localMap.get(fresh.id);
+            const local = localEdgeMap.get(fresh.id);
             const isHovered = fresh.id === hoveredEdgeId;
             const isSelected = fresh.data?.isSelected === true;
             const isAnimated = fresh.data?.animation !== 'none';
@@ -431,7 +507,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
                 data: { ...fresh.data, waypoints, isEditable: isEnabled },
             };
         });
-    }, [localEdges, flowEdges, hoveredEdgeId, globalEdgeWidth, isEnabled, isUpdatingEdge]);
+    }, [localEdgeMap, flowEdges, hoveredEdgeId, globalEdgeWidth, isEnabled, isUpdatingEdge]);
 
     // ─── Keyboard shortcuts ────────────────────────────────────────────────
 
@@ -468,8 +544,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
 
     const handleLongPress = React.useCallback((clientX: number, clientY: number, target: Element) => {
         if (!isEnabled) return;
-        const bounds = reactFlowWrapper.current?.getBoundingClientRect();
-        if (!bounds) return;
+        const bounds = wrapperBoundsRef.current;
 
         const top = clientY - bounds.top;
         const left = clientX - bounds.left;
@@ -624,6 +699,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
 
                     <div role="main" aria-label="Architecture Builder Canvas" style={{ flexGrow: 1, height: '100%', position: 'relative', overflow: 'hidden' }} ref={reactFlowWrapper} className={isUpdatingEdge ? 'arch-moving-edge' : ''} {...longPressHandlers}>
                         <ReactFlowProvider>
+                            <ArchitectureFlowInner selectedId={selectedId} />
                             <ReactFlow
                                 nodes={localNodes} edges={displayEdges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
                                 isValidConnection={isValidConnection} onInit={setReactFlowInstance}

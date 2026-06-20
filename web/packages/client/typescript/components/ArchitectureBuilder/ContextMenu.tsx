@@ -70,6 +70,7 @@ export const ContextMenu = React.memo(({
     const flyoutRefs = React.useRef<Record<string, HTMLDivElement | null>>({});
     const [adjustment, setAdjustment] = React.useState({ dx: 0, dy: 0 });
     const [flyoutOffsets, setFlyoutOffsets] = React.useState<Record<string, number>>({});
+    const [flipState, setFlipState] = React.useState({ left: false, up: false });
     const isTouchDevice = React.useRef(
         typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0)
     );
@@ -92,6 +93,11 @@ export const ContextMenu = React.memo(({
         if (contextMenu.top + dy < 8) dy = 8 - contextMenu.top;
 
         setAdjustment({ dx, dy });
+
+        // Compute flyout flip flags here so they don't force a reflow during render
+        const flipsLeft = contextMenu.left + dx + 310 > wrapW;
+        const flipsUp = contextMenu.top + dy + menuH > wrapH - 8;
+        setFlipState({ left: flipsLeft, up: flipsUp });
     }, [contextMenu.top, contextMenu.left]);
 
     // Measure flyouts and position them to fit within bounds (shift upward if needed)
@@ -161,13 +167,8 @@ export const ContextMenu = React.memo(({
         return paletteItems.filter((p: any) => currentPaletteItem.swappableWith.includes(p.id));
     }, [contextMenu, rawNodesDict, paletteItems]);
 
-    const flyoutFlipsLeft = wrapperRef.current
-        ? (contextMenu.left + adjustment.dx + 310 > wrapperRef.current.clientWidth)
-        : false;
-
-    const flyoutFlipsUp = (wrapperRef.current && containerRef.current)
-        ? (contextMenu.top + adjustment.dy + containerRef.current.offsetHeight > wrapperRef.current.clientHeight - 8)
-        : false;
+    const flyoutFlipsLeft = flipState.left;
+    const flyoutFlipsUp = flipState.up;
 
     // Build flyout style with dynamic positioning
     const getFlyoutStyle = (submenuKey: string): React.CSSProperties => {

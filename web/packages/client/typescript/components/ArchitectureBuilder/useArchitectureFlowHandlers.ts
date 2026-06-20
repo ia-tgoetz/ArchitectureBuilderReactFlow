@@ -47,6 +47,7 @@ export interface UseArchitectureFlowHandlersParams {
     snapPixels: number;
     reactFlowInstance: any;
     reactFlowWrapper: React.RefObject<HTMLDivElement>;
+    wrapperBoundsRef: React.MutableRefObject<{ top: number; left: number }>;
     isEnabled: boolean;
     selectedId: string | null;
     setSelectedId: React.Dispatch<React.SetStateAction<string | null>>;
@@ -73,6 +74,7 @@ export const useArchitectureFlowHandlers = ({
     snapPixels,
     reactFlowInstance,
     reactFlowWrapper,
+    wrapperBoundsRef,
     isEnabled,
     selectedId,
     setSelectedId,
@@ -116,6 +118,7 @@ export const useArchitectureFlowHandlers = ({
         setActiveSubMenu,
         setLocalEdges,
         reactFlowWrapper,
+        wrapperBoundsRef,
         closeContextMenu,
     });
 
@@ -306,13 +309,11 @@ export const useArchitectureFlowHandlers = ({
     const onNodeContextMenu = React.useCallback((event: any, node: any) => {
         event.preventDefault();
         setSelectedId(node.id);
-        const bounds = reactFlowWrapper.current?.getBoundingClientRect();
+        const bounds = wrapperBoundsRef.current;
         const isContainer = rawNodesDict[node.id]?.paletteId === 'container';
-        if (bounds) {
-            setContextMenu({ id: node.id, top: event.clientY - bounds.top, left: event.clientX - bounds.left, type: 'node', isContainer, clientX: event.clientX, clientY: event.clientY });
-            setActiveSubMenu(null);
-        }
-    }, [rawNodesDict, reactFlowWrapper, setSelectedId, setContextMenu, setActiveSubMenu]);
+        setContextMenu({ id: node.id, top: event.clientY - bounds.top, left: event.clientX - bounds.left, type: 'node', isContainer, clientX: event.clientX, clientY: event.clientY });
+        setActiveSubMenu(null);
+    }, [rawNodesDict, wrapperBoundsRef, setSelectedId, setContextMenu, setActiveSubMenu]);
 
     const onNodeClick = React.useCallback((event: any, node: any) => {
         closeContextMenu();
@@ -447,8 +448,8 @@ export const useArchitectureFlowHandlers = ({
 
     const onPaneContextMenu = React.useCallback((event: any) => {
         event.preventDefault();
-        const bounds = reactFlowWrapper.current?.getBoundingClientRect();
-        if (bounds && reactFlowInstance) {
+        const bounds = wrapperBoundsRef.current;
+        if (reactFlowInstance) {
             const flowPos = reactFlowInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
 
             const containerEntry = Object.entries(rawNodesDict)
@@ -467,7 +468,7 @@ export const useArchitectureFlowHandlers = ({
             }
             setActiveSubMenu(null);
         }
-    }, [reactFlowWrapper, reactFlowInstance, rawNodesDict, setContextMenu, setActiveSubMenu]);
+    }, [wrapperBoundsRef, reactFlowInstance, rawNodesDict, setContextMenu, setActiveSubMenu]);
 
     // ─── Context menu actions ──────────────────────────────────────────────────
 

@@ -1588,6 +1588,25 @@ const useLongPress_1 = __webpack_require__(/*! ./useLongPress */ "./typescript/c
 const CanvasSearch_1 = __webpack_require__(/*! ./CanvasSearch */ "./typescript/components/ArchitectureBuilder/CanvasSearch.tsx");
 // ─── Node types registration ──────────────────────────────────────────────────
 const nodeTypes = { architecture: ArchitectureNode_1.ArchitectureNode, container: ContainerNode_1.ContainerNode, Note: NoteLabelNode_1.NoteLabelNode, Label: NoteLabelNode_1.NoteLabelNode };
+const ArchitectureFlowInner = ({ selectedId }) => {
+    const { setNodes } = reactflow_1.useReactFlow();
+    const prevSelectedIdRef = React.useRef(null);
+    React.useEffect(() => {
+        const prev = prevSelectedIdRef.current;
+        prevSelectedIdRef.current = selectedId;
+        if (prev === selectedId)
+            return;
+        setNodes(nds => nds.map(n => {
+            const shouldBeSelected = n.id === selectedId;
+            const wasSelected = n.id === prev;
+            if (!shouldBeSelected && !wasSelected)
+                return n;
+            return Object.assign(Object.assign({}, n), { selected: shouldBeSelected });
+        }));
+    }, [selectedId, setNodes]);
+    return null;
+};
+const EMPTY_HANDLE_SET = new Set();
 // ─── Utility functions (used only by ArchitectureBuilder) ─────────────────────
 const extractDeep = (obj) => {
     if (obj === null || obj === undefined)
@@ -1601,14 +1620,14 @@ const extractDeep = (obj) => {
         plain[key] = extractDeep(obj[key]);
     return plain;
 };
-const mapIgnitionToReactFlowNodes = (ignitionNodes, paletteItems, handleGearClick, handleResizeEnd, handleTextChange, selectedId, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEditable) => {
+const mapIgnitionToReactFlowNodes = (ignitionNodes, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEditable) => {
     if (!ignitionNodes)
         return [];
     return Object.entries(ignitionNodes)
         .filter(([id, nodeData]) => nodeData !== null && nodeData !== undefined)
         .map(([id, nodeData]) => {
-        var _a, _b;
-        const palette = paletteItems.find((p) => p.id === nodeData.paletteId);
+        var _a, _b, _c;
+        const palette = paletteMap.get(nodeData.paletteId);
         const isContainer = nodeData.paletteId === 'container';
         const isTextNode = constants_1.TEXT_NODE_PALETTE_IDS.has(nodeData.paletteId);
         const paletteImage = (nodeData.useOverrideImage && (palette === null || palette === void 0 ? void 0 : palette.overrideImage)) ? palette.overrideImage : (palette === null || palette === void 0 ? void 0 : palette.image) || '';
@@ -1619,7 +1638,7 @@ const mapIgnitionToReactFlowNodes = (ignitionNodes, paletteItems, handleGearClic
             type = nodeData.paletteId;
         const isUnlocked = ((_a = nodeData.configs) === null || _a === void 0 ? void 0 : _a.unlocked) === true;
         return {
-            id, type, selected: id === selectedId,
+            id, type, selected: false,
             position: { x: nodeData.x || 0, y: nodeData.y || 0 },
             zIndex: isContainer ? ((_b = nodeData.zIndex) !== null && _b !== void 0 ? _b : -100) : 1000,
             style: {
@@ -1633,7 +1652,7 @@ const mapIgnitionToReactFlowNodes = (ignitionNodes, paletteItems, handleGearClic
                 style: nodeData.style || {}, labelStyle: nodeData.labelStyle || {}, textStyle: nodeData.textStyle || {},
                 paletteId: nodeData.paletteId || 'unknown', inactive: nodeData.inactive || false,
                 hideHandles: nodeData.hideHandles, globalHideHandles, handleCount: globalHandleCount,
-                highlightedHandles: highlightedHandlesMap[id] || [],
+                highlightedHandles: (_c = highlightedHandlesMap[id]) !== null && _c !== void 0 ? _c : EMPTY_HANDLE_SET,
                 isEditable,
                 unlockMovement: isUnlocked,
                 enableResize: isContainer || isTextNode,
@@ -1669,9 +1688,16 @@ const computeHierarchyData = (nodesDict, edgesDict) => {
         });
     });
     Object.values(connectionsByNode).forEach(arr => arr.sort());
-    const getChain = (item) => containers
-        .filter(c => c.id !== item.id && isInsideContainer(item, c))
-        .sort((a, b) => ((b.width || 300) * (b.height || 300)) - ((a.width || 300) * (a.height || 300)));
+    const cachedChains = new Map();
+    const getChain = (item) => {
+        if (cachedChains.has(item.id))
+            return cachedChains.get(item.id);
+        const chain = containers
+            .filter(c => c.id !== item.id && isInsideContainer(item, c))
+            .sort((a, b) => ((b.width || 300) * (b.height || 300)) - ((a.width || 300) * (a.height || 300)));
+        cachedChains.set(item.id, chain);
+        return chain;
+    };
     const getDirectParent = (item) => {
         const chain = getChain(item);
         return chain.length > 0 ? chain[chain.length - 1].id : null;
@@ -1700,6 +1726,7 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
     var _a, _b, _c, _d;
     console.log('DEBUG: ArchitectureBuilder rendering, props:', props);
     const reactFlowWrapper = React.useRef(null);
+    const wrapperBoundsRef = React.useRef({ top: 0, left: 0 });
     const clipboardRef = React.useRef(null);
     const draggedItemRef = React.useRef(null);
     const hierarchyWriteRef = React.useRef('');
@@ -1734,6 +1761,21 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
             window.removeEventListener('error', suppressResizeObserverError, true);
             window.onerror = oldOnError;
         };
+    }, []);
+    // Cache wrapper bounds so context-menu event handlers don't need to call getBoundingClientRect()
+    // on every right-click, avoiding forced reflows during React commit phases at high node counts.
+    React.useEffect(() => {
+        const el = reactFlowWrapper.current;
+        if (!el)
+            return;
+        const update = () => {
+            const r = el.getBoundingClientRect();
+            wrapperBoundsRef.current = { top: r.top, left: r.left };
+        };
+        update();
+        const ro = new ResizeObserver(update);
+        ro.observe(el);
+        return () => ro.disconnect();
     }, []);
     // Set document title and html[lang] for accessibility (WCAG 2.4.2, 3.1.1).
     // Both are restored on unmount so other Ignition views are not affected.
@@ -1828,6 +1870,7 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
         snapPixels,
         reactFlowInstance,
         reactFlowWrapper,
+        wrapperBoundsRef,
         isEnabled,
         selectedId,
         setSelectedId,
@@ -1841,27 +1884,37 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
         draggedItemRef,
     });
     // ─── Derived flow data ─────────────────────────────────────────────────
+    // Stable fingerprint of connection topology only — excludes waypoints, animation, labels.
+    // Recomputes only when a connection endpoint changes, not on every waypoint drag.
+    const edgeTopologyJson = React.useMemo(() => JSON.stringify(Object.entries(rawEdgesDict)
+        .filter(([, e]) => e)
+        .map(([id, e]) => ({
+        id,
+        source: e.source,
+        target: e.target,
+        sourceHandle: e.sourceHandle,
+        targetHandle: e.targetHandle
+    }))
+        .sort((a, b) => a.id.localeCompare(b.id))), [rawEdgesDict]);
     const highlightedHandlesMap = React.useMemo(() => {
+        const parsed = JSON.parse(edgeTopologyJson);
         const map = {};
-        Object.values(rawEdgesDict).forEach((edge) => {
-            if (!edge)
-                return;
-            if (edge.source && edge.sourceHandle) {
-                if (!map[edge.source])
-                    map[edge.source] = [];
-                if (!map[edge.source].includes(edge.sourceHandle))
-                    map[edge.source].push(edge.sourceHandle);
+        parsed.forEach(e => {
+            if (e.source && e.sourceHandle) {
+                if (!map[e.source])
+                    map[e.source] = new Set();
+                map[e.source].add(e.sourceHandle);
             }
-            if (edge.target && edge.targetHandle) {
-                if (!map[edge.target])
-                    map[edge.target] = [];
-                if (!map[edge.target].includes(edge.targetHandle))
-                    map[edge.target].push(edge.targetHandle);
+            if (e.target && e.targetHandle) {
+                if (!map[e.target])
+                    map[e.target] = new Set();
+                map[e.target].add(e.targetHandle);
             }
         });
         return map;
-    }, [rawEdgesDict]);
-    const flowNodes = React.useMemo(() => mapIgnitionToReactFlowNodes(rawNodesDict, paletteItems, handleGearClick, handleResizeEnd, handleTextChange, selectedId, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled), [rawNodesDict, paletteItems, handleGearClick, handleResizeEnd, handleTextChange, selectedId, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled]);
+    }, [edgeTopologyJson]);
+    const paletteMap = React.useMemo(() => new Map(paletteItems.map((p) => [p.id, p])), [paletteItems]);
+    const flowNodes = React.useMemo(() => mapIgnitionToReactFlowNodes(rawNodesDict, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled), [rawNodesDict, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled]);
     const flowEdges = React.useMemo(() => EdgeUtils_1.mapIgnitionToReactFlowEdges(rawEdgesDict, rawNodesDict, connectionTypes, selectedId, handleWaypointsChange, handleLabelChange, snapEnabled, snapPixels, globalEdgeWidth), [rawEdgesDict, rawNodesDict, connectionTypes, selectedId, handleWaypointsChange, handleLabelChange, snapEnabled, snapPixels, globalEdgeWidth]);
     React.useEffect(() => {
         if (!isDraggingNode) {
@@ -1897,11 +1950,11 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
             props.store.props.write('edges', corrected);
         }
     }, [globalHandleCount]);
+    const localEdgeMap = React.useMemo(() => new Map(localEdges.map((e) => [e.id, e])), [localEdges]);
     const displayEdges = React.useMemo(() => {
-        const localMap = new Map(localEdges.map((e) => [e.id, e]));
         return flowEdges.filter(e => !isUpdatingEdge || e.id !== updatingEdgeRef.current).map((fresh) => {
             var _a, _b, _c, _d, _e;
-            const local = localMap.get(fresh.id);
+            const local = localEdgeMap.get(fresh.id);
             const isHovered = fresh.id === hoveredEdgeId;
             const isSelected = ((_a = fresh.data) === null || _a === void 0 ? void 0 : _a.isSelected) === true;
             const isAnimated = ((_b = fresh.data) === null || _b === void 0 ? void 0 : _b.animation) !== 'none';
@@ -1914,7 +1967,7 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
             const waypoints = (_d = (_c = local === null || local === void 0 ? void 0 : local.data) === null || _c === void 0 ? void 0 : _c.waypoints) !== null && _d !== void 0 ? _d : (_e = fresh.data) === null || _e === void 0 ? void 0 : _e.waypoints;
             return Object.assign(Object.assign({}, fresh), { updatable: isEnabled, zIndex, style: Object.assign(Object.assign({}, fresh.style), { strokeWidth }), data: Object.assign(Object.assign({}, fresh.data), { waypoints, isEditable: isEnabled }) });
         });
-    }, [localEdges, flowEdges, hoveredEdgeId, globalEdgeWidth, isEnabled, isUpdatingEdge]);
+    }, [localEdgeMap, flowEdges, hoveredEdgeId, globalEdgeWidth, isEnabled, isUpdatingEdge]);
     // ─── Keyboard shortcuts ────────────────────────────────────────────────
     React.useEffect(() => {
         const handleKeyDown = (e) => {
@@ -1960,12 +2013,10 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
     }, [reactFlowInstance]);
     // ─── Long-press context menu (mobile/touch support) ─────────────────────
     const handleLongPress = React.useCallback((clientX, clientY, target) => {
-        var _a, _b;
+        var _a;
         if (!isEnabled)
             return;
-        const bounds = (_a = reactFlowWrapper.current) === null || _a === void 0 ? void 0 : _a.getBoundingClientRect();
-        if (!bounds)
-            return;
+        const bounds = wrapperBoundsRef.current;
         const top = clientY - bounds.top;
         const left = clientX - bounds.left;
         // Try to detect node
@@ -1983,7 +2034,7 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
         // Try to detect edge
         const edgeEl = target.closest('.react-flow__edge');
         if (edgeEl) {
-            const id = (_b = edgeEl.getAttribute('data-testid')) === null || _b === void 0 ? void 0 : _b.replace('rf__edge-', '');
+            const id = (_a = edgeEl.getAttribute('data-testid')) === null || _a === void 0 ? void 0 : _a.replace('rf__edge-', '');
             if (id && rawEdgesDictRef.current[id]) {
                 setContextMenu({ id, top, left, type: 'edge', clientX, clientY });
                 setActiveSubMenu(null);
@@ -2109,6 +2160,7 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
                 isEnabled && React.createElement(Sidebar_1.Sidebar, { paletteItems: paletteItems, isOpen: isSidebarOpen, toggleSidebar: () => setIsSidebarOpen(!isSidebarOpen), onDragStartItem: (item) => { draggedItemRef.current = item; }, onItemClick: handlePaletteItemClick }),
                 React.createElement("div", Object.assign({ role: "main", "aria-label": "Architecture Builder Canvas", style: { flexGrow: 1, height: '100%', position: 'relative', overflow: 'hidden' }, ref: reactFlowWrapper, className: isUpdatingEdge ? 'arch-moving-edge' : '' }, longPressHandlers),
                     React.createElement(reactflow_1.ReactFlowProvider, null,
+                        React.createElement(ArchitectureFlowInner, { selectedId: selectedId }),
                         React.createElement(reactflow_1.default, { nodes: localNodes, edges: displayEdges, nodeTypes: nodeTypes, edgeTypes: CustomEdge_1.edgeTypes, isValidConnection: isValidConnection, onInit: setReactFlowInstance, onDrop: isEnabled ? onDrop : undefined, onDragOver: isEnabled ? onDragOver : undefined, onConnect: isEnabled ? onConnect : undefined, onEdgeUpdate: isEnabled ? onEdgeUpdate : undefined, onEdgeUpdateStart: isEnabled ? onEdgeUpdateStart : undefined, onEdgeUpdateEnd: isEnabled ? onEdgeUpdateEnd : undefined, onConnectStart: isEnabled ? onConnectStart : undefined, onConnectEnd: isEnabled ? onConnectEnd : undefined, onNodeDragStart: isEnabled ? onNodeDragStart : undefined, onNodeDrag: isEnabled ? onNodeDrag : undefined, onNodeDragStop: isEnabled ? onNodeDragStop : undefined, onNodesChange: onNodesChange, onNodeClick: onNodeClick, onEdgeClick: onEdgeClick, onNodesDelete: isEnabled ? onNodesDelete : undefined, onEdgesDelete: isEnabled ? onEdgesDelete : undefined, onNodeContextMenu: isEnabled ? onNodeContextMenu : undefined, onEdgeContextMenu: isEnabled ? onEdgeContextMenu : undefined, onEdgeMouseEnter: (_evt, edge) => setHoveredEdgeId(edge.id), onEdgeMouseLeave: () => setHoveredEdgeId(null), onPaneClick: onPaneClick, onPaneContextMenu: isEnabled ? onPaneContextMenu : undefined, onMoveStart: onMoveStart, nodesDraggable: isEnabled, nodesConnectable: isEnabled, elementsSelectable: isEnabled, connectionMode: reactflow_1.ConnectionMode.Loose, snapToGrid: snapEnabled, snapGrid: snapGrid, connectionLineStyle: { stroke: '#cccccc', strokeWidth: 6, fill: 'none' }, elevateNodesOnSelect: false, minZoom: 0.05, panOnScroll: false, zoomOnScroll: true, panOnDrag: true, selectionOnDrag: false, deleteKeyCode: ['Delete', 'Backspace'] },
                             React.createElement(reactflow_1.Background, { gap: snapPixels }),
                             React.createElement(reactflow_1.Controls, { showInteractive: false }))),
@@ -2159,7 +2211,75 @@ const react_1 = __importDefault(__webpack_require__(/*! react */ "react"));
 const reactflow_1 = __webpack_require__(/*! reactflow */ "./node_modules/reactflow/dist/umd/index.js");
 const svgSanitize_1 = __webpack_require__(/*! ./svgSanitize */ "./typescript/components/ArchitectureBuilder/svgSanitize.ts");
 const TEXT_PALETTE_IDS = new Set(['Note', 'Label']);
-const NodeImage = ({ src, label }) => {
+// ─── Memoization helpers ──────────────────────────────────────────────────────
+const shallowEqualObjects = (a, b) => {
+    if (a === b)
+        return true;
+    if (!a || !b)
+        return a === b;
+    const aKeys = Object.keys(a);
+    if (aKeys.length !== Object.keys(b).length)
+        return false;
+    for (const k of aKeys) {
+        if (a[k] !== b[k])
+            return false;
+    }
+    return true;
+};
+const areSetsEqual = (a, b) => {
+    if (a === b)
+        return true;
+    if (!a || !b || a.size !== b.size)
+        return false;
+    for (const item of a) {
+        if (!b.has(item))
+            return false;
+    }
+    return true;
+};
+const areArchitectureNodePropsEqual = (prev, next) => {
+    if (prev.id !== next.id || prev.selected !== next.selected)
+        return false;
+    const pd = prev.data, nd = next.data;
+    if (pd.label !== nd.label)
+        return false;
+    if (pd.image !== nd.image)
+        return false;
+    if (pd.text !== nd.text)
+        return false;
+    if (pd.tooltip !== nd.tooltip)
+        return false;
+    if (pd.paletteId !== nd.paletteId)
+        return false;
+    if (pd.inactive !== nd.inactive)
+        return false;
+    if (pd.hideHandles !== nd.hideHandles)
+        return false;
+    if (pd.globalHideHandles !== nd.globalHideHandles)
+        return false;
+    if (pd.isEditable !== nd.isEditable)
+        return false;
+    if (pd.handleCount !== nd.handleCount)
+        return false;
+    if (!shallowEqualObjects(pd.style, nd.style))
+        return false;
+    if (!shallowEqualObjects(pd.labelStyle, nd.labelStyle))
+        return false;
+    if (!shallowEqualObjects(pd.textStyle, nd.textStyle))
+        return false;
+    if (!shallowEqualObjects(pd.configs, nd.configs))
+        return false;
+    if (!areSetsEqual(pd.highlightedHandles, nd.highlightedHandles))
+        return false;
+    if (pd.onGearClick !== nd.onGearClick)
+        return false;
+    if (pd.onTextChange !== nd.onTextChange)
+        return false;
+    if (pd.onResizeEnd !== nd.onResizeEnd)
+        return false;
+    return true;
+};
+const NodeImage = react_1.default.memo(({ src, label }) => {
     const scopeId = react_1.default.useMemo(() => svgSanitize_1.nextSvgScopeId(), []);
     const svgHtml = react_1.default.useMemo(() => svgSanitize_1.extractSvgMarkup(src, scopeId), [src, scopeId]);
     if (svgHtml) {
@@ -2167,13 +2287,13 @@ const NodeImage = ({ src, label }) => {
     }
     const dataUri = svgSanitize_1.toSafeDataUri(src);
     return dataUri ? react_1.default.createElement("img", { src: dataUri, alt: "", style: { padding: '4px', width: '100%', height: '100%', objectFit: 'contain' } }) : null;
-};
-const ArchitectureNode = ({ id, data, selected }) => {
+});
+exports.ArchitectureNode = react_1.default.memo(({ id, data, selected }) => {
     var _a, _b, _c, _d;
     const { zoom } = reactflow_1.useViewport();
     const [hovered, setHovered] = react_1.default.useState(false);
     const showHandles = !data.globalHideHandles && !data.hideHandles && data.isEditable !== false;
-    const hasHighlightedHandles = !!(data.highlightedHandles && data.highlightedHandles.length > 0);
+    const hasHighlightedHandles = !!(data.highlightedHandles && data.highlightedHandles.size > 0);
     const isConnectionInProgress = reactflow_1.useStore((s) => s.connectionNodeId != null);
     const isTextNode = TEXT_PALETTE_IDS.has(data.paletteId);
     const [localText, setLocalText] = react_1.default.useState(data.text || '');
@@ -2202,12 +2322,12 @@ const ArchitectureNode = ({ id, data, selected }) => {
         '--hit-size': `${hitSize}px`
     };
     const handleCount = Math.max(1, Math.min(5, (_d = data.handleCount) !== null && _d !== void 0 ? _d : 3));
-    const positions = Array.from({ length: handleCount }, (_, i) => `${((i + 0.5) / handleCount) * 100}%`);
-    const highlighted = new Set(data.highlightedHandles || []);
+    const positions = react_1.default.useMemo(() => Array.from({ length: handleCount }, (_, i) => `${((i + 0.5) / handleCount) * 100}%`), [handleCount]);
     const handleClass = (id) => {
+        var _a;
         if (!showHandles)
             return 'arch-node-handle arch-node-handle--suppressed';
-        return highlighted.has(id) ? 'arch-node-handle arch-node-handle--connected' : 'arch-node-handle';
+        return ((_a = data.highlightedHandles) === null || _a === void 0 ? void 0 : _a.has(id)) ? 'arch-node-handle arch-node-handle--connected' : 'arch-node-handle';
     };
     // Calculate dynamic resizer handle size based on zoom
     const resizerSize = Math.max(10, Math.round(16 / zoom));
@@ -2232,8 +2352,7 @@ const ArchitectureNode = ({ id, data, selected }) => {
                 filter: data.inactive ? 'grayscale(100%) blur(2px)' : undefined
             } },
             react_1.default.createElement(NodeImage, { src: data.image, label: data.label })))));
-};
-exports.ArchitectureNode = ArchitectureNode;
+}, areArchitectureNodePropsEqual);
 
 
 /***/ }),
@@ -2466,7 +2585,43 @@ exports.ContainerNode = void 0;
 const react_1 = __importDefault(__webpack_require__(/*! react */ "react"));
 // @ts-ignore
 const reactflow_1 = __webpack_require__(/*! reactflow */ "./node_modules/reactflow/dist/umd/index.js");
-const ContainerNode = ({ id, data, selected }) => {
+const shallowEqualObjects = (a, b) => {
+    if (a === b)
+        return true;
+    if (!a || !b)
+        return a === b;
+    const aKeys = Object.keys(a);
+    if (aKeys.length !== Object.keys(b).length)
+        return false;
+    for (const k of aKeys) {
+        if (a[k] !== b[k])
+            return false;
+    }
+    return true;
+};
+const areContainerNodePropsEqual = (prev, next) => {
+    if (prev.id !== next.id || prev.selected !== next.selected)
+        return false;
+    const pd = prev.data, nd = next.data;
+    if (pd.label !== nd.label)
+        return false;
+    if (pd.isEditable !== nd.isEditable)
+        return false;
+    if (pd.unlockMovement !== nd.unlockMovement)
+        return false;
+    if (pd.enableResize !== nd.enableResize)
+        return false;
+    if (!shallowEqualObjects(pd.style, nd.style))
+        return false;
+    if (!shallowEqualObjects(pd.labelStyle, nd.labelStyle))
+        return false;
+    if (pd.onGearClick !== nd.onGearClick)
+        return false;
+    if (pd.onResizeEnd !== nd.onResizeEnd)
+        return false;
+    return true;
+};
+exports.ContainerNode = react_1.default.memo(({ id, data, selected }) => {
     var _a, _b, _c, _d, _e;
     const { zoom } = reactflow_1.useViewport();
     const finalLabelBg = ((_a = data.labelStyle) === null || _a === void 0 ? void 0 : _a.backgroundColor) || 'var(--neutral-30)';
@@ -2515,8 +2670,7 @@ const ContainerNode = ({ id, data, selected }) => {
                     react_1.default.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", height: "16px", viewBox: "0 -960 960 960", width: "16px", fill: finalGearColor, "aria-label": "Settings" },
                         react_1.default.createElement("path", { d: "m370-80-16-128q-13-5-24.5-12T307-235l-119 50L78-375l103-78q-1-7-1-13.5v-27q0-6.5 1-13.5L78-585l110-190 119 50q11-8 23-15t24-12l16-128h220l16 128q13 5 24.5 12t22.5 15l119-50 110 190-103 78q1 7 1 13.5v27q0 6.5-2 13.5l103 78-110 190-118-50q-11 8-23 15t-24 12L590-80H370Zm70-80h79l14-106q31-8 57.5-23.5T639-327l99 41 39-68-86-65q5-14 7-29.5t2-31.5q0-16-2-31.5t-7-29.5l86-65-39-68-99 42q-22-23-48.5-38.5T533-694l-13-106h-79l-14 106q-31 8-57.5 23.5T321-633l-99-41-39 68 86 64q-5 15-7 30t-2 32q0 16 2 31t7 30l-86 65 39 68 99-42q22 23 48.5 38.5T427-266l13 106Zm42-180q58 0 99-41t41-99q0-58-41-99t-99-41q-59 0-99.5 41T342-480q0 58 40.5 99t99.5 41Zm-2-140Z" }))),
                 react_1.default.createElement("span", { style: { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 } }, data.label)))));
-};
-exports.ContainerNode = ContainerNode;
+}, areContainerNodePropsEqual);
 
 
 /***/ }),
@@ -2574,6 +2728,7 @@ exports.ContextMenu = React.memo(({ contextMenu, activeSubMenu, setActiveSubMenu
     const flyoutRefs = React.useRef({});
     const [adjustment, setAdjustment] = React.useState({ dx: 0, dy: 0 });
     const [flyoutOffsets, setFlyoutOffsets] = React.useState({});
+    const [flipState, setFlipState] = React.useState({ left: false, up: false });
     const isTouchDevice = React.useRef(typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0));
     // Measure menu dimensions and clamp to viewport bounds (wrapper-local coordinates)
     React.useLayoutEffect(() => {
@@ -2595,6 +2750,10 @@ exports.ContextMenu = React.memo(({ contextMenu, activeSubMenu, setActiveSubMenu
         if (contextMenu.top + dy < 8)
             dy = 8 - contextMenu.top;
         setAdjustment({ dx, dy });
+        // Compute flyout flip flags here so they don't force a reflow during render
+        const flipsLeft = contextMenu.left + dx + 310 > wrapW;
+        const flipsUp = contextMenu.top + dy + menuH > wrapH - 8;
+        setFlipState({ left: flipsLeft, up: flipsUp });
     }, [contextMenu.top, contextMenu.left]);
     // Measure flyouts and position them to fit within bounds (shift upward if needed)
     React.useLayoutEffect(() => {
@@ -2668,12 +2827,8 @@ exports.ContextMenu = React.memo(({ contextMenu, activeSubMenu, setActiveSubMenu
             return [];
         return paletteItems.filter((p) => currentPaletteItem.swappableWith.includes(p.id));
     }, [contextMenu, rawNodesDict, paletteItems]);
-    const flyoutFlipsLeft = wrapperRef.current
-        ? (contextMenu.left + adjustment.dx + 310 > wrapperRef.current.clientWidth)
-        : false;
-    const flyoutFlipsUp = (wrapperRef.current && containerRef.current)
-        ? (contextMenu.top + adjustment.dy + containerRef.current.offsetHeight > wrapperRef.current.clientHeight - 8)
-        : false;
+    const flyoutFlipsLeft = flipState.left;
+    const flyoutFlipsUp = flipState.up;
     // Build flyout style with dynamic positioning
     const getFlyoutStyle = (submenuKey) => {
         var _a;
@@ -2852,7 +3007,7 @@ const React = __importStar(__webpack_require__(/*! react */ "react"));
 // @ts-ignore
 const reactflow_1 = __webpack_require__(/*! reactflow */ "./node_modules/reactflow/dist/umd/index.js");
 const EdgeUtils_1 = __webpack_require__(/*! ./EdgeUtils */ "./typescript/components/ArchitectureBuilder/EdgeUtils.ts");
-const CustomEdge = ({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, markerEnd, style, label, interactionWidth, zIndex, }) => {
+exports.CustomEdge = React.memo(({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, markerEnd, style, label, interactionWidth, zIndex, }) => {
     var _a, _b;
     const storedWaypoints = (_a = data === null || data === void 0 ? void 0 : data.waypoints) !== null && _a !== void 0 ? _a : [];
     const showLabel = (data === null || data === void 0 ? void 0 : data.showLabel) === true;
@@ -2877,11 +3032,11 @@ const CustomEdge = ({ sourceX, sourceY, targetX, targetY, sourcePosition, target
     const isHorizSrc = sourcePosition === 'right' || sourcePosition === 'left';
     const isHorizTgt = targetPosition === 'right' || targetPosition === 'left';
     // Priority: active drag > stored custom waypoints > auto-routed (only if NO waypoints exist).
-    const baseWaypoints = liveWaypoints !== null && liveWaypoints !== void 0 ? liveWaypoints : (storedWaypoints.length > 0
+    const baseWaypoints = React.useMemo(() => liveWaypoints !== null && liveWaypoints !== void 0 ? liveWaypoints : (storedWaypoints.length > 0
         ? storedWaypoints
-        : EdgeUtils_1.computeAutoWaypoints(sx, sy, sourcePosition, tx, ty, targetPosition));
+        : EdgeUtils_1.computeAutoWaypoints(sx, sy, sourcePosition, tx, ty, targetPosition)), [liveWaypoints, storedWaypoints, sx, sy, sourcePosition, tx, ty, targetPosition]);
     // Pin logic uses shifted terminal coordinates to enforce orthogonality on manual paths.
-    const pinnedWaypoints = isStepType && baseWaypoints.length > 0
+    const pinnedWaypoints = React.useMemo(() => isStepType && baseWaypoints.length > 0
         ? baseWaypoints.map((wp, i) => {
             const result = Object.assign({}, wp); // Shallow copy to avoid mutation
             // Pin FIRST waypoint to the handle's exit axis.
@@ -2902,37 +3057,36 @@ const CustomEdge = ({ sourceX, sourceY, targetX, targetY, sourcePosition, target
             }
             return result;
         })
-        : baseWaypoints;
-    // Filter out redundant waypoints (points that coincide with handles) to prevent 
+        : baseWaypoints, [isStepType, baseWaypoints, isHorizSrc, isHorizTgt, sx, sy, tx, ty]);
+    // Filter out redundant waypoints (points that coincide with handles) to prevent
     // zero-length segments that cause rendering artifacts or 'weird' line jumps.
-    const filteredWaypoints = pinnedWaypoints.filter((wp, i) => {
-        if (i === 0) {
-            // First point is redundant if it exactly matches the source handle
+    const filteredWaypoints = React.useMemo(() => pinnedWaypoints.filter((wp, i) => {
+        if (i === 0)
             return Math.hypot(wp.x - sx, wp.y - sy) > 1;
-        }
-        if (i === pinnedWaypoints.length - 1) {
-            // Last point is redundant if it exactly matches the target handle
+        if (i === pinnedWaypoints.length - 1)
             return Math.hypot(wp.x - tx, wp.y - ty) > 1;
-        }
         return true;
-    });
-    const allPts = [{ x: sx, y: sy }, ...filteredWaypoints, { x: tx, y: ty }];
+    }), [pinnedWaypoints, sx, sy, tx, ty]);
+    const allPts = React.useMemo(() => [{ x: sx, y: sy }, ...filteredWaypoints, { x: tx, y: ty }], [filteredWaypoints, sx, sy, tx, ty]);
     // ─── Path computation ────────────────────────────────────────────────
-    let edgePath = '', labelX = (sx + tx) / 2, labelY = (sy + ty) / 2;
-    if (isStepType) {
-        edgePath = EdgeUtils_1.buildPolylinePath(allPts, (data === null || data === void 0 ? void 0 : data.lineType) === 'step' ? 0 : 12);
-        if (allPts.length >= 2) {
-            const mid = Math.floor(allPts.length / 2);
-            labelX = (allPts[mid - 1].x + allPts[mid].x) / 2;
-            labelY = (allPts[mid - 1].y + allPts[mid].y) / 2;
+    const { edgePath, labelX, labelY } = React.useMemo(() => {
+        let path = '', lx = (sx + tx) / 2, ly = (sy + ty) / 2;
+        if (isStepType) {
+            path = EdgeUtils_1.buildPolylinePath(allPts, (data === null || data === void 0 ? void 0 : data.lineType) === 'step' ? 0 : 12);
+            if (allPts.length >= 2) {
+                const mid = Math.floor(allPts.length / 2);
+                lx = (allPts[mid - 1].x + allPts[mid].x) / 2;
+                ly = (allPts[mid - 1].y + allPts[mid].y) / 2;
+            }
         }
-    }
-    else if ((data === null || data === void 0 ? void 0 : data.lineType) === 'straight') {
-        [edgePath, labelX, labelY] = reactflow_1.getStraightPath({ sourceX: sx, sourceY: sy, targetX: tx, targetY: ty });
-    }
-    else {
-        [edgePath, labelX, labelY] = reactflow_1.getBezierPath({ sourceX: sx, sourceY: sy, targetX: tx, targetY: ty, sourcePosition, targetPosition });
-    }
+        else if ((data === null || data === void 0 ? void 0 : data.lineType) === 'straight') {
+            [path, lx, ly] = reactflow_1.getStraightPath({ sourceX: sx, sourceY: sy, targetX: tx, targetY: ty });
+        }
+        else {
+            [path, lx, ly] = reactflow_1.getBezierPath({ sourceX: sx, sourceY: sy, targetX: tx, targetY: ty, sourcePosition, targetPosition });
+        }
+        return { edgePath: path, labelX: lx, labelY: ly };
+    }, [isStepType, allPts, sx, sy, tx, ty, sourcePosition, targetPosition, data === null || data === void 0 ? void 0 : data.lineType]);
     // ─── Pointer-capture drag engine ──────────────────────────────────────
     const canEdit = (data === null || data === void 0 ? void 0 : data.isSelected) && isStepType && (data === null || data === void 0 ? void 0 : data.isEditable) !== false;
     const applyDelta = (ref, clientX, clientY) => {
@@ -3014,11 +3168,10 @@ const CustomEdge = ({ sourceX, sourceY, targetX, targetY, sourcePosition, target
         setEditingText(e.target.value);
     };
     // ─── Render ───────────────────────────────────────────────────────────
-    const segHandlePts = [{ x: sx, y: sy }, ...pinnedWaypoints, { x: tx, y: ty }];
+    const segHandlePts = React.useMemo(() => [{ x: sx, y: sy }, ...pinnedWaypoints, { x: tx, y: ty }], [pinnedWaypoints, sx, sy, tx, ty]);
     const isDashed = (data === null || data === void 0 ? void 0 : data.dashed) === true;
     const animation = isDashed ? 'none' : ((_b = data === null || data === void 0 ? void 0 : data.animation) !== null && _b !== void 0 ? _b : 'none');
-    // Shared overlay style for particles
-    const overlayBaseStyle = Object.assign(Object.assign({}, style), { fill: 'none', stroke: 'rgba(255, 255, 255, 0.95)', strokeWidth: Math.max(3, ((style === null || style === void 0 ? void 0 : style.strokeWidth) || 6) * 0.5), pointerEvents: 'none', strokeLinecap: 'round' });
+    const overlayBaseStyle = React.useMemo(() => (Object.assign(Object.assign({}, style), { fill: 'none', stroke: 'rgba(255, 255, 255, 0.95)', strokeWidth: Math.max(3, ((style === null || style === void 0 ? void 0 : style.strokeWidth) || 6) * 0.5), pointerEvents: 'none', strokeLinecap: 'round' })), [style]);
     return (React.createElement(React.Fragment, null,
         React.createElement(reactflow_1.BaseEdge, { path: edgePath, markerEnd: markerEnd, style: Object.assign(Object.assign({}, style), { fill: 'none', strokeLinecap: 'round', filter: 'drop-shadow(0px 1px 1px rgba(0,0,0,0.3))' }), interactionWidth: dynamicInteractionWidth }),
         animation === 'forward' && (React.createElement(reactflow_1.BaseEdge, { path: edgePath, style: Object.assign(Object.assign({}, overlayBaseStyle), { strokeDasharray: '10 90', animation: 'arch-flow-forward 0.75s linear infinite', filter: `
@@ -3127,8 +3280,7 @@ const CustomEdge = ({ sourceX, sourceY, targetX, targetY, sourcePosition, target
                     boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
                 } }));
         })))));
-};
-exports.CustomEdge = CustomEdge;
+});
 exports.edgeTypes = { custom: exports.CustomEdge };
 
 
@@ -3305,7 +3457,7 @@ exports.NoteLabelNode = void 0;
 const react_1 = __importDefault(__webpack_require__(/*! react */ "react"));
 // @ts-ignore
 const reactflow_1 = __webpack_require__(/*! reactflow */ "./node_modules/reactflow/dist/umd/index.js");
-const NoteLabelNode = ({ id, data, selected }) => {
+exports.NoteLabelNode = react_1.default.memo(({ id, data, selected }) => {
     var _a, _b, _c, _d, _e;
     const { zoom } = reactflow_1.useViewport();
     const [isEditing, setIsEditing] = react_1.default.useState(false);
@@ -3404,8 +3556,7 @@ const NoteLabelNode = ({ id, data, selected }) => {
                 pointerEvents: 'none',
                 zIndex: 5
             } }, "\u26A0\uFE0F"))));
-};
-exports.NoteLabelNode = NoteLabelNode;
+});
 
 
 /***/ }),
@@ -3453,7 +3604,7 @@ exports.Sidebar = void 0;
 const react_1 = __importStar(__webpack_require__(/*! react */ "react"));
 const svgSanitize_1 = __webpack_require__(/*! ./svgSanitize */ "./typescript/components/ArchitectureBuilder/svgSanitize.ts");
 const constants_1 = __webpack_require__(/*! ./constants */ "./typescript/components/ArchitectureBuilder/constants.ts");
-const PaletteThumb = ({ src, label }) => {
+const PaletteThumb = react_1.default.memo(({ src, label }) => {
     const scopeId = react_1.default.useMemo(() => svgSanitize_1.nextSvgScopeId(), []);
     const svgHtml = react_1.default.useMemo(() => svgSanitize_1.extractSvgMarkup(src, scopeId), [src, scopeId]);
     if (svgHtml) {
@@ -3461,7 +3612,7 @@ const PaletteThumb = ({ src, label }) => {
     }
     const dataUri = svgSanitize_1.toSafeDataUri(src);
     return dataUri ? react_1.default.createElement("img", { src: dataUri, alt: label, style: { width: '100%', height: '100%', objectFit: 'contain' } }) : null;
-};
+});
 const Sidebar = ({ paletteItems, isOpen, toggleSidebar, onDragStartItem, onItemClick }) => {
     const [collapsedCategories, setCollapsedCategories] = react_1.useState({});
     const [searchQuery, setSearchQuery] = react_1.useState('');
@@ -3968,7 +4119,7 @@ const getNodesInside = (containerId, allNodes) => {
     });
     return inside;
 };
-const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, connectionTypes, nodeTypeConnectionDefaults, globalHandleCount, paletteItems, snapEnabled, snapPixels, reactFlowInstance, reactFlowWrapper, isEnabled, selectedId, setSelectedId, setLocalNodes, setLocalEdges, contextMenu, setContextMenu, setActiveSubMenu, setStyleEditorNodeId, clipboardRef, draggedItemRef, }) => {
+const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, connectionTypes, nodeTypeConnectionDefaults, globalHandleCount, paletteItems, snapEnabled, snapPixels, reactFlowInstance, reactFlowWrapper, wrapperBoundsRef, isEnabled, selectedId, setSelectedId, setLocalNodes, setLocalEdges, contextMenu, setContextMenu, setActiveSubMenu, setStyleEditorNodeId, clipboardRef, draggedItemRef, }) => {
     const [isDraggingNode, setIsDraggingNode] = React.useState(false);
     const dragStartPos = React.useRef(null);
     // Stable refs so callbacks that only READ rawNodesDict/rawEdgesDict at call-time
@@ -3996,6 +4147,7 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
         setActiveSubMenu,
         setLocalEdges,
         reactFlowWrapper,
+        wrapperBoundsRef,
         closeContextMenu,
     });
     // ─── Node handlers ────────────────────────────────────────────────────────
@@ -4184,16 +4336,14 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
         }
     }, [store, rawNodesDict, rawEdgesDict, selectedId, setSelectedId, componentEvents]);
     const onNodeContextMenu = React.useCallback((event, node) => {
-        var _a, _b;
+        var _a;
         event.preventDefault();
         setSelectedId(node.id);
-        const bounds = (_a = reactFlowWrapper.current) === null || _a === void 0 ? void 0 : _a.getBoundingClientRect();
-        const isContainer = ((_b = rawNodesDict[node.id]) === null || _b === void 0 ? void 0 : _b.paletteId) === 'container';
-        if (bounds) {
-            setContextMenu({ id: node.id, top: event.clientY - bounds.top, left: event.clientX - bounds.left, type: 'node', isContainer, clientX: event.clientX, clientY: event.clientY });
-            setActiveSubMenu(null);
-        }
-    }, [rawNodesDict, reactFlowWrapper, setSelectedId, setContextMenu, setActiveSubMenu]);
+        const bounds = wrapperBoundsRef.current;
+        const isContainer = ((_a = rawNodesDict[node.id]) === null || _a === void 0 ? void 0 : _a.paletteId) === 'container';
+        setContextMenu({ id: node.id, top: event.clientY - bounds.top, left: event.clientX - bounds.left, type: 'node', isContainer, clientX: event.clientX, clientY: event.clientY });
+        setActiveSubMenu(null);
+    }, [rawNodesDict, wrapperBoundsRef, setSelectedId, setContextMenu, setActiveSubMenu]);
     const onNodeClick = React.useCallback((event, node) => {
         closeContextMenu();
         setSelectedId(node.id);
@@ -4333,10 +4483,9 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
         }
     }, [setSelectedId, closeContextMenu, componentEvents]);
     const onPaneContextMenu = React.useCallback((event) => {
-        var _a;
         event.preventDefault();
-        const bounds = (_a = reactFlowWrapper.current) === null || _a === void 0 ? void 0 : _a.getBoundingClientRect();
-        if (bounds && reactFlowInstance) {
+        const bounds = wrapperBoundsRef.current;
+        if (reactFlowInstance) {
             const flowPos = reactFlowInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
             const containerEntry = Object.entries(rawNodesDict)
                 .filter(([id, n]) => n && n.paletteId === 'container')
@@ -4354,7 +4503,7 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
             }
             setActiveSubMenu(null);
         }
-    }, [reactFlowWrapper, reactFlowInstance, rawNodesDict, setContextMenu, setActiveSubMenu]);
+    }, [wrapperBoundsRef, reactFlowInstance, rawNodesDict, setContextMenu, setActiveSubMenu]);
     // ─── Context menu actions ──────────────────────────────────────────────────
     const handleNodeSwap = React.useCallback((newId) => {
         var _a;
@@ -4716,7 +4865,8 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.useEdgeHandlers = void 0;
 const React = __importStar(__webpack_require__(/*! react */ "react"));
 const utils_1 = __webpack_require__(/*! ./utils */ "./typescript/components/ArchitectureBuilder/utils.ts");
-const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, connectionTypes, nodeTypeConnectionDefaults, selectedId, setSelectedId, contextMenu, setContextMenu, setActiveSubMenu, setLocalEdges, reactFlowWrapper, closeContextMenu, }) => {
+const getPairKey = (typeIdA, typeIdB) => [typeIdA, typeIdB].sort().join('__');
+const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, connectionTypes, nodeTypeConnectionDefaults, selectedId, setSelectedId, contextMenu, setContextMenu, setActiveSubMenu, setLocalEdges, reactFlowWrapper, wrapperBoundsRef, closeContextMenu, }) => {
     const [isUpdatingEdge, setIsUpdatingEdge] = React.useState(false);
     const updatingEdgeRef = React.useRef(null);
     // ─── Validation ──────────────────────────────────────────────────────────
@@ -4746,7 +4896,6 @@ const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, c
         return getValidIntersection(connection.source, connection.target, updatingEdgeRef.current || undefined).length > 0;
     }, [getValidIntersection]);
     // ─── Edge handlers ───────────────────────────────────────────────────────
-    const getPairKey = (typeIdA, typeIdB) => [typeIdA, typeIdB].sort().join('__');
     const handleWaypointsChange = React.useCallback((edgeId, waypoints) => {
         try {
             if (!(store === null || store === void 0 ? void 0 : store.props))
@@ -4849,15 +4998,12 @@ const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, c
         }
     }, [store, rawEdgesDict, selectedId, setSelectedId, componentEvents]);
     const onEdgeContextMenu = React.useCallback((event, edge) => {
-        var _a;
         event.preventDefault();
         setSelectedId(edge.id);
-        const bounds = (_a = reactFlowWrapper.current) === null || _a === void 0 ? void 0 : _a.getBoundingClientRect();
-        if (bounds) {
-            setContextMenu({ id: edge.id, top: event.clientY - bounds.top, left: event.clientX - bounds.left, type: 'edge' });
-            setActiveSubMenu(null);
-        }
-    }, [reactFlowWrapper, setSelectedId, setContextMenu, setActiveSubMenu]);
+        const bounds = wrapperBoundsRef.current;
+        setContextMenu({ id: edge.id, top: event.clientY - bounds.top, left: event.clientX - bounds.left, type: 'edge' });
+        setActiveSubMenu(null);
+    }, [wrapperBoundsRef, setSelectedId, setContextMenu, setActiveSubMenu]);
     const onEdgeClick = React.useCallback((event, edge) => {
         closeContextMenu();
         setSelectedId(edge.id);
@@ -5059,6 +5205,8 @@ const react_1 = __webpack_require__(/*! react */ "react");
 const LONG_PRESS_MS = 600;
 function useLongPress(onLongPress) {
     const timerRef = react_1.useRef(null);
+    react_1.useEffect(() => () => { if (timerRef.current)
+        clearTimeout(timerRef.current); }, []);
     const onPointerDown = react_1.useCallback((e) => {
         if (e.button !== 0)
             return; // primary button only

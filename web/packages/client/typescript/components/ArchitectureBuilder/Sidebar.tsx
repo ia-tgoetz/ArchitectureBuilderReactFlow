@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { extractSvgMarkup, toSafeDataUri, nextSvgScopeId } from './svgSanitize';
 import { sharedInputStyle } from './constants';
 
-const PaletteThumb = ({ src, label }: { src: string, label: string }) => {
+const PaletteThumb = React.memo(({ src, label }: { src: string, label: string }) => {
     const scopeId = React.useMemo(() => nextSvgScopeId(), []);
     const svgHtml = React.useMemo(() => extractSvgMarkup(src, scopeId), [src, scopeId]);
     if (svgHtml) {
@@ -17,7 +17,7 @@ const PaletteThumb = ({ src, label }: { src: string, label: string }) => {
     }
     const dataUri = toSafeDataUri(src);
     return dataUri ? <img src={dataUri} alt={label} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : null;
-};
+});
 
 export interface PaletteItem {
     id: string;
