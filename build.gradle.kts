@@ -24,7 +24,7 @@ if (signPropsFile.exists()) {
 }
 
 allprojects {
-    version = "1.0.1"
+    version = "1.0.2"
     group = "com.wargoetz.reactflow"
 }
 
