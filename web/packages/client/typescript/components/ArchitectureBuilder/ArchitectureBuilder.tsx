@@ -23,6 +23,8 @@ import { CanvasSearch } from './CanvasSearch';
 
 const nodeTypes = { architecture: ArchitectureNode, container: ContainerNode, Note: NoteLabelNode, Label: NoteLabelNode };
 
+const EMPTY_HANDLE_SET = new Set<string>();
+
 // ─── Utility functions (used only by ArchitectureBuilder) ─────────────────────
 
 const extractDeep = (obj: any): any => {
@@ -36,21 +38,21 @@ const extractDeep = (obj: any): any => {
 
 const mapIgnitionToReactFlowNodes = (
     ignitionNodes: any,
-    paletteItems: any[],
+    paletteMap: Map<string, any>,
     handleGearClick: (id: string) => void,
     handleResizeEnd: (id: string, x: number, y: number, w: number, h: number) => void,
     handleTextChange: (id: string, text: string) => void,
     selectedId: string | null,
     globalHideHandles: boolean,
     globalHandleCount: number,
-    highlightedHandlesMap: Record<string, string[]>,
+    highlightedHandlesMap: Record<string, Set<string>>,
     isEditable: boolean
 ) => {
     if (!ignitionNodes) return [];
     return Object.entries(ignitionNodes)
         .filter(([id, nodeData]: any) => nodeData !== null && nodeData !== undefined)
         .map(([id, nodeData]: any) => {
-            const palette = paletteItems.find((p: any) => p.id === nodeData.paletteId);
+            const palette = paletteMap.get(nodeData.paletteId);
             const isContainer = nodeData.paletteId === 'container';
             const isTextNode = TEXT_NODE_PALETTE_IDS.has(nodeData.paletteId);
             const paletteImage = (nodeData.useOverrideImage && palette?.overrideImage) ? palette.overrideImage : palette?.image || '';
@@ -76,7 +78,7 @@ const mapIgnitionToReactFlowNodes = (
                     style: nodeData.style || {}, labelStyle: nodeData.labelStyle || {}, textStyle: nodeData.textStyle || {},
                     paletteId: nodeData.paletteId || 'unknown', inactive: nodeData.inactive || false,
                     hideHandles: nodeData.hideHandles, globalHideHandles, handleCount: globalHandleCount,
-                    highlightedHandles: highlightedHandlesMap[id] || [],
+                    highlightedHandles: highlightedHandlesMap[id] ?? EMPTY_HANDLE_SET,
                     isEditable,
                     unlockMovement: isUnlocked,
                     enableResize: isContainer || isTextNode,
@@ -111,10 +113,15 @@ const computeHierarchyData = (nodesDict: any, edgesDict: any) => {
     });
     Object.values(connectionsByNode).forEach(arr => arr.sort());
 
-    const getChain = (item: any): any[] =>
-        containers
+    const cachedChains = new Map<string, any[]>();
+    const getChain = (item: any): any[] => {
+        if (cachedChains.has(item.id)) return cachedChains.get(item.id)!;
+        const chain = containers
             .filter(c => c.id !== item.id && isInsideContainer(item, c))
             .sort((a, b) => ((b.width || 300) * (b.height || 300)) - ((a.width || 300) * (a.height || 300)));
+        cachedChains.set(item.id, chain);
+        return chain;
+    };
 
     const getDirectParent = (item: any): string | null => {
         const chain = getChain(item);
@@ -343,25 +350,30 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
 
     // ─── Derived flow data ─────────────────────────────────────────────────
 
-    const highlightedHandlesMap = React.useMemo<Record<string, string[]>>(() => {
-        const map: Record<string, string[]> = {};
+    const highlightedHandlesMap = React.useMemo<Record<string, Set<string>>>(() => {
+        const map: Record<string, Set<string>> = {};
         Object.values(rawEdgesDict).forEach((edge: any) => {
             if (!edge) return;
             if (edge.source && edge.sourceHandle) {
-                if (!map[edge.source]) map[edge.source] = [];
-                if (!map[edge.source].includes(edge.sourceHandle)) map[edge.source].push(edge.sourceHandle);
+                if (!map[edge.source]) map[edge.source] = new Set();
+                map[edge.source].add(edge.sourceHandle);
             }
             if (edge.target && edge.targetHandle) {
-                if (!map[edge.target]) map[edge.target] = [];
-                if (!map[edge.target].includes(edge.targetHandle)) map[edge.target].push(edge.targetHandle);
+                if (!map[edge.target]) map[edge.target] = new Set();
+                map[edge.target].add(edge.targetHandle);
             }
         });
         return map;
     }, [rawEdgesDict]);
 
+    const paletteMap = React.useMemo(
+        () => new Map(paletteItems.map((p: any) => [p.id, p])),
+        [paletteItems]
+    );
+
     const flowNodes = React.useMemo(
-        () => mapIgnitionToReactFlowNodes(rawNodesDict, paletteItems, handleGearClick, handleResizeEnd, handleTextChange, selectedId, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled),
-        [rawNodesDict, paletteItems, handleGearClick, handleResizeEnd, handleTextChange, selectedId, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled]
+        () => mapIgnitionToReactFlowNodes(rawNodesDict, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, selectedId, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled),
+        [rawNodesDict, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, selectedId, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled]
     );
     const flowEdges = React.useMemo(() =>
         mapIgnitionToReactFlowEdges(rawEdgesDict, rawNodesDict, connectionTypes, selectedId, handleWaypointsChange, handleLabelChange, snapEnabled, snapPixels, globalEdgeWidth),
@@ -409,10 +421,14 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
         }
     }, [globalHandleCount]);
 
+    const localEdgeMap = React.useMemo(
+        () => new Map(localEdges.map((e: any) => [e.id, e])),
+        [localEdges]
+    );
+
     const displayEdges = React.useMemo(() => {
-        const localMap = new Map(localEdges.map((e: any) => [e.id, e]));
         return flowEdges.filter(e => !isUpdatingEdge || e.id !== updatingEdgeRef.current).map((fresh: any) => {
-            const local = localMap.get(fresh.id);
+            const local = localEdgeMap.get(fresh.id);
             const isHovered = fresh.id === hoveredEdgeId;
             const isSelected = fresh.data?.isSelected === true;
             const isAnimated = fresh.data?.animation !== 'none';
@@ -431,7 +447,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
                 data: { ...fresh.data, waypoints, isEditable: isEnabled },
             };
         });
-    }, [localEdges, flowEdges, hoveredEdgeId, globalEdgeWidth, isEnabled, isUpdatingEdge]);
+    }, [localEdgeMap, flowEdges, hoveredEdgeId, globalEdgeWidth, isEnabled, isUpdatingEdge]);
 
     // ─── Keyboard shortcuts ────────────────────────────────────────────────
 

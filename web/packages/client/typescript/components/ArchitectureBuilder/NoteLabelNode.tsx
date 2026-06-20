@@ -14,7 +14,7 @@ export interface NoteLabelNodeData {
     onResizeEnd?: (id: string, x: number, y: number, width: number, height: number) => void;
 }
 
-export const NoteLabelNode = ({ id, data, selected }: NodeProps<NoteLabelNodeData>) => {
+export const NoteLabelNode = React.memo(({ id, data, selected }: NodeProps<NoteLabelNodeData>) => {
     const { zoom } = useViewport();
     const [isEditing, setIsEditing] = React.useState(false);
     const [text, setText] = React.useState(data.text || data.label || '');
@@ -201,4 +201,4 @@ export const NoteLabelNode = ({ id, data, selected }: NodeProps<NoteLabelNodeDat
             )}
         </div>
     );
-};
+});

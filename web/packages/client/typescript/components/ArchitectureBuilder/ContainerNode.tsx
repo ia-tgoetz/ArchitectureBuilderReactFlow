@@ -13,7 +13,7 @@ export interface ContainerNodeData {
     onResizeEnd?: (id: string, x: number, y: number, width: number, height: number) => void;
 }
 
-export const ContainerNode = ({ id, data, selected }: NodeProps<ContainerNodeData>) => {
+export const ContainerNode = React.memo(({ id, data, selected }: NodeProps<ContainerNodeData>) => {
     const { zoom } = useViewport();
     const finalLabelBg = data.labelStyle?.backgroundColor || 'var(--neutral-30)';
     const finalLabelColor = data.labelStyle?.color || 'var(--neutral-90)';
@@ -121,4 +121,4 @@ export const ContainerNode = ({ id, data, selected }: NodeProps<ContainerNodeDat
             </div>
         </>
     );
-};
+});

@@ -18,7 +18,7 @@ export interface ArchitectureNodeData {
     globalHideHandles?: boolean;
     isEditable?: boolean;
     handleCount?: number;
-    highlightedHandles?: string[];
+    highlightedHandles?: Set<string>;
     onGearClick?: (id: string, event: React.MouseEvent) => void;
     onTextChange?: (id: string, text: string) => void;
     onResizeEnd?: (id: string, x: number, y: number, width: number, height: number) => void;
@@ -26,7 +26,7 @@ export interface ArchitectureNodeData {
 
 const TEXT_PALETTE_IDS = new Set(['Note', 'Label']);
 
-const NodeImage = ({ src, label }: { src: string, label: string }) => {
+const NodeImage = React.memo(({ src, label }: { src: string, label: string }) => {
     const scopeId = React.useMemo(() => nextSvgScopeId(), []);
     const svgHtml = React.useMemo(() => extractSvgMarkup(src, scopeId), [src, scopeId]);
     if (svgHtml) {
@@ -41,13 +41,13 @@ const NodeImage = ({ src, label }: { src: string, label: string }) => {
     }
     const dataUri = toSafeDataUri(src);
     return dataUri ? <img src={dataUri} alt="" style={{padding: '4px', width: '100%', height: '100%', objectFit: 'contain' }} /> : null;
-};
+});
 
-export const ArchitectureNode = ({ id, data, selected }: NodeProps<ArchitectureNodeData>) => {
+export const ArchitectureNode = React.memo(({ id, data, selected }: NodeProps<ArchitectureNodeData>) => {
     const { zoom } = useViewport();
     const [hovered, setHovered] = React.useState(false);
     const showHandles = !data.globalHideHandles && !data.hideHandles && data.isEditable !== false;
-    const hasHighlightedHandles = !!(data.highlightedHandles && data.highlightedHandles.length > 0);
+    const hasHighlightedHandles = !!(data.highlightedHandles && data.highlightedHandles.size > 0);
     const isConnectionInProgress = useStore((s: any) => s.connectionNodeId != null);
     const isTextNode = TEXT_PALETTE_IDS.has(data.paletteId);
 
@@ -99,11 +99,13 @@ export const ArchitectureNode = ({ id, data, selected }: NodeProps<ArchitectureN
     };
 
     const handleCount = Math.max(1, Math.min(5, data.handleCount ?? 3));
-    const positions = Array.from({ length: handleCount }, (_, i) => `${((i + 0.5) / handleCount) * 100}%`);
-    const highlighted = new Set(data.highlightedHandles || []);
+    const positions = React.useMemo(
+        () => Array.from({ length: handleCount }, (_, i) => `${((i + 0.5) / handleCount) * 100}%`),
+        [handleCount]
+    );
     const handleClass = (id: string) => {
         if (!showHandles) return 'arch-node-handle arch-node-handle--suppressed';
-        return highlighted.has(id) ? 'arch-node-handle arch-node-handle--connected' : 'arch-node-handle';
+        return data.highlightedHandles?.has(id) ? 'arch-node-handle arch-node-handle--connected' : 'arch-node-handle';
     };
 
     // Calculate dynamic resizer handle size based on zoom
@@ -169,4 +171,4 @@ export const ArchitectureNode = ({ id, data, selected }: NodeProps<ArchitectureN
             )}
         </div>
     );
-};
+});

@@ -21,6 +21,9 @@ export interface UseEdgeHandlersParams {
     closeContextMenu: () => void;
 }
 
+const getPairKey = (typeIdA: string, typeIdB: string): string =>
+    [typeIdA, typeIdB].sort().join('__');
+
 export const useEdgeHandlers = ({
     store,
     componentEvents,
@@ -69,8 +72,6 @@ export const useEdgeHandlers = ({
 
     // ─── Edge handlers ───────────────────────────────────────────────────────
 
-    const getPairKey = (typeIdA: string, typeIdB: string): string =>
-        [typeIdA, typeIdB].sort().join('__');
 
     const handleWaypointsChange = React.useCallback((edgeId: string, waypoints: { x: number; y: number }[]) => {
         try {

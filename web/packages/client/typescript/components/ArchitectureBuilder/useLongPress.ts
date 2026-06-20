@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 const LONG_PRESS_MS = 600;
 
@@ -6,6 +6,8 @@ export function useLongPress(
   onLongPress: (x: number, y: number, target: Element) => void
 ) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {

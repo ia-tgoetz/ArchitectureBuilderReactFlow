@@ -18,7 +18,7 @@ interface DragState {
     onWaypointsChange: ((wps: Waypoint[]) => void) | undefined;
 }
 
-export const CustomEdge = ({
+export const CustomEdge = React.memo(({
     sourceX, sourceY, targetX, targetY,
     sourcePosition, targetPosition,
     data, markerEnd, style, label, interactionWidth, zIndex,
@@ -53,65 +53,74 @@ export const CustomEdge = ({
     const isHorizTgt = targetPosition === 'right' || targetPosition === 'left';
 
     // Priority: active drag > stored custom waypoints > auto-routed (only if NO waypoints exist).
-    const baseWaypoints: Waypoint[] =
-        liveWaypoints ??
-        (storedWaypoints.length > 0
-            ? storedWaypoints
-            : computeAutoWaypoints(sx, sy, sourcePosition, tx, ty, targetPosition));
+    const baseWaypoints = React.useMemo<Waypoint[]>(
+        () =>
+            liveWaypoints ??
+            (storedWaypoints.length > 0
+                ? storedWaypoints
+                : computeAutoWaypoints(sx, sy, sourcePosition, tx, ty, targetPosition)),
+        [liveWaypoints, storedWaypoints, sx, sy, sourcePosition, tx, ty, targetPosition]
+    );
 
     // Pin logic uses shifted terminal coordinates to enforce orthogonality on manual paths.
-    const pinnedWaypoints: Waypoint[] =
-        isStepType && baseWaypoints.length > 0
-            ? baseWaypoints.map((wp, i) => {
-                const result = { ...wp }; // Shallow copy to avoid mutation
-                // Pin FIRST waypoint to the handle's exit axis.
-                // If it's a side handle (horiz), force WP0.y to handle's Y.
-                // If it's a top/bottom handle (vert), force WP0.x to handle's X.
-                if (i === 0) {
-                    if (isHorizSrc) result.y = sy;
-                    else result.x = sx;
-                }
-                // Pin LAST waypoint to the handle's entry axis.
-                if (i === baseWaypoints.length - 1) {
-                    if (isHorizTgt) result.y = ty;
-                    else result.x = tx;
-                }
-                return result;
-            })
-            : baseWaypoints;
+    const pinnedWaypoints = React.useMemo<Waypoint[]>(
+        () =>
+            isStepType && baseWaypoints.length > 0
+                ? baseWaypoints.map((wp, i) => {
+                    const result = { ...wp }; // Shallow copy to avoid mutation
+                    // Pin FIRST waypoint to the handle's exit axis.
+                    // If it's a side handle (horiz), force WP0.y to handle's Y.
+                    // If it's a top/bottom handle (vert), force WP0.x to handle's X.
+                    if (i === 0) {
+                        if (isHorizSrc) result.y = sy;
+                        else result.x = sx;
+                    }
+                    // Pin LAST waypoint to the handle's entry axis.
+                    if (i === baseWaypoints.length - 1) {
+                        if (isHorizTgt) result.y = ty;
+                        else result.x = tx;
+                    }
+                    return result;
+                })
+                : baseWaypoints,
+        [isStepType, baseWaypoints, isHorizSrc, isHorizTgt, sx, sy, tx, ty]
+    );
 
-    // Filter out redundant waypoints (points that coincide with handles) to prevent 
+    // Filter out redundant waypoints (points that coincide with handles) to prevent
     // zero-length segments that cause rendering artifacts or 'weird' line jumps.
-    const filteredWaypoints = pinnedWaypoints.filter((wp, i) => {
-        if (i === 0) {
-            // First point is redundant if it exactly matches the source handle
-            return Math.hypot(wp.x - sx, wp.y - sy) > 1;
-        }
-        if (i === pinnedWaypoints.length - 1) {
-            // Last point is redundant if it exactly matches the target handle
-            return Math.hypot(wp.x - tx, wp.y - ty) > 1;
-        }
-        return true;
-    });
+    const filteredWaypoints = React.useMemo(
+        () =>
+            pinnedWaypoints.filter((wp, i) => {
+                if (i === 0) return Math.hypot(wp.x - sx, wp.y - sy) > 1;
+                if (i === pinnedWaypoints.length - 1) return Math.hypot(wp.x - tx, wp.y - ty) > 1;
+                return true;
+            }),
+        [pinnedWaypoints, sx, sy, tx, ty]
+    );
 
-    const allPts: Waypoint[] = [{ x: sx, y: sy }, ...filteredWaypoints, { x: tx, y: ty }];
+    const allPts = React.useMemo<Waypoint[]>(
+        () => [{ x: sx, y: sy }, ...filteredWaypoints, { x: tx, y: ty }],
+        [filteredWaypoints, sx, sy, tx, ty]
+    );
 
     // ─── Path computation ────────────────────────────────────────────────
 
-    let edgePath = '', labelX = (sx + tx) / 2, labelY = (sy + ty) / 2;
-
-    if (isStepType) {
-        edgePath = buildPolylinePath(allPts, data?.lineType === 'step' ? 0 : 12);
-        if (allPts.length >= 2) {
-            const mid = Math.floor(allPts.length / 2);
-            labelX = (allPts[mid - 1].x + allPts[mid].x) / 2;
-            labelY = (allPts[mid - 1].y + allPts[mid].y) / 2;
+    const { edgePath, labelX, labelY } = React.useMemo(() => {
+        let path = '', lx = (sx + tx) / 2, ly = (sy + ty) / 2;
+        if (isStepType) {
+            path = buildPolylinePath(allPts, data?.lineType === 'step' ? 0 : 12);
+            if (allPts.length >= 2) {
+                const mid = Math.floor(allPts.length / 2);
+                lx = (allPts[mid - 1].x + allPts[mid].x) / 2;
+                ly = (allPts[mid - 1].y + allPts[mid].y) / 2;
+            }
+        } else if (data?.lineType === 'straight') {
+            [path, lx, ly] = getStraightPath({ sourceX: sx, sourceY: sy, targetX: tx, targetY: ty });
+        } else {
+            [path, lx, ly] = getBezierPath({ sourceX: sx, sourceY: sy, targetX: tx, targetY: ty, sourcePosition, targetPosition });
         }
-    } else if (data?.lineType === 'straight') {
-        [edgePath, labelX, labelY] = getStraightPath({ sourceX: sx, sourceY: sy, targetX: tx, targetY: ty });
-    } else {
-        [edgePath, labelX, labelY] = getBezierPath({ sourceX: sx, sourceY: sy, targetX: tx, targetY: ty, sourcePosition, targetPosition });
-    }
+        return { edgePath: path, labelX: lx, labelY: ly };
+    }, [isStepType, allPts, sx, sy, tx, ty, sourcePosition, targetPosition, data?.lineType]);
 
     // ─── Pointer-capture drag engine ──────────────────────────────────────
 
@@ -205,19 +214,21 @@ export const CustomEdge = ({
 
     // ─── Render ───────────────────────────────────────────────────────────
 
-    const segHandlePts: Waypoint[] = [{ x: sx, y: sy }, ...pinnedWaypoints, { x: tx, y: ty }];
+    const segHandlePts = React.useMemo<Waypoint[]>(
+        () => [{ x: sx, y: sy }, ...pinnedWaypoints, { x: tx, y: ty }],
+        [pinnedWaypoints, sx, sy, tx, ty]
+    );
     const isDashed = data?.dashed === true;
     const animation = isDashed ? 'none' : (data?.animation ?? 'none');
     
-    // Shared overlay style for particles
-    const overlayBaseStyle: React.CSSProperties = { 
-        ...style, 
-        fill: 'none', 
-        stroke: 'rgba(255, 255, 255, 0.95)', 
-        strokeWidth: Math.max(3, (style?.strokeWidth || 6) * 0.5), 
+    const overlayBaseStyle = React.useMemo<React.CSSProperties>(() => ({
+        ...style,
+        fill: 'none',
+        stroke: 'rgba(255, 255, 255, 0.95)',
+        strokeWidth: Math.max(3, (style?.strokeWidth || 6) * 0.5),
         pointerEvents: 'none',
         strokeLinecap: 'round'
-    };
+    }), [style]);
 
     return (
         <>
@@ -423,6 +434,6 @@ export const CustomEdge = ({
             )}
         </>
     );
-};
+});
 
 export const edgeTypes = { custom: CustomEdge };
