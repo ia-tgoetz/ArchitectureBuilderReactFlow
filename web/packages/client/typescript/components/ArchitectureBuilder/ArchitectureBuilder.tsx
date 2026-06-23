@@ -95,7 +95,7 @@ const mapIgnitionToReactFlowNodes = (
                 style: {
                     width: nodeData.width || (isContainer ? 300 : (isTextNode ? 150 : 150)),
                     height: nodeData.height || (isContainer ? 300 : (isTextNode ? 80 : 150)),
-                    pointerEvents: (isContainer && !isUnlocked) ? 'none' : 'auto'
+                    pointerEvents: 'auto'
                 },
                 dragHandle: (isContainer && !isUnlocked) ? '.custom-drag-handle' : undefined,
                 data: {
@@ -442,9 +442,9 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
 
     React.useEffect(() => {
         if (!isDraggingNode) {
-            setLocalNodes(flowNodes);
+            setLocalNodes(flowNodes.map((n: any) => ({ ...n, selected: n.id === selectedId })));
         }
-    }, [flowNodes, isDraggingNode]);
+    }, [flowNodes, isDraggingNode, selectedId]);
 
     React.useEffect(() => {
         if (!isUpdatingEdge && !isDraggingNode) {
