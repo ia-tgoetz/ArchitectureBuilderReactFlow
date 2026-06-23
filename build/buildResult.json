@@ -2,13 +2,13 @@
     "moduleId": "com.wargoetz.archBuilder",
     "moduleName": "WARGoetz Architecture Builder",
     "moduleDescription": "React Flow based Architecture Builder Perspective component",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "checksum": {
-        "checksum": "1eb1913c53840cc1e7c12305398c52bd03c4af73658d535516ad0e7cdc66688b",
+        "checksum": "1b747b3c8def373119198fb38c7842377a789aa701436d4241ea8ca7aa26f9d7",
         "algorithm": "SHA256"
     },
     "fileName": "ArchitectureBuilder.modl",
-    "fileSize": 702486,
+    "fileSize": 702485,
     "artifacts": {
         ":common": {
             "projectPath": ":common",
@@ -16,8 +16,8 @@
             "scope": "DG",
             "artifacts": [
                 {
-                    "id": "com.wargoetz.reactflow:common:1.0.2",
-                    "jarName": "common-1.0.2.jar"
+                    "id": "com.wargoetz.reactflow:common:1.0.3",
+                    "jarName": "common-1.0.3.jar"
                 }
             ]
         },
@@ -27,8 +27,8 @@
             "scope": "D",
             "artifacts": [
                 {
-                    "id": "com.wargoetz.reactflow:designer:1.0.2",
-                    "jarName": "designer-1.0.2.jar"
+                    "id": "com.wargoetz.reactflow:designer:1.0.3",
+                    "jarName": "designer-1.0.3.jar"
                 }
             ]
         },
@@ -38,8 +38,8 @@
             "scope": "G",
             "artifacts": [
                 {
-                    "id": "com.wargoetz.reactflow:gateway:1.0.2",
-                    "jarName": "gateway-1.0.2.jar"
+                    "id": "com.wargoetz.reactflow:gateway:1.0.3",
+                    "jarName": "gateway-1.0.3.jar"
                 }
             ]
         }
