@@ -1644,7 +1644,7 @@ const mapIgnitionToReactFlowNodes = (ignitionNodes, paletteMap, handleGearClick,
             style: {
                 width: nodeData.width || (isContainer ? 300 : (isTextNode ? 150 : 150)),
                 height: nodeData.height || (isContainer ? 300 : (isTextNode ? 80 : 150)),
-                pointerEvents: (isContainer && !isUnlocked) ? 'none' : 'auto'
+                pointerEvents: 'auto'
             },
             dragHandle: (isContainer && !isUnlocked) ? '.custom-drag-handle' : undefined,
             data: {
@@ -1918,9 +1918,9 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
     const flowEdges = React.useMemo(() => EdgeUtils_1.mapIgnitionToReactFlowEdges(rawEdgesDict, rawNodesDict, connectionTypes, selectedId, handleWaypointsChange, handleLabelChange, snapEnabled, snapPixels, globalEdgeWidth), [rawEdgesDict, rawNodesDict, connectionTypes, selectedId, handleWaypointsChange, handleLabelChange, snapEnabled, snapPixels, globalEdgeWidth]);
     React.useEffect(() => {
         if (!isDraggingNode) {
-            setLocalNodes(flowNodes);
+            setLocalNodes(flowNodes.map((n) => (Object.assign(Object.assign({}, n), { selected: n.id === selectedId }))));
         }
-    }, [flowNodes, isDraggingNode]);
+    }, [flowNodes, isDraggingNode, selectedId]);
     React.useEffect(() => {
         if (!isUpdatingEdge && !isDraggingNode) {
             setLocalEdges(flowEdges);
