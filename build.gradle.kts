@@ -24,7 +24,7 @@ if (signPropsFile.exists()) {
 }
 
 allprojects {
-    version = "1.0.3"
+    version = "1.0.4"
     group = "com.wargoetz.reactflow"
 }
 
@@ -34,7 +34,7 @@ ignitionModule {
 
     // module xml configuration
     name.set("WARGoetz Architecture Builder")
-    id.set("com.wargoetz.archBuilder")
+    id.set("com.wargoetz.archbuilder")
     moduleVersion.set("${project.version}")
     moduleDescription.set("React Flow based Architecture Builder Perspective component")
     requiredIgnitionVersion.set("8.3.0")
