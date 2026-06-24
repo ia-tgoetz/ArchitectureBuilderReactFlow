@@ -13,7 +13,7 @@ import java.util.Set;
 public class ArchitectureBuilderMeta {
 
     public static final String COMPONENT_ID = "com.wargoetz.reactflow.architecturebuilder";
-    public static final String MODULE_ID = "com.wargoetz.archBuilder";
+    public static final String MODULE_ID = "com.wargoetz.archbuilder";
 
     public static final BrowserResource JS_RESOURCE = new BrowserResource(
         "architecturebuilder-0-shared-js",
