@@ -1644,7 +1644,7 @@ const mapIgnitionToReactFlowNodes = (ignitionNodes, paletteMap, handleGearClick,
             style: {
                 width: nodeData.width || (isContainer ? 300 : (isTextNode ? 150 : 150)),
                 height: nodeData.height || (isContainer ? 300 : (isTextNode ? 80 : 150)),
-                pointerEvents: 'auto'
+                pointerEvents: (isContainer && !isUnlocked) ? 'none' : 'auto'
             },
             dragHandle: (isContainer && !isUnlocked) ? '.custom-drag-handle' : undefined,
             data: {

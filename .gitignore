@@ -4,6 +4,7 @@
 **/bin/
 **/build/
 !/build/
+/Ignition83_JavaDocs/
 /build/checksum/
 /build/moduleContent/
 common/build/
