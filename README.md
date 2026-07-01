@@ -5,7 +5,7 @@ The **Architecture Builder** is a specialized, interactive visualization module 
 ## 📥 Download
 [Download the latest ArchitectureBuilder.modl](https://github.com/ia-tgoetz/ArchitectureBuilderReactFlow/releases/latest/download/ArchitectureBuilder.modl)
 
-**Latest release (v1.0.3):** Fixes selection and resize for Area and Notes/Label nodes (regression introduced in v1.0.2).
+**Latest release (v1.0.5):** Fixes area dragging interaction when the component is locked.
 
 ---
 
