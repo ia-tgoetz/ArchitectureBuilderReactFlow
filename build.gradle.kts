@@ -24,7 +24,7 @@ if (signPropsFile.exists()) {
 }
 
 allprojects {
-    version = "1.0.5"
+    version = "1.0.6" //Fixes Issue with Renaming/Editing Edge Labels where the label does not center and the model does not cover the screen correctly.
     group = "com.wargoetz.reactflow"
 }
 

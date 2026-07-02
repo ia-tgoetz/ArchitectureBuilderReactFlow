@@ -3004,6 +3004,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.edgeTypes = exports.CustomEdge = void 0;
 const React = __importStar(__webpack_require__(/*! react */ "react"));
+const ReactDOM = __importStar(__webpack_require__(/*! react-dom */ "react-dom"));
 // @ts-ignore
 const reactflow_1 = __webpack_require__(/*! reactflow */ "./node_modules/reactflow/dist/umd/index.js");
 const EdgeUtils_1 = __webpack_require__(/*! ./EdgeUtils */ "./typescript/components/ArchitectureBuilder/EdgeUtils.ts");
@@ -3204,56 +3205,55 @@ exports.CustomEdge = React.memo(({ sourceX, sourceY, targetX, targetY, sourcePos
                     zIndex: (zIndex !== null && zIndex !== void 0 ? zIndex : 5000) + 50,
                     cursor: 'pointer', whiteSpace: 'pre-wrap', textAlign: 'center',
                 }, className: "nodrag nopan" }, label))),
-        isEditing && (React.createElement(reactflow_1.EdgeLabelRenderer, null,
-            React.createElement("div", { className: "nodrag nopan", onClick: (e) => e.stopPropagation(), style: {
-                    position: 'fixed',
-                    top: 0, left: 0, right: 0, bottom: 0,
-                    backgroundColor: 'rgba(0, 0, 0, 0.45)',
-                    zIndex: 9999,
+        isEditing && ReactDOM.createPortal((React.createElement("div", { className: "nodrag nopan", onClick: (e) => e.stopPropagation(), style: {
+                position: 'fixed',
+                top: 0, left: 0, right: 0, bottom: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.45)',
+                zIndex: 9999,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                pointerEvents: 'auto',
+            } },
+            React.createElement("div", { style: {
+                    backgroundColor: 'var(--neutral-10)',
+                    borderRadius: '8px',
+                    padding: '16px',
+                    border: '1px solid var(--neutral-40)',
+                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.35)',
                     display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    pointerEvents: 'auto',
+                    flexDirection: 'column',
+                    gap: '10px',
+                    minWidth: '220px',
                 } },
-                React.createElement("div", { style: {
-                        backgroundColor: 'var(--neutral-10)',
-                        borderRadius: '8px',
-                        padding: '16px',
+                React.createElement("div", { style: { fontSize: '12px', fontWeight: 'bold', color: 'var(--neutral-70)' } }, "Edit Label"),
+                React.createElement("textarea", { value: editingText, onChange: handleTextareaChange, onKeyDown: handleLabelInputKeyDown, autoFocus: true, rows: 3, style: {
+                        backgroundColor: 'var(--neutral-20)',
+                        padding: '6px 8px',
+                        borderRadius: '4px',
                         border: '1px solid var(--neutral-40)',
-                        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.35)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '10px',
-                        minWidth: '220px',
-                    } },
-                    React.createElement("div", { style: { fontSize: '12px', fontWeight: 'bold', color: 'var(--neutral-70)' } }, "Edit Label"),
-                    React.createElement("textarea", { value: editingText, onChange: handleTextareaChange, onKeyDown: handleLabelInputKeyDown, autoFocus: true, rows: 3, style: {
-                            backgroundColor: 'var(--neutral-20)',
-                            padding: '6px 8px',
-                            borderRadius: '4px',
+                        fontSize: '12px',
+                        color: 'var(--neutral-90)',
+                        outline: 'none',
+                        resize: 'vertical',
+                        fontFamily: 'inherit',
+                        pointerEvents: 'auto',
+                    } }),
+                React.createElement("div", { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' } },
+                    React.createElement("button", { onClick: () => setIsEditing(false), style: {
+                            padding: '4px 14px', borderRadius: '4px',
                             border: '1px solid var(--neutral-40)',
-                            fontSize: '12px',
+                            backgroundColor: 'var(--neutral-20)',
                             color: 'var(--neutral-90)',
-                            outline: 'none',
-                            resize: 'vertical',
-                            fontFamily: 'inherit',
-                            pointerEvents: 'auto',
-                        } }),
-                    React.createElement("div", { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' } },
-                        React.createElement("button", { onClick: () => setIsEditing(false), style: {
-                                padding: '4px 14px', borderRadius: '4px',
-                                border: '1px solid var(--neutral-40)',
-                                backgroundColor: 'var(--neutral-20)',
-                                color: 'var(--neutral-90)',
-                                fontSize: '12px', cursor: 'pointer',
-                            } }, "Cancel"),
-                        React.createElement("button", { onClick: handleSave, style: {
-                                padding: '4px 14px', borderRadius: '4px',
-                                border: 'none',
-                                backgroundColor: 'var(--callToAction)',
-                                color: 'white',
-                                fontSize: '12px', fontWeight: 'bold', cursor: 'pointer',
-                            } }, "Confirm")))))),
+                            fontSize: '12px', cursor: 'pointer',
+                        } }, "Cancel"),
+                    React.createElement("button", { onClick: handleSave, style: {
+                            padding: '4px 14px', borderRadius: '4px',
+                            border: 'none',
+                            backgroundColor: 'var(--callToAction)',
+                            color: 'white',
+                            fontSize: '12px', fontWeight: 'bold', cursor: 'pointer',
+                        } }, "Confirm"))))), document.body),
         canEdit && segHandlePts.length >= 4 && (React.createElement(reactflow_1.EdgeLabelRenderer, null, segHandlePts.slice(0, -1).map((pt, i) => {
             const next = segHandlePts[i + 1];
             if (i === 0 || i === segHandlePts.length - 2)
