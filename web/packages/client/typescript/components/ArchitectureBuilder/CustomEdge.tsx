@@ -1,4 +1,5 @@
 import * as React from 'react';
+import * as ReactDOM from 'react-dom';
 // @ts-ignore
 import { BaseEdge, getBezierPath, getStraightPath, EdgeLabelRenderer, useReactFlow } from 'reactflow';
 import { buildPolylinePath, computeAutoWaypoints } from './EdgeUtils';
@@ -314,8 +315,8 @@ export const CustomEdge = React.memo(({
                     </div>
                 </EdgeLabelRenderer>
             )}
-            {isEditing && (
-                <EdgeLabelRenderer>
+            {isEditing && ReactDOM.createPortal(
+                (
                     <div
                         className="nodrag nopan"
                         onClick={(e) => e.stopPropagation()}
@@ -391,7 +392,8 @@ export const CustomEdge = React.memo(({
                             </div>
                         </div>
                     </div>
-                </EdgeLabelRenderer>
+                ),
+                document.body
             )}
             {canEdit && segHandlePts.length >= 4 && (
                 <EdgeLabelRenderer>
