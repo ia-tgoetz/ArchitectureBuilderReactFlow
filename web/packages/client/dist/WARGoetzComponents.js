@@ -1723,7 +1723,7 @@ const computeHierarchyData = (nodesDict, edgesDict) => {
     return { nodeEnrichments, rootHierarchy };
 };
 exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
-    var _a, _b, _c, _d;
+    var _a, _b, _c;
     console.log('DEBUG: ArchitectureBuilder rendering, props:', props);
     const reactFlowWrapper = React.useRef(null);
     const wrapperBoundsRef = React.useRef({ top: 0, left: 0 });
@@ -1830,8 +1830,7 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
     const globalHideHandles = rawConfig.hideHandles === true || String((_a = rawConfig.hideHandles) !== null && _a !== void 0 ? _a : '').toLowerCase() === 'true';
     const globalHandleCount = Math.max(1, Math.min(5, Number(rawConfig.handleCount) || 3));
     const isEnabled = rawConfig.enabled !== false && String((_b = rawConfig.enabled) !== null && _b !== void 0 ? _b : 'true').toLowerCase() !== 'false';
-    const _enableOnClickEvents = rawConfig.enableOnClickEvents !== false && String((_c = rawConfig.enableOnClickEvents) !== null && _c !== void 0 ? _c : 'true').toLowerCase() !== 'false';
-    const snapEnabled = rawConfig.snapEnabled !== false && String((_d = rawConfig.snapEnabled) !== null && _d !== void 0 ? _d : 'true').toLowerCase() !== 'false';
+    const snapEnabled = rawConfig.snapEnabled !== false && String((_c = rawConfig.snapEnabled) !== null && _c !== void 0 ? _c : 'true').toLowerCase() !== 'false';
     const snapPixels = Number(rawConfig.snapPixels) || 15;
     const snapGrid = React.useMemo(() => [snapPixels, snapPixels], [snapPixels]);
     const globalEdgeWidth = Math.max(1, Number(rawConfig.edgeWidth) || 6);
