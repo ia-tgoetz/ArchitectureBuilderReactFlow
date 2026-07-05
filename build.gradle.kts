@@ -24,7 +24,7 @@ if (signPropsFile.exists()) {
 }
 
 allprojects {
-    version = "1.0.6" //Fixes Issue with Renaming/Editing Edge Labels where the label does not center and the model does not cover the screen correctly.
+    version = "1.0.7" //Fixes Minor Issues in tsx mapping
     group = "com.wargoetz.reactflow"
 }
 

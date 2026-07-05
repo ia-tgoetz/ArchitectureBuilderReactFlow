@@ -313,7 +313,6 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
     const globalHideHandles = rawConfig.hideHandles === true || String(rawConfig.hideHandles ?? '').toLowerCase() === 'true';
     const globalHandleCount = Math.max(1, Math.min(5, Number(rawConfig.handleCount) || 3));
     const isEnabled = rawConfig.enabled !== false && String(rawConfig.enabled ?? 'true').toLowerCase() !== 'false';
-    const _enableOnClickEvents = rawConfig.enableOnClickEvents !== false && String(rawConfig.enableOnClickEvents ?? 'true').toLowerCase() !== 'false';
     const snapEnabled = rawConfig.snapEnabled !== false && String(rawConfig.snapEnabled ?? 'true').toLowerCase() !== 'false';
     const snapPixels = Number(rawConfig.snapPixels) || 15;
     const snapGrid = React.useMemo<[number, number]>(() => [snapPixels, snapPixels], [snapPixels]);
@@ -427,7 +426,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
     }, [edgeTopologyJson]);
 
     const paletteMap = React.useMemo(
-        () => new Map(paletteItems.map((p: any) => [p.id, p])),
+        () => new Map<string, any>(paletteItems.map((p: any) => [p.id, p])),
         [paletteItems]
     );
 
