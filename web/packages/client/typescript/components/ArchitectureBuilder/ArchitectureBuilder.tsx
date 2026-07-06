@@ -2,8 +2,9 @@ import * as React from 'react';
 import { ComponentProps } from '@inductiveautomation/perspective-client';
 import { observer } from 'mobx-react';
 // @ts-ignore
-import ReactFlow, { ReactFlowProvider, Background, Controls, ConnectionMode, useReactFlow } from 'reactflow';
+import ReactFlow, { ReactFlowProvider, Background, Controls, ConnectionMode, useReactFlow, getRectOfNodes, getTransformForBounds, ControlButton } from 'reactflow';
 import 'reactflow/dist/style.css';
+import { toPng } from 'html-to-image';
 import { Sidebar, PaletteItem } from './Sidebar';
 import { ArchitectureNode } from './ArchitectureNode';
 import { ContainerNode } from './ContainerNode';
@@ -579,6 +580,54 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
         }
     }, [isEnabled, reactFlowInstance, setContextMenu, setActiveSubMenu, setSelectedId]);
 
+    const handleScreenshot = React.useCallback(() => {
+        const element = document.querySelector('.react-flow__viewport') as HTMLElement;
+        if (!element || !reactFlowInstance) return;
+
+        const nodes = reactFlowInstance.getNodes();
+        if (nodes.length === 0) return;
+
+        const nodesBounds = getRectOfNodes(nodes);
+        const padding = 50;
+        const width = nodesBounds.width + padding * 2;
+        const height = nodesBounds.height + padding * 2;
+
+        const [x, y, zoom] = getTransformForBounds(
+            nodesBounds,
+            width,
+            height,
+            0.1,
+            2.0
+        );
+
+        toPng(element, {
+            backgroundColor: 'transparent',
+            width: width,
+            height: height,
+            style: {
+                width: `${width}px`,
+                height: `${height}px`,
+                transform: `translate(${x}px, ${y}px) scale(${zoom})`,
+            },
+            filter: (node) => {
+                if (
+                    node?.classList?.contains('react-flow__controls') ||
+                    node?.classList?.contains('react-flow__minimap')
+                ) {
+                    return false;
+                }
+                return true;
+            }
+        }).then((dataUrl) => {
+            const link = document.createElement('a');
+            link.download = `architecture-full-canvas-${new Date().toISOString().split('T')[0]}.png`;
+            link.href = dataUrl;
+            link.click();
+        }).catch((err) => {
+            console.error('Failed to generate screenshot:', err);
+        });
+    }, [reactFlowInstance]);
+
     const longPressHandlers = useLongPress(handleLongPress);
 
     const { classes } = props.props.style || {};
@@ -726,9 +775,17 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
                                 panOnDrag={true}
                                 selectionOnDrag={false}
                                 deleteKeyCode={['Delete', 'Backspace']}
+                                proOptions={{ hideAttribution: true }}
                             >
                                 <Background gap={snapPixels} />
-                                <Controls showInteractive={false} />
+                                <Controls showInteractive={false}>
+                                    <ControlButton onClick={handleScreenshot} title="Download Full Screenshot" aria-label="Download Full Screenshot">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block', color: '#555555' }}>
+                                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                                            <circle cx="12" cy="13" r="4"></circle>
+                                        </svg>
+                                    </ControlButton>
+                                </Controls>
                             </ReactFlow>
                         </ReactFlowProvider>
 
