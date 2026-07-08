@@ -358,7 +358,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
         handleWaypointsChange,
         handleLabelChange,
         onConnect, onEdgeUpdate, onEdgeUpdateStart, onEdgeUpdateEnd, onConnectStart, onConnectEnd,
-        onEdgesDelete, onEdgeContextMenu, onEdgeClick,
+        onEdgesDelete, deleteEdgeWithEvent, onEdgeContextMenu, onEdgeClick,
         handleLineTypeChange, handleConnectionTypeChange, handleAnimationChange, handleSetConnectionDefault, handleSetDefaultForType, handleClearConnectionDefault,
         handleGearClick, handlePaletteItemClick, handleResizeEnd, handleTextChange, handleActionIconClick,
         onNodesChange, onNodeDragStart, onNodeDrag, onNodeDragStop,
@@ -381,6 +381,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
         reactFlowWrapper,
         wrapperBoundsRef,
         isEnabled,
+        enableOnClickEvents: rawConfig.enableOnClickEvents !== false,
         selectedId,
         setSelectedId,
         setLocalNodes,
@@ -521,6 +522,10 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
             if (!isEnabled) return;
             if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') return;
             if ((e.ctrlKey || e.metaKey) && e.key === 'c') { if (selectedId && rawNodesDictRef.current[selectedId]) executeCopy(selectedId); }
+            if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId && rawEdgesDictRef.current[selectedId]) {
+                e.preventDefault();
+                deleteEdgeWithEvent(selectedId);
+            }
             if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
                 const clipboard = clipboardRef.current;
                 if (clipboard && props.store?.props) {
@@ -533,7 +538,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
         };
         document.addEventListener('keydown', handleKeyDown);
         return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [isEnabled, selectedId, snapEnabled, snapPixels, props.store, executeCopy, executePaste, closeContextMenu]);
+    }, [isEnabled, selectedId, snapEnabled, snapPixels, props.store, executeCopy, executePaste, closeContextMenu, deleteEdgeWithEvent, rawEdgesDictRef]);
 
     const flyToNode = React.useCallback((nodeId: string, x: number, y: number, w: number, h: number) => {
         if (reactFlowInstance) {

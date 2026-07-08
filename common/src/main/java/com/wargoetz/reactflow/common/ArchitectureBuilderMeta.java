@@ -41,6 +41,8 @@ public class ArchitectureBuilderMeta {
     public static final JsonSchema PANE_EVENT_SCHEMA = JsonSchema.parse(new ByteArrayInputStream("{ \"type\": \"object\", \"properties\": { \"type\": { \"type\": \"string\" } } }".getBytes(StandardCharsets.UTF_8)));
     public static final JsonSchema PALETTE_ITEM_EVENT_SCHEMA = JsonSchema.parse(new ByteArrayInputStream("{ \"type\": \"object\", \"properties\": { \"id\": { \"type\": \"string\" }, \"typeId\": { \"type\": \"string\" }, \"label\": { \"type\": \"string\" }, \"category\": { \"type\": \"string\" }, \"tooltip\": { \"type\": \"string\" } } }".getBytes(StandardCharsets.UTF_8)));
     public static final JsonSchema ACTION_ICON_EVENT_SCHEMA = JsonSchema.parse(new ByteArrayInputStream("{ \"type\": \"object\", \"properties\": { \"id\": { \"type\": \"string\" }, \"paletteId\": { \"type\": \"string\" }, \"typeId\": { \"type\": \"string\" }, \"type\": { \"type\": \"string\" }, \"name\": { \"type\": \"string\" } } }".getBytes(StandardCharsets.UTF_8)));
+    public static final JsonSchema EDGE_DELETED_EVENT_SCHEMA = JsonSchema.parse(new ByteArrayInputStream("{ \"type\": \"object\", \"properties\": { \"deletedEdgeUuid\": { \"type\": \"string\" }, \"source\": { \"type\": \"string\" }, \"target\": { \"type\": \"string\" } } }".getBytes(StandardCharsets.UTF_8)));
+    public static final JsonSchema NODE_DELETED_EVENT_SCHEMA = JsonSchema.parse(new ByteArrayInputStream("{ \"type\": \"object\", \"properties\": { \"deletedNodeUuid\": { \"type\": \"string\" }, \"connectedNodeUuids\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } } } }".getBytes(StandardCharsets.UTF_8)));
 
     public static final ComponentDescriptor DESCRIPTOR = ComponentDescriptorImpl.ComponentBuilder.newBuilder()
         .setId(COMPONENT_ID)
@@ -58,7 +60,9 @@ public class ArchitectureBuilderMeta {
                 new ComponentEventDescriptor("onContextMenuAction", "Fired when a context menu option is selected.", CONTEXT_MENU_EVENT_SCHEMA),
                 new ComponentEventDescriptor("onPaletteItemClick", "Fired when a palette item is clicked in the sidebar.", PALETTE_ITEM_EVENT_SCHEMA),
                 new ComponentEventDescriptor("onCanvasError", "Fired when a canvas rendering or interaction error occurs.", ERROR_EVENT_SCHEMA),
-                new ComponentEventDescriptor("onPaneClick", "Fired when the canvas background is clicked.", PANE_EVENT_SCHEMA)
+                new ComponentEventDescriptor("onPaneClick", "Fired when the canvas background is clicked.", PANE_EVENT_SCHEMA),
+                new ComponentEventDescriptor("edgeDeleted", "Fired when an edge is deleted.", EDGE_DELETED_EVENT_SCHEMA),
+                new ComponentEventDescriptor("nodeDeleted", "Fired when a node is deleted.", NODE_DELETED_EVENT_SCHEMA)
             ))
         .setSchema(JsonSchema.parse(ArchitectureBuilderMeta.class.getResourceAsStream("/architecturebuilder.props.json")))
         .build();

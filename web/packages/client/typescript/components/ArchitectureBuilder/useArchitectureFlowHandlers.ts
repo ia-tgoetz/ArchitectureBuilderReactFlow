@@ -49,6 +49,7 @@ export interface UseArchitectureFlowHandlersParams {
     reactFlowWrapper: React.RefObject<HTMLDivElement>;
     wrapperBoundsRef: React.MutableRefObject<{ top: number; left: number }>;
     isEnabled: boolean;
+    enableOnClickEvents: boolean;
     selectedId: string | null;
     setSelectedId: React.Dispatch<React.SetStateAction<string | null>>;
     setLocalNodes: React.Dispatch<React.SetStateAction<any[]>>;
@@ -76,6 +77,7 @@ export const useArchitectureFlowHandlers = ({
     reactFlowWrapper,
     wrapperBoundsRef,
     isEnabled,
+    enableOnClickEvents,
     selectedId,
     setSelectedId,
     setLocalNodes,
@@ -120,6 +122,7 @@ export const useArchitectureFlowHandlers = ({
         reactFlowWrapper,
         wrapperBoundsRef,
         closeContextMenu,
+        enableOnClickEvents,
     });
 
     // ─── Node handlers ────────────────────────────────────────────────────────
@@ -299,11 +302,20 @@ export const useArchitectureFlowHandlers = ({
             const nextEdges = { ...rawEdgesDict };
             let edgesChanged = false;
             deleted.forEach(n => {
+                const connectedNodeUuids: string[] = [];
+                Object.keys(nextEdges).forEach(edgeId => {
+                    const edge = nextEdges[edgeId];
+                    if (edge.source === n.id || edge.target === n.id) {
+                        connectedNodeUuids.push(edge.source === n.id ? edge.target : edge.source);
+                        delete nextEdges[edgeId];
+                        edgesChanged = true;
+                    }
+                });
                 delete nextNodes[n.id];
                 if (n.id === selectedId) setSelectedId(null);
-                Object.keys(nextEdges).forEach(edgeId => {
-                    if (nextEdges[edgeId].source === n.id || nextEdges[edgeId].target === n.id) { delete nextEdges[edgeId]; edgesChanged = true; }
-                });
+                if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
+                    componentEvents.fireComponentEvent('nodeDeleted', { deletedNodeUuid: n.id, connectedNodeUuids });
+                }
             });
             store.props.write('nodes', nextNodes);
             if (edgesChanged) store.props.write('edges', nextEdges);
@@ -311,7 +323,7 @@ export const useArchitectureFlowHandlers = ({
             console.error("Error in onNodesDelete:", error);
             if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'onNodesDelete'));
         }
-    }, [store, rawNodesDict, rawEdgesDict, selectedId, setSelectedId, componentEvents]);
+    }, [store, rawNodesDict, rawEdgesDict, selectedId, setSelectedId, componentEvents, enableOnClickEvents]);
 
     const onNodeContextMenu = React.useCallback((event: any, node: any) => {
         event.preventDefault();
@@ -616,11 +628,20 @@ export const useArchitectureFlowHandlers = ({
                     let edgesChanged = false;
                     const idsToDelete = [contextMenu.id, ...getNodesInside(contextMenu.id, rawNodesDict)];
                     idsToDelete.forEach(idToDel => {
+                        const connectedNodeUuids: string[] = [];
+                        Object.keys(nextEdges).forEach(edgeId => {
+                            const edge = nextEdges[edgeId];
+                            if (edge.source === idToDel || edge.target === idToDel) {
+                                connectedNodeUuids.push(edge.source === idToDel ? edge.target : edge.source);
+                                delete nextEdges[edgeId];
+                                edgesChanged = true;
+                            }
+                        });
                         delete nextNodes[idToDel];
                         if (selectedId === idToDel) setSelectedId(null);
-                        Object.keys(nextEdges).forEach(edgeId => {
-                            if (nextEdges[edgeId].source === idToDel || nextEdges[edgeId].target === idToDel) { delete nextEdges[edgeId]; edgesChanged = true; }
-                        });
+                        if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
+                            componentEvents.fireComponentEvent('nodeDeleted', { deletedNodeUuid: idToDel, connectedNodeUuids });
+                        }
                     });
                     store.props.write('nodes', nextNodes);
                     if (edgesChanged) store.props.write('edges', nextEdges);
@@ -634,20 +655,37 @@ export const useArchitectureFlowHandlers = ({
                         const nextNodes = { ...rawNodesDict };
                         const nextEdges = { ...rawEdgesDict };
                         let edgesChanged = false;
-                        delete nextNodes[contextMenu.id];
+                        const connectedNodeUuids: string[] = [];
                         Object.keys(nextEdges).forEach(edgeId => {
-                            if (nextEdges[edgeId].source === contextMenu.id || nextEdges[edgeId].target === contextMenu.id) { delete nextEdges[edgeId]; edgesChanged = true; }
+                            const edge = nextEdges[edgeId];
+                            if (edge.source === contextMenu.id || edge.target === contextMenu.id) {
+                                connectedNodeUuids.push(edge.source === contextMenu.id ? edge.target : edge.source);
+                                delete nextEdges[edgeId];
+                                edgesChanged = true;
+                            }
                         });
+                        delete nextNodes[contextMenu.id];
                         store.props.write('nodes', nextNodes);
                         if (edgesChanged) store.props.write('edges', nextEdges);
                         if (selectedId === contextMenu.id) setSelectedId(null);
+                        if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
+                            componentEvents.fireComponentEvent('nodeDeleted', { deletedNodeUuid: contextMenu.id, connectedNodeUuids });
+                        }
                     }
                 } else if (contextMenu.type === 'edge') {
                     if (store?.props) {
                         const nextEdges = { ...rawEdgesDict };
+                        const rawEdge = nextEdges[contextMenu.id];
                         delete nextEdges[contextMenu.id];
                         store.props.write('edges', nextEdges);
                         if (selectedId === contextMenu.id) setSelectedId(null);
+                        if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
+                            componentEvents.fireComponentEvent('edgeDeleted', {
+                                deletedEdgeUuid: contextMenu.id,
+                                source: rawEdge?.source,
+                                target: rawEdge?.target,
+                            });
+                        }
                     }
                 }
                 closeContextMenu(); return;
@@ -693,7 +731,7 @@ export const useArchitectureFlowHandlers = ({
             console.error("Error in handleContextMenuAction:", error);
             if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'handleContextMenuAction'));
         }
-    }, [contextMenu, rawNodesDict, rawEdgesDict, selectedId, snapEnabled, snapPixels, reactFlowInstance, store, componentEvents, setStyleEditorNodeId, executeCopy, executePaste, closeContextMenu, setSelectedId]);
+    }, [contextMenu, rawNodesDict, rawEdgesDict, selectedId, snapEnabled, snapPixels, reactFlowInstance, store, componentEvents, enableOnClickEvents, setStyleEditorNodeId, executeCopy, executePaste, closeContextMenu, setSelectedId]);
 
     return {
         // State

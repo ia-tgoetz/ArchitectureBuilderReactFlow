@@ -2988,7 +2988,7 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
         props.store.props.write('refreshHierarchy', false);
     }, [props.props.refreshHierarchy, props.store]);
     // ─── Handlers hook ─────────────────────────────────────────────────────
-    const { isUpdatingEdge, isDraggingNode, updatingEdgeRef, rawNodesDictRef, rawEdgesDictRef, closeContextMenu, getValidIntersection, isValidConnection, handleWaypointsChange, handleLabelChange, onConnect, onEdgeUpdate, onEdgeUpdateStart, onEdgeUpdateEnd, onConnectStart, onConnectEnd, onEdgesDelete, onEdgeContextMenu, onEdgeClick, handleLineTypeChange, handleConnectionTypeChange, handleAnimationChange, handleSetConnectionDefault, handleSetDefaultForType, handleClearConnectionDefault, handleGearClick, handlePaletteItemClick, handleResizeEnd, handleTextChange, handleActionIconClick, onNodesChange, onNodeDragStart, onNodeDrag, onNodeDragStop, onNodesDelete, onNodeContextMenu, onNodeClick, executeCopy, executePaste, onDragOver, onDrop, onMoveStart, onPaneClick, onPaneContextMenu, handleNodeSwap, handleContextMenuAction, } = useArchitectureFlowHandlers_1.useArchitectureFlowHandlers({
+    const { isUpdatingEdge, isDraggingNode, updatingEdgeRef, rawNodesDictRef, rawEdgesDictRef, closeContextMenu, getValidIntersection, isValidConnection, handleWaypointsChange, handleLabelChange, onConnect, onEdgeUpdate, onEdgeUpdateStart, onEdgeUpdateEnd, onConnectStart, onConnectEnd, onEdgesDelete, deleteEdgeWithEvent, onEdgeContextMenu, onEdgeClick, handleLineTypeChange, handleConnectionTypeChange, handleAnimationChange, handleSetConnectionDefault, handleSetDefaultForType, handleClearConnectionDefault, handleGearClick, handlePaletteItemClick, handleResizeEnd, handleTextChange, handleActionIconClick, onNodesChange, onNodeDragStart, onNodeDrag, onNodeDragStop, onNodesDelete, onNodeContextMenu, onNodeClick, executeCopy, executePaste, onDragOver, onDrop, onMoveStart, onPaneClick, onPaneContextMenu, handleNodeSwap, handleContextMenuAction, } = useArchitectureFlowHandlers_1.useArchitectureFlowHandlers({
         store: props.store,
         componentEvents: props.componentEvents,
         rawNodesDict,
@@ -3003,6 +3003,7 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
         reactFlowWrapper,
         wrapperBoundsRef,
         isEnabled,
+        enableOnClickEvents: rawConfig.enableOnClickEvents !== false,
         selectedId,
         setSelectedId,
         setLocalNodes,
@@ -3122,6 +3123,10 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
                 if (selectedId && rawNodesDictRef.current[selectedId])
                     executeCopy(selectedId);
             }
+            if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId && rawEdgesDictRef.current[selectedId]) {
+                e.preventDefault();
+                deleteEdgeWithEvent(selectedId);
+            }
             if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
                 const clipboard = clipboardRef.current;
                 if (clipboard && ((_a = props.store) === null || _a === void 0 ? void 0 : _a.props)) {
@@ -3134,7 +3139,7 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
         };
         document.addEventListener('keydown', handleKeyDown);
         return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [isEnabled, selectedId, snapEnabled, snapPixels, props.store, executeCopy, executePaste, closeContextMenu]);
+    }, [isEnabled, selectedId, snapEnabled, snapPixels, props.store, executeCopy, executePaste, closeContextMenu, deleteEdgeWithEvent, rawEdgesDictRef]);
     const flyToNode = React.useCallback((nodeId, x, y, w, h) => {
         if (reactFlowInstance) {
             reactFlowInstance.fitBounds({ x, y, width: w, height: h }, { padding: 0.5, duration: 600 });
@@ -5322,7 +5327,7 @@ const getNodesInside = (containerId, allNodes) => {
     });
     return inside;
 };
-const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, connectionTypes, nodeTypeConnectionDefaults, globalHandleCount, paletteItems, snapEnabled, snapPixels, reactFlowInstance, reactFlowWrapper, wrapperBoundsRef, isEnabled, selectedId, setSelectedId, setLocalNodes, setLocalEdges, contextMenu, setContextMenu, setActiveSubMenu, setStyleEditorNodeId, clipboardRef, draggedItemRef, }) => {
+const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, connectionTypes, nodeTypeConnectionDefaults, globalHandleCount, paletteItems, snapEnabled, snapPixels, reactFlowInstance, reactFlowWrapper, wrapperBoundsRef, isEnabled, enableOnClickEvents, selectedId, setSelectedId, setLocalNodes, setLocalEdges, contextMenu, setContextMenu, setActiveSubMenu, setStyleEditorNodeId, clipboardRef, draggedItemRef, }) => {
     const [isDraggingNode, setIsDraggingNode] = React.useState(false);
     const dragStartPos = React.useRef(null);
     // Stable refs so callbacks that only READ rawNodesDict/rawEdgesDict at call-time
@@ -5352,6 +5357,7 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
         reactFlowWrapper,
         wrapperBoundsRef,
         closeContextMenu,
+        enableOnClickEvents,
     });
     // ─── Node handlers ────────────────────────────────────────────────────────
     const handleGearClick = React.useCallback((id) => {
@@ -5524,15 +5530,21 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
             const nextEdges = Object.assign({}, rawEdgesDict);
             let edgesChanged = false;
             deleted.forEach(n => {
-                delete nextNodes[n.id];
-                if (n.id === selectedId)
-                    setSelectedId(null);
+                const connectedNodeUuids = [];
                 Object.keys(nextEdges).forEach(edgeId => {
-                    if (nextEdges[edgeId].source === n.id || nextEdges[edgeId].target === n.id) {
+                    const edge = nextEdges[edgeId];
+                    if (edge.source === n.id || edge.target === n.id) {
+                        connectedNodeUuids.push(edge.source === n.id ? edge.target : edge.source);
                         delete nextEdges[edgeId];
                         edgesChanged = true;
                     }
                 });
+                delete nextNodes[n.id];
+                if (n.id === selectedId)
+                    setSelectedId(null);
+                if (enableOnClickEvents && (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)) {
+                    componentEvents.fireComponentEvent('nodeDeleted', { deletedNodeUuid: n.id, connectedNodeUuids });
+                }
             });
             store.props.write('nodes', nextNodes);
             if (edgesChanged)
@@ -5543,7 +5555,7 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
             if (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)
                 componentEvents.fireComponentEvent('onCanvasError', utils_1.getSafeError(error, 'onNodesDelete'));
         }
-    }, [store, rawNodesDict, rawEdgesDict, selectedId, setSelectedId, componentEvents]);
+    }, [store, rawNodesDict, rawEdgesDict, selectedId, setSelectedId, componentEvents, enableOnClickEvents]);
     const onNodeContextMenu = React.useCallback((event, node) => {
         var _a;
         event.preventDefault();
@@ -5883,15 +5895,21 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
                     let edgesChanged = false;
                     const idsToDelete = [contextMenu.id, ...getNodesInside(contextMenu.id, rawNodesDict)];
                     idsToDelete.forEach(idToDel => {
-                        delete nextNodes[idToDel];
-                        if (selectedId === idToDel)
-                            setSelectedId(null);
+                        const connectedNodeUuids = [];
                         Object.keys(nextEdges).forEach(edgeId => {
-                            if (nextEdges[edgeId].source === idToDel || nextEdges[edgeId].target === idToDel) {
+                            const edge = nextEdges[edgeId];
+                            if (edge.source === idToDel || edge.target === idToDel) {
+                                connectedNodeUuids.push(edge.source === idToDel ? edge.target : edge.source);
                                 delete nextEdges[edgeId];
                                 edgesChanged = true;
                             }
                         });
+                        delete nextNodes[idToDel];
+                        if (selectedId === idToDel)
+                            setSelectedId(null);
+                        if (enableOnClickEvents && (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)) {
+                            componentEvents.fireComponentEvent('nodeDeleted', { deletedNodeUuid: idToDel, connectedNodeUuids });
+                        }
                     });
                     store.props.write('nodes', nextNodes);
                     if (edgesChanged)
@@ -5906,27 +5924,41 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
                         const nextNodes = Object.assign({}, rawNodesDict);
                         const nextEdges = Object.assign({}, rawEdgesDict);
                         let edgesChanged = false;
-                        delete nextNodes[contextMenu.id];
+                        const connectedNodeUuids = [];
                         Object.keys(nextEdges).forEach(edgeId => {
-                            if (nextEdges[edgeId].source === contextMenu.id || nextEdges[edgeId].target === contextMenu.id) {
+                            const edge = nextEdges[edgeId];
+                            if (edge.source === contextMenu.id || edge.target === contextMenu.id) {
+                                connectedNodeUuids.push(edge.source === contextMenu.id ? edge.target : edge.source);
                                 delete nextEdges[edgeId];
                                 edgesChanged = true;
                             }
                         });
+                        delete nextNodes[contextMenu.id];
                         store.props.write('nodes', nextNodes);
                         if (edgesChanged)
                             store.props.write('edges', nextEdges);
                         if (selectedId === contextMenu.id)
                             setSelectedId(null);
+                        if (enableOnClickEvents && (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)) {
+                            componentEvents.fireComponentEvent('nodeDeleted', { deletedNodeUuid: contextMenu.id, connectedNodeUuids });
+                        }
                     }
                 }
                 else if (contextMenu.type === 'edge') {
                     if (store === null || store === void 0 ? void 0 : store.props) {
                         const nextEdges = Object.assign({}, rawEdgesDict);
+                        const rawEdge = nextEdges[contextMenu.id];
                         delete nextEdges[contextMenu.id];
                         store.props.write('edges', nextEdges);
                         if (selectedId === contextMenu.id)
                             setSelectedId(null);
+                        if (enableOnClickEvents && (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)) {
+                            componentEvents.fireComponentEvent('edgeDeleted', {
+                                deletedEdgeUuid: contextMenu.id,
+                                source: rawEdge === null || rawEdge === void 0 ? void 0 : rawEdge.source,
+                                target: rawEdge === null || rawEdge === void 0 ? void 0 : rawEdge.target,
+                            });
+                        }
                     }
                 }
                 closeContextMenu();
@@ -6005,7 +6037,7 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
             if (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)
                 componentEvents.fireComponentEvent('onCanvasError', utils_1.getSafeError(error, 'handleContextMenuAction'));
         }
-    }, [contextMenu, rawNodesDict, rawEdgesDict, selectedId, snapEnabled, snapPixels, reactFlowInstance, store, componentEvents, setStyleEditorNodeId, executeCopy, executePaste, closeContextMenu, setSelectedId]);
+    }, [contextMenu, rawNodesDict, rawEdgesDict, selectedId, snapEnabled, snapPixels, reactFlowInstance, store, componentEvents, enableOnClickEvents, setStyleEditorNodeId, executeCopy, executePaste, closeContextMenu, setSelectedId]);
     return Object.assign(Object.assign({ 
         // State
         isDraggingNode,
@@ -6077,7 +6109,7 @@ exports.useEdgeHandlers = void 0;
 const React = __importStar(__webpack_require__(/*! react */ "react"));
 const utils_1 = __webpack_require__(/*! ./utils */ "./typescript/components/ArchitectureBuilder/utils.ts");
 const getPairKey = (typeIdA, typeIdB) => [typeIdA, typeIdB].sort().join('__');
-const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, connectionTypes, nodeTypeConnectionDefaults, selectedId, setSelectedId, contextMenu, setContextMenu, setActiveSubMenu, setLocalEdges, reactFlowWrapper, wrapperBoundsRef, closeContextMenu, }) => {
+const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, connectionTypes, nodeTypeConnectionDefaults, selectedId, setSelectedId, contextMenu, setContextMenu, setActiveSubMenu, setLocalEdges, reactFlowWrapper, wrapperBoundsRef, closeContextMenu, enableOnClickEvents, }) => {
     const [isUpdatingEdge, setIsUpdatingEdge] = React.useState(false);
     const updatingEdgeRef = React.useRef(null);
     // ─── Validation ──────────────────────────────────────────────────────────
@@ -6193,21 +6225,61 @@ const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, c
         var _a;
         (_a = reactFlowWrapper.current) === null || _a === void 0 ? void 0 : _a.classList.remove('arch-creating-edge');
     }, [reactFlowWrapper]);
+    // Shared removal logic: deletes the given edges from the store and returns
+    // the ones actually removed (with source/target captured before deletion).
+    const removeEdgesFromStore = React.useCallback((deleted) => {
+        if (!(store === null || store === void 0 ? void 0 : store.props))
+            return [];
+        const nextEdges = Object.assign({}, rawEdgesDict);
+        const removed = [];
+        deleted.forEach(e => {
+            const rawEdge = rawEdgesDict[e.id];
+            if (nextEdges[e.id]) {
+                removed.push({ id: e.id, source: rawEdge === null || rawEdge === void 0 ? void 0 : rawEdge.source, target: rawEdge === null || rawEdge === void 0 ? void 0 : rawEdge.target });
+                delete nextEdges[e.id];
+            }
+            if (e.id === selectedId)
+                setSelectedId(null);
+        });
+        store.props.write('edges', nextEdges);
+        return removed;
+    }, [store, rawEdgesDict, selectedId, setSelectedId]);
+    // Wired to <ReactFlow onEdgesDelete>. React Flow invokes this only as a cascade
+    // when a connected node is deleted (edges never carry top-level `selected`, so
+    // React Flow's own deleteKeyCode handling can never route a directly-selected
+    // edge through here). nodeDeleted already reports the affected connections, so
+    // this path must NOT also fire edgeDeleted.
     const onEdgesDelete = React.useCallback((deleted) => {
         try {
-            if (!(store === null || store === void 0 ? void 0 : store.props))
-                return;
-            const nextEdges = Object.assign({}, rawEdgesDict);
-            deleted.forEach(e => { delete nextEdges[e.id]; if (e.id === selectedId)
-                setSelectedId(null); });
-            store.props.write('edges', nextEdges);
+            removeEdgesFromStore(deleted);
         }
         catch (error) {
             console.error("Error in onEdgesDelete:", error);
             if (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)
                 componentEvents.fireComponentEvent('onCanvasError', utils_1.getSafeError(error, 'onEdgesDelete'));
         }
-    }, [store, rawEdgesDict, selectedId, setSelectedId, componentEvents]);
+    }, [removeEdgesFromStore, componentEvents]);
+    // Explicit, user-intentional single-edge deletion (keyboard Delete/Backspace
+    // while an edge is selected). Fires edgeDeleted.
+    const deleteEdgeWithEvent = React.useCallback((edgeId) => {
+        try {
+            const removed = removeEdgesFromStore([{ id: edgeId }]);
+            if (enableOnClickEvents && (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)) {
+                removed.forEach(r => {
+                    componentEvents.fireComponentEvent('edgeDeleted', {
+                        deletedEdgeUuid: r.id,
+                        source: r.source,
+                        target: r.target,
+                    });
+                });
+            }
+        }
+        catch (error) {
+            console.error("Error in deleteEdgeWithEvent:", error);
+            if (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)
+                componentEvents.fireComponentEvent('onCanvasError', utils_1.getSafeError(error, 'deleteEdgeWithEvent'));
+        }
+    }, [removeEdgesFromStore, componentEvents, enableOnClickEvents]);
     const onEdgeContextMenu = React.useCallback((event, edge) => {
         event.preventDefault();
         setSelectedId(edge.id);
@@ -6386,6 +6458,7 @@ const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, c
         onConnectStart,
         onConnectEnd,
         onEdgesDelete,
+        deleteEdgeWithEvent,
         onEdgeContextMenu,
         onEdgeClick,
         handleLineTypeChange,

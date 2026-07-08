@@ -174,6 +174,27 @@ These are **read-only** and written back by the component. Do not write to them 
 
 ---
 
+## Component Events
+
+Bindable in the Designer's **Component Events** tab. Read fields off the `event` object in a Python event script (e.g. `event.deletedNodeUuid`).
+
+| Event | Payload | Fires when |
+| :--- | :--- | :--- |
+| `onNodeClick` | `{id, paletteId, typeId, type}` | A node is clicked. |
+| `onEdgeClick` | `{id, paletteId, type}` | An edge is clicked. |
+| `onPaneClick` | `{type}` | The canvas background is clicked. |
+| `onGearClick` | `{id, paletteId, typeId, type, action}` | A node's gear/config icon is clicked. |
+| `onActionIconClick` | `{id, paletteId, typeId, type, name}` | An enabled `actionIcons` entry is clicked. |
+| `onPaletteItemClick` | `{id, typeId, label, category, tooltip, ...}` | A sidebar palette item is clicked. |
+| `onContextMenuAction` | `{id, paletteId, type, action}` | Any right-click context menu action is selected (including deletes — see below). |
+| `edgeDeleted` | `{deletedEdgeUuid, source, target}` | An edge is deleted **directly** — via right-click → **Delete**, or `Delete`/`Backspace` while the edge is selected. Does **not** fire when the edge is removed as a side effect of deleting one of its connected nodes (see `nodeDeleted`). |
+| `nodeDeleted` | `{deletedNodeUuid, connectedNodeUuids}` | A node is deleted — via `Delete`/`Backspace`, right-click → **Delete**, or right-click → **Delete with Contents**. `connectedNodeUuids` lists the UUIDs of nodes on the far end of any edges that were removed along with it. Fires once per node removed (e.g. once per node in **Delete with Contents**). |
+| `onCanvasError` | `{source, message, stack}` | An internal rendering/interaction error is caught. |
+
+`edgeDeleted` and `nodeDeleted` are gated by the `enableOnClickEvents` prop — they only fire when it is `true`. The other events above fire regardless of `enableOnClickEvents`.
+
+---
+
 ## Canvas Search
 
 The built-in search feature lets operators and designers quickly locate nodes on large diagrams.
