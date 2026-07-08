@@ -1,7 +1,15 @@
 import React from 'react';
 // @ts-ignore
 import { Handle, Position, NodeProps, useViewport, NodeResizer, useStore } from 'reactflow';
+import { IconRenderer } from '@inductiveautomation/perspective-client';
 import { extractSvgMarkup, toSafeDataUri, nextSvgScopeId } from './svgSanitize';
+
+export interface ActionIconData {
+    icon: string;
+    name: string;
+    color?: string;
+    enabled?: boolean;
+}
 
 export interface ArchitectureNodeData {
     label: string;
@@ -19,9 +27,11 @@ export interface ArchitectureNodeData {
     isEditable?: boolean;
     handleCount?: number;
     highlightedHandles?: Set<string>;
+    actionIcons?: ActionIconData[];
     onGearClick?: (id: string, event: React.MouseEvent) => void;
     onTextChange?: (id: string, text: string) => void;
     onResizeEnd?: (id: string, x: number, y: number, width: number, height: number) => void;
+    onActionIconClick?: (id: string, iconName: string, event: React.MouseEvent) => void;
 }
 
 const TEXT_PALETTE_IDS = new Set(['Note', 'Label']);
@@ -41,6 +51,13 @@ const areSetsEqual = (a: Set<string> | undefined, b: Set<string> | undefined): b
     if (a === b) return true;
     if (!a || !b || a.size !== b.size) return false;
     for (const item of a) { if (!b.has(item)) return false; }
+    return true;
+};
+
+const areActionIconsEqual = (a: ActionIconData[] | undefined, b: ActionIconData[] | undefined): boolean => {
+    if (a === b) return true;
+    if (!a || !b || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) { if (!shallowEqualObjects(a[i], b[i])) return false; }
     return true;
 };
 
@@ -65,9 +82,11 @@ const areArchitectureNodePropsEqual = (
     if (!shallowEqualObjects(pd.textStyle, nd.textStyle)) return false;
     if (!shallowEqualObjects(pd.configs, nd.configs)) return false;
     if (!areSetsEqual(pd.highlightedHandles, nd.highlightedHandles)) return false;
+    if (!areActionIconsEqual(pd.actionIcons, nd.actionIcons)) return false;
     if (pd.onGearClick !== nd.onGearClick) return false;
     if (pd.onTextChange !== nd.onTextChange) return false;
     if (pd.onResizeEnd !== nd.onResizeEnd) return false;
+    if (pd.onActionIconClick !== nd.onActionIconClick) return false;
     return true;
 };
 
@@ -212,6 +231,32 @@ export const ArchitectureNode = React.memo(({ id, data, selected }: NodeProps<Ar
                     }}
                 >
                     <NodeImage src={data.image} label={data.label} />
+                </div>
+            )}
+
+            {data.actionIcons && data.actionIcons.length > 0 && (
+                <div style={{ position: 'absolute', right: 4, bottom: 4, display: 'flex', flexDirection: 'row', gap: 4, zIndex: 10 }}>
+                    {data.actionIcons.map((ai) => {
+                        const enabled = ai.enabled !== false;
+                        return (
+                            <div
+                                key={ai.name}
+                                style={{
+                                    width: 30, height: 30,
+                                    opacity: enabled ? 1 : 0.4,
+                                    pointerEvents: enabled ? 'auto' : 'none',
+                                    cursor: enabled ? 'pointer' : 'default'
+                                }}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (enabled && data.onActionIconClick) data.onActionIconClick(id, ai.name, e);
+                                }}
+                                title={ai.name}
+                            >
+                                <IconRenderer path={ai.icon} color={ai.color} size={30} />
+                            </div>
+                        );
+                    })}
                 </div>
             )}
         </div>

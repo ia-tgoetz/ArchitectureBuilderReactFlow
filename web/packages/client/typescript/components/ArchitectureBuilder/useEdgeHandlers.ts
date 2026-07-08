@@ -2,7 +2,7 @@ import * as React from 'react';
 // @ts-ignore
 import { Edge, Connection } from 'reactflow';
 import { ContextMenuState } from './types';
-import { getSafeError, generateShortId } from './utils';
+import { generateShortId } from './utils';
 
 export interface UseEdgeHandlersParams {
     store: any;
@@ -20,6 +20,7 @@ export interface UseEdgeHandlersParams {
     reactFlowWrapper: React.RefObject<HTMLDivElement>;
     wrapperBoundsRef: React.MutableRefObject<{ top: number; left: number }>;
     closeContextMenu: () => void;
+    enableOnClickEvents: boolean;
 }
 
 const getPairKey = (typeIdA: string, typeIdB: string): string =>
@@ -41,6 +42,7 @@ export const useEdgeHandlers = ({
     reactFlowWrapper,
     wrapperBoundsRef,
     closeContextMenu,
+    enableOnClickEvents,
 }: UseEdgeHandlersParams) => {
     const [isUpdatingEdge, setIsUpdatingEdge] = React.useState(false);
     const updatingEdgeRef = React.useRef<string | null>(null);
@@ -86,7 +88,6 @@ export const useEdgeHandlers = ({
             }
         } catch (error: any) {
             console.error("Error in handleWaypointsChange:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'handleWaypointsChange'));
         }
     }, [store, rawEdgesDict, componentEvents, setLocalEdges]);
 
@@ -110,7 +111,6 @@ export const useEdgeHandlers = ({
             }
         } catch (error: any) {
             console.error("Error in onConnect:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'onConnect'));
         }
     }, [store, rawEdgesDict, rawNodesDict, getValidIntersection, connectionTypes, nodeTypeConnectionDefaults, componentEvents]);
 
@@ -146,7 +146,6 @@ export const useEdgeHandlers = ({
             }
         } catch (error: any) {
             console.error("Error in onEdgeUpdate:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'onEdgeUpdate'));
         }
     }, [store, rawEdgesDict, getValidIntersection, componentEvents]);
 
@@ -167,17 +166,55 @@ export const useEdgeHandlers = ({
         reactFlowWrapper.current?.classList.remove('arch-creating-edge');
     }, [reactFlowWrapper]);
 
+    // Shared removal logic: deletes the given edges from the store and returns
+    // the ones actually removed (with source/target captured before deletion).
+    const removeEdgesFromStore = React.useCallback((deleted: { id: string }[]) => {
+        if (!store?.props) return [];
+        const nextEdges = { ...rawEdgesDict };
+        const removed: { id: string; source?: string; target?: string }[] = [];
+        deleted.forEach(e => {
+            const rawEdge = rawEdgesDict[e.id];
+            if (nextEdges[e.id]) {
+                removed.push({ id: e.id, source: rawEdge?.source, target: rawEdge?.target });
+                delete nextEdges[e.id];
+            }
+            if (e.id === selectedId) setSelectedId(null);
+        });
+        store.props.write('edges', nextEdges);
+        return removed;
+    }, [store, rawEdgesDict, selectedId, setSelectedId]);
+
+    // Wired to <ReactFlow onEdgesDelete>. React Flow invokes this only as a cascade
+    // when a connected node is deleted (edges never carry top-level `selected`, so
+    // React Flow's own deleteKeyCode handling can never route a directly-selected
+    // edge through here). nodeDeleted already reports the affected connections, so
+    // this path must NOT also fire edgeDeleted.
     const onEdgesDelete = React.useCallback((deleted: Edge[]) => {
         try {
-            if (!store?.props) return;
-            const nextEdges = { ...rawEdgesDict };
-            deleted.forEach(e => { delete nextEdges[e.id]; if (e.id === selectedId) setSelectedId(null); });
-            store.props.write('edges', nextEdges);
+            removeEdgesFromStore(deleted);
         } catch (error: any) {
             console.error("Error in onEdgesDelete:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'onEdgesDelete'));
         }
-    }, [store, rawEdgesDict, selectedId, setSelectedId, componentEvents]);
+    }, [removeEdgesFromStore, componentEvents]);
+
+    // Explicit, user-intentional single-edge deletion (keyboard Delete/Backspace
+    // while an edge is selected). Fires edgeDeleted.
+    const deleteEdgeWithEvent = React.useCallback((edgeId: string) => {
+        try {
+            const removed = removeEdgesFromStore([{ id: edgeId }]);
+            if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
+                removed.forEach(r => {
+                    componentEvents.fireComponentEvent('edgeDeleted', {
+                        deletedEdgeUuid: r.id,
+                        source: r.source,
+                        target: r.target,
+                    });
+                });
+            }
+        } catch (error: any) {
+            console.error("Error in deleteEdgeWithEvent:", error);
+        }
+    }, [removeEdgesFromStore, componentEvents, enableOnClickEvents]);
 
     const onEdgeContextMenu = React.useCallback((event: any, edge: any) => {
         event.preventDefault();
@@ -205,7 +242,6 @@ export const useEdgeHandlers = ({
             closeContextMenu();
         } catch (error: any) {
             console.error("Error in handleLineTypeChange:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'handleLineTypeChange'));
         }
     }, [contextMenu, componentEvents, rawEdgesDict, store, closeContextMenu]);
 
@@ -225,7 +261,6 @@ export const useEdgeHandlers = ({
             closeContextMenu();
         } catch (error: any) {
             console.error("Error in handleConnectionTypeChange:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'handleConnectionTypeChange'));
         }
     }, [contextMenu, componentEvents, rawEdgesDict, connectionTypes, store, closeContextMenu]);
 
@@ -243,7 +278,6 @@ export const useEdgeHandlers = ({
             closeContextMenu();
         } catch (error: any) {
             console.error("Error in handleAnimationChange:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'handleAnimationChange'));
         }
     }, [contextMenu, componentEvents, rawEdgesDict, store, closeContextMenu]);
 
@@ -257,7 +291,6 @@ export const useEdgeHandlers = ({
             }
         } catch (error: any) {
             console.error("Error in handleLabelChange:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'handleLabelChange'));
         }
     }, [store, rawEdgesDict, componentEvents]);
 
@@ -285,7 +318,6 @@ export const useEdgeHandlers = ({
             closeContextMenu();
         } catch (error: any) {
             console.error("Error in handleSetConnectionDefault:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'handleSetConnectionDefault'));
         }
     }, [contextMenu, rawEdgesDict, writeDefaultForPair, closeContextMenu, componentEvents]);
 
@@ -295,7 +327,6 @@ export const useEdgeHandlers = ({
             closeContextMenu();
         } catch (error: any) {
             console.error("Error in handleSetDefaultForType:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'handleSetDefaultForType'));
         }
     }, [writeDefaultForPair, closeContextMenu, componentEvents]);
 
@@ -316,7 +347,6 @@ export const useEdgeHandlers = ({
             closeContextMenu();
         } catch (error: any) {
             console.error("Error in handleClearConnectionDefault:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'handleClearConnectionDefault'));
         }
     }, [contextMenu, rawEdgesDict, rawNodesDict, nodeTypeConnectionDefaults, store, closeContextMenu, componentEvents]);
 
@@ -333,6 +363,7 @@ export const useEdgeHandlers = ({
         onConnectStart,
         onConnectEnd,
         onEdgesDelete,
+        deleteEdgeWithEvent,
         onEdgeContextMenu,
         onEdgeClick,
         handleLineTypeChange,

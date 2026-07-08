@@ -72,7 +72,8 @@ const mapIgnitionToReactFlowNodes = (
     globalHideHandles: boolean,
     globalHandleCount: number,
     highlightedHandlesMap: Record<string, Set<string>>,
-    isEditable: boolean
+    isEditable: boolean,
+    handleActionIconClick: (id: string, iconName: string) => void
 ) => {
     if (!ignitionNodes) return [];
     return Object.entries(ignitionNodes)
@@ -105,11 +106,13 @@ const mapIgnitionToReactFlowNodes = (
                     paletteId: nodeData.paletteId || 'unknown', inactive: nodeData.inactive || false,
                     hideHandles: nodeData.hideHandles, globalHideHandles, handleCount: globalHandleCount,
                     highlightedHandles: highlightedHandlesMap[id] ?? EMPTY_HANDLE_SET,
+                    actionIcons: nodeData.actionIcons,
                     isEditable,
                     unlockMovement: isUnlocked,
                     enableResize: isContainer || isTextNode,
                     onGearClick: handleGearClick, onTextChange: handleTextChange,
                     onResizeEnd: (isContainer || isTextNode) ? handleResizeEnd : undefined,
+                    onActionIconClick: handleActionIconClick,
                 },
             };
         });
@@ -186,7 +189,6 @@ export interface ArchitectureBuilderProps {
 }
 
 export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureBuilderProps>) => {
-    console.log('DEBUG: ArchitectureBuilder rendering, props:', props);
     const reactFlowWrapper = React.useRef<HTMLDivElement>(null);
     const wrapperBoundsRef = React.useRef<{ top: number; left: number }>({ top: 0, left: 0 });
     const clipboardRef = React.useRef<any>(null);
@@ -355,9 +357,9 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
         handleWaypointsChange,
         handleLabelChange,
         onConnect, onEdgeUpdate, onEdgeUpdateStart, onEdgeUpdateEnd, onConnectStart, onConnectEnd,
-        onEdgesDelete, onEdgeContextMenu, onEdgeClick,
+        onEdgesDelete, deleteEdgeWithEvent, onEdgeContextMenu, onEdgeClick,
         handleLineTypeChange, handleConnectionTypeChange, handleAnimationChange, handleSetConnectionDefault, handleSetDefaultForType, handleClearConnectionDefault,
-        handleGearClick, handlePaletteItemClick, handleResizeEnd, handleTextChange,
+        handleGearClick, handlePaletteItemClick, handleResizeEnd, handleTextChange, handleActionIconClick,
         onNodesChange, onNodeDragStart, onNodeDrag, onNodeDragStop,
         onNodesDelete, onNodeContextMenu, onNodeClick,
         executeCopy, executePaste,
@@ -378,6 +380,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
         reactFlowWrapper,
         wrapperBoundsRef,
         isEnabled,
+        enableOnClickEvents: rawConfig.enableOnClickEvents !== false,
         selectedId,
         setSelectedId,
         setLocalNodes,
@@ -432,8 +435,8 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
     );
 
     const flowNodes = React.useMemo(
-        () => mapIgnitionToReactFlowNodes(rawNodesDict, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled),
-        [rawNodesDict, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled]
+        () => mapIgnitionToReactFlowNodes(rawNodesDict, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled, handleActionIconClick),
+        [rawNodesDict, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled, handleActionIconClick]
     );
     const flowEdges = React.useMemo(() =>
         mapIgnitionToReactFlowEdges(rawEdgesDict, rawNodesDict, connectionTypes, selectedId, handleWaypointsChange, handleLabelChange, snapEnabled, snapPixels, globalEdgeWidth),
@@ -518,6 +521,10 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
             if (!isEnabled) return;
             if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') return;
             if ((e.ctrlKey || e.metaKey) && e.key === 'c') { if (selectedId && rawNodesDictRef.current[selectedId]) executeCopy(selectedId); }
+            if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId && rawEdgesDictRef.current[selectedId]) {
+                e.preventDefault();
+                deleteEdgeWithEvent(selectedId);
+            }
             if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
                 const clipboard = clipboardRef.current;
                 if (clipboard && props.store?.props) {
@@ -530,7 +537,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
         };
         document.addEventListener('keydown', handleKeyDown);
         return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [isEnabled, selectedId, snapEnabled, snapPixels, props.store, executeCopy, executePaste, closeContextMenu]);
+    }, [isEnabled, selectedId, snapEnabled, snapPixels, props.store, executeCopy, executePaste, closeContextMenu, deleteEdgeWithEvent, rawEdgesDictRef]);
 
     const flyToNode = React.useCallback((nodeId: string, x: number, y: number, w: number, h: number) => {
         if (reactFlowInstance) {
@@ -636,7 +643,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
     // ─── Render ────────────────────────────────────────────────────────────
 
     return (
-        <ComponentErrorBoundary componentEvents={props.componentEvents}>
+        <ComponentErrorBoundary>
             <div {...emitProps} style={{ ...emitProps.style, display: 'flex', backgroundColor: 'var(--neutral-00)' }} tabIndex={0}>
                 <style>{`
                 .arch-theme-wrapper {

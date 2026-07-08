@@ -73,6 +73,9 @@ A dictionary keyed by UUID. Each entry represents a node on the canvas.
 | `supportedConnections` | Array | List of `connectionType` keys this node can participate in. Copied from the palette item on drop; can be overridden per node. |
 | `hierarchy` | Array | **Read-only.** Container IDs this node is nested within, ordered outermost to innermost. Computed automatically. |
 | `connections` | Array | **Read-only.** Edge UUIDs connected to this node. Computed automatically. |
+| `actionIcons` | Array | Row of action icons rendered in the node's bottom-right corner, 30x30px each. Each entry: `{icon: "material/action/settings", name: "configure", color: "#F05A28", enabled: true}`. `icon` is a Material icon path in `library/name` form, entered as plain text (e.g. copy the path from the Icon component's own picker elsewhere in the project — see note below). Clicking an icon with `enabled: true` fires `onActionIconClick`; icons with `enabled: false` are greyed out and non-interactive. Not currently gated by `enableOnClickEvents`. |
+
+> **Designer editing note:** `icon`/`color` use Ignition's standard `format` schema hints, but Ignition's JSON property editor does not reliably surface the Icon Selector / color picker widgets for properties nested inside an array-of-objects list like `actionIcons` (confirmed IA-side limitation, not fixable from module code). Type the icon path as plain text (`library/iconName`) and the color as a hex string. Similarly, clicking `+` to add a new `actionIcons` entry does not reliably pre-fill the schema's default values — this is documented IA behavior for array item defaults, not a bug in this module. Fill in each new entry's fields manually.
 
 #### `edges` (Object)
 
@@ -168,6 +171,26 @@ These are **read-only** and written back by the component. Do not write to them 
 | Property | Type | Description |
 | :--- | :--- | :--- |
 | `hierarchy` | Object | Auto-computed nested tree of areas, child nodes, and enriched connection data. Use in scripts to traverse the diagram topology. Recalculated on every `nodes`/`edges` change, or force-refresh via the `refreshHierarchy` trigger. |
+
+---
+
+## Component Events
+
+Bindable in the Designer's **Component Events** tab. Read fields off the `event` object in a Python event script (e.g. `event.deletedNodeUuid`).
+
+| Event | Payload | Fires when |
+| :--- | :--- | :--- |
+| `onNodeClick` | `{id, paletteId, typeId, type}` | A node is clicked. |
+| `onEdgeClick` | `{id, paletteId, type}` | An edge is clicked. |
+| `onPaneClick` | `{type}` | The canvas background is clicked. |
+| `onGearClick` | `{id, paletteId, typeId, type, action}` | A node's gear/config icon is clicked. |
+| `onActionIconClick` | `{id, paletteId, typeId, type, name}` | An enabled `actionIcons` entry is clicked. |
+| `onPaletteItemClick` | `{id, typeId, label, category, tooltip, ...}` | A sidebar palette item is clicked. |
+| `onContextMenuAction` | `{id, paletteId, type, action}` | Any right-click context menu action is selected (including deletes — see below). |
+| `edgeDeleted` | `{deletedEdgeUuid, source, target}` | An edge is deleted **directly** — via right-click → **Delete**, or `Delete`/`Backspace` while the edge is selected. Does **not** fire when the edge is removed as a side effect of deleting one of its connected nodes (see `nodeDeleted`). |
+| `nodeDeleted` | `{deletedNodeUuid, connectedNodeUuids}` | A node is deleted — via `Delete`/`Backspace`, right-click → **Delete**, or right-click → **Delete with Contents**. `connectedNodeUuids` lists the UUIDs of nodes on the far end of any edges that were removed along with it. Fires once per node removed (e.g. once per node in **Delete with Contents**). |
+
+`edgeDeleted` and `nodeDeleted` are gated by the `enableOnClickEvents` prop — they only fire when it is `true`. The other events above fire regardless of `enableOnClickEvents`.
 
 ---
 
