@@ -1834,6 +1834,43 @@
                 "type": "string"
               },
               "description": "Edge UUIDs connected to this node. Computed automatically."
+            },
+            "actionIcons": {
+              "type": "array",
+              "description": "Optional row of action icons rendered in the node's bottom-right corner. Each icon fires actionIconClick when enabled.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "icon": {
+                    "type": "string",
+                    "description": "Material icon path, e.g. 'material/action/settings'.",
+                    "format": "icon-path",
+                    "default": "material/action/settings"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "Identifier returned in the actionIconClick event payload.",
+                    "default": "default_action"
+                  },
+                  "color": {
+                    "type": "string",
+                    "description": "Icon color (CSS color string).",
+                    "format": "color",
+                    "default": "#000000"
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "default": true
+                  }
+                },
+                "default": {
+                  "icon": "material/action/settings",
+                  "name": "default_action",
+                  "color": "#000000",
+                  "enabled": true
+                }
+              },
+              "default": []
             }
           }
         }

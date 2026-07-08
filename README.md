@@ -73,6 +73,9 @@ A dictionary keyed by UUID. Each entry represents a node on the canvas.
 | `supportedConnections` | Array | List of `connectionType` keys this node can participate in. Copied from the palette item on drop; can be overridden per node. |
 | `hierarchy` | Array | **Read-only.** Container IDs this node is nested within, ordered outermost to innermost. Computed automatically. |
 | `connections` | Array | **Read-only.** Edge UUIDs connected to this node. Computed automatically. |
+| `actionIcons` | Array | Row of action icons rendered in the node's bottom-right corner, 30x30px each. Each entry: `{icon: "material/action/settings", name: "configure", color: "#F05A28", enabled: true}`. `icon` is a Material icon path in `library/name` form, entered as plain text (e.g. copy the path from the Icon component's own picker elsewhere in the project — see note below). Clicking an icon with `enabled: true` fires `onActionIconClick`; icons with `enabled: false` are greyed out and non-interactive. Not currently gated by `enableOnClickEvents`. |
+
+> **Designer editing note:** `icon`/`color` use Ignition's standard `format` schema hints, but Ignition's JSON property editor does not reliably surface the Icon Selector / color picker widgets for properties nested inside an array-of-objects list like `actionIcons` (confirmed IA-side limitation, not fixable from module code). Type the icon path as plain text (`library/iconName`) and the color as a hex string. Similarly, clicking `+` to add a new `actionIcons` entry does not reliably pre-fill the schema's default values — this is documented IA behavior for array item defaults, not a bug in this module. Fill in each new entry's fields manually.
 
 #### `edges` (Object)
 

@@ -2750,7 +2750,7 @@ const extractDeep = (obj) => {
         plain[key] = extractDeep(obj[key]);
     return plain;
 };
-const mapIgnitionToReactFlowNodes = (ignitionNodes, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEditable) => {
+const mapIgnitionToReactFlowNodes = (ignitionNodes, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEditable, handleActionIconClick) => {
     if (!ignitionNodes)
         return [];
     return Object.entries(ignitionNodes)
@@ -2783,11 +2783,13 @@ const mapIgnitionToReactFlowNodes = (ignitionNodes, paletteMap, handleGearClick,
                 paletteId: nodeData.paletteId || 'unknown', inactive: nodeData.inactive || false,
                 hideHandles: nodeData.hideHandles, globalHideHandles, handleCount: globalHandleCount,
                 highlightedHandles: (_c = highlightedHandlesMap[id]) !== null && _c !== void 0 ? _c : EMPTY_HANDLE_SET,
+                actionIcons: nodeData.actionIcons,
                 isEditable,
                 unlockMovement: isUnlocked,
                 enableResize: isContainer || isTextNode,
                 onGearClick: handleGearClick, onTextChange: handleTextChange,
                 onResizeEnd: (isContainer || isTextNode) ? handleResizeEnd : undefined,
+                onActionIconClick: handleActionIconClick,
             },
         };
     });
@@ -2986,7 +2988,7 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
         props.store.props.write('refreshHierarchy', false);
     }, [props.props.refreshHierarchy, props.store]);
     // ─── Handlers hook ─────────────────────────────────────────────────────
-    const { isUpdatingEdge, isDraggingNode, updatingEdgeRef, rawNodesDictRef, rawEdgesDictRef, closeContextMenu, getValidIntersection, isValidConnection, handleWaypointsChange, handleLabelChange, onConnect, onEdgeUpdate, onEdgeUpdateStart, onEdgeUpdateEnd, onConnectStart, onConnectEnd, onEdgesDelete, onEdgeContextMenu, onEdgeClick, handleLineTypeChange, handleConnectionTypeChange, handleAnimationChange, handleSetConnectionDefault, handleSetDefaultForType, handleClearConnectionDefault, handleGearClick, handlePaletteItemClick, handleResizeEnd, handleTextChange, onNodesChange, onNodeDragStart, onNodeDrag, onNodeDragStop, onNodesDelete, onNodeContextMenu, onNodeClick, executeCopy, executePaste, onDragOver, onDrop, onMoveStart, onPaneClick, onPaneContextMenu, handleNodeSwap, handleContextMenuAction, } = useArchitectureFlowHandlers_1.useArchitectureFlowHandlers({
+    const { isUpdatingEdge, isDraggingNode, updatingEdgeRef, rawNodesDictRef, rawEdgesDictRef, closeContextMenu, getValidIntersection, isValidConnection, handleWaypointsChange, handleLabelChange, onConnect, onEdgeUpdate, onEdgeUpdateStart, onEdgeUpdateEnd, onConnectStart, onConnectEnd, onEdgesDelete, onEdgeContextMenu, onEdgeClick, handleLineTypeChange, handleConnectionTypeChange, handleAnimationChange, handleSetConnectionDefault, handleSetDefaultForType, handleClearConnectionDefault, handleGearClick, handlePaletteItemClick, handleResizeEnd, handleTextChange, handleActionIconClick, onNodesChange, onNodeDragStart, onNodeDrag, onNodeDragStop, onNodesDelete, onNodeContextMenu, onNodeClick, executeCopy, executePaste, onDragOver, onDrop, onMoveStart, onPaneClick, onPaneContextMenu, handleNodeSwap, handleContextMenuAction, } = useArchitectureFlowHandlers_1.useArchitectureFlowHandlers({
         store: props.store,
         componentEvents: props.componentEvents,
         rawNodesDict,
@@ -3043,7 +3045,7 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
         return map;
     }, [edgeTopologyJson]);
     const paletteMap = React.useMemo(() => new Map(paletteItems.map((p) => [p.id, p])), [paletteItems]);
-    const flowNodes = React.useMemo(() => mapIgnitionToReactFlowNodes(rawNodesDict, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled), [rawNodesDict, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled]);
+    const flowNodes = React.useMemo(() => mapIgnitionToReactFlowNodes(rawNodesDict, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled, handleActionIconClick), [rawNodesDict, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled, handleActionIconClick]);
     const flowEdges = React.useMemo(() => EdgeUtils_1.mapIgnitionToReactFlowEdges(rawEdgesDict, rawNodesDict, connectionTypes, selectedId, handleWaypointsChange, handleLabelChange, snapEnabled, snapPixels, globalEdgeWidth), [rawEdgesDict, rawNodesDict, connectionTypes, selectedId, handleWaypointsChange, handleLabelChange, snapEnabled, snapPixels, globalEdgeWidth]);
     React.useEffect(() => {
         if (!isDraggingNode) {
@@ -3380,6 +3382,7 @@ exports.ArchitectureNode = void 0;
 const react_1 = __importDefault(__webpack_require__(/*! react */ "react"));
 // @ts-ignore
 const reactflow_1 = __webpack_require__(/*! reactflow */ "./node_modules/reactflow/dist/umd/index.js");
+const perspective_client_1 = __webpack_require__(/*! @inductiveautomation/perspective-client */ "@inductiveautomation/perspective-client");
 const svgSanitize_1 = __webpack_require__(/*! ./svgSanitize */ "./typescript/components/ArchitectureBuilder/svgSanitize.ts");
 const TEXT_PALETTE_IDS = new Set(['Note', 'Label']);
 // ─── Memoization helpers ──────────────────────────────────────────────────────
@@ -3404,6 +3407,17 @@ const areSetsEqual = (a, b) => {
         return false;
     for (const item of a) {
         if (!b.has(item))
+            return false;
+    }
+    return true;
+};
+const areActionIconsEqual = (a, b) => {
+    if (a === b)
+        return true;
+    if (!a || !b || a.length !== b.length)
+        return false;
+    for (let i = 0; i < a.length; i++) {
+        if (!shallowEqualObjects(a[i], b[i]))
             return false;
     }
     return true;
@@ -3442,11 +3456,15 @@ const areArchitectureNodePropsEqual = (prev, next) => {
         return false;
     if (!areSetsEqual(pd.highlightedHandles, nd.highlightedHandles))
         return false;
+    if (!areActionIconsEqual(pd.actionIcons, nd.actionIcons))
+        return false;
     if (pd.onGearClick !== nd.onGearClick)
         return false;
     if (pd.onTextChange !== nd.onTextChange)
         return false;
     if (pd.onResizeEnd !== nd.onResizeEnd)
+        return false;
+    if (pd.onActionIconClick !== nd.onActionIconClick)
         return false;
     return true;
 };
@@ -3522,7 +3540,21 @@ exports.ArchitectureNode = react_1.default.memo(({ id, data, selected }) => {
                 width: '100%', minHeight: 0, zIndex: 1, backgroundColor: imageBg || undefined,
                 filter: data.inactive ? 'grayscale(100%) blur(2px)' : undefined
             } },
-            react_1.default.createElement(NodeImage, { src: data.image, label: data.label })))));
+            react_1.default.createElement(NodeImage, { src: data.image, label: data.label }))),
+        data.actionIcons && data.actionIcons.length > 0 && (react_1.default.createElement("div", { style: { position: 'absolute', right: 4, bottom: 4, display: 'flex', flexDirection: 'row', gap: 4, zIndex: 10 } }, data.actionIcons.map((ai) => {
+            const enabled = ai.enabled !== false;
+            return (react_1.default.createElement("div", { key: ai.name, style: {
+                    width: 30, height: 30,
+                    opacity: enabled ? 1 : 0.4,
+                    pointerEvents: enabled ? 'auto' : 'none',
+                    cursor: enabled ? 'pointer' : 'default'
+                }, onClick: (e) => {
+                    e.stopPropagation();
+                    if (enabled && data.onActionIconClick)
+                        data.onActionIconClick(id, ai.name, e);
+                }, title: ai.name },
+                react_1.default.createElement(perspective_client_1.IconRenderer, { path: ai.icon, color: ai.color, size: 30 })));
+        })))));
 }, areArchitectureNodePropsEqual);
 
 
@@ -5329,6 +5361,12 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
             componentEvents.fireComponentEvent('onGearClick', { id, paletteId: node.paletteId, typeId: node.typeId, type: 'node', action: 'config' });
         }
     }, [componentEvents, setSelectedId]);
+    const handleActionIconClick = React.useCallback((id, iconName) => {
+        const node = rawNodesDictRef.current[id];
+        if (componentEvents && node) {
+            componentEvents.fireComponentEvent('onActionIconClick', { id, paletteId: node.paletteId, typeId: node.typeId, type: 'node', name: iconName });
+        }
+    }, [componentEvents]);
     const handlePaletteItemClick = React.useCallback((item) => {
         if (componentEvents) {
             componentEvents.fireComponentEvent('onPaletteItemClick', { id: item.id, typeId: item.typeId, label: item.label, category: item.category, tooltip: item.tooltip, image: item.image, supportedConnections: item.supportedConnections, swappableWith: item.swappableWith, defaultConfigs: item.defaultConfigs, hideHandles: item.hideHandles, style: item.style, labelStyle: item.labelStyle });
@@ -5623,6 +5661,7 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
                     supportedConnections: paletteItem.supportedConnections || [],
                     useOverrideImage: paletteItem.useOverrideImage || false,
                     inactive: paletteItem.inactive || false,
+                    actionIcons: JSON.parse(JSON.stringify(paletteItem.actionIcons || [])),
                 };
                 if (paletteItem.id === 'container') {
                     newNodeData.width = 300;
@@ -5977,6 +6016,7 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
         closeContextMenu }, edgeHandlers), { 
         // Node handlers
         handleGearClick,
+        handleActionIconClick,
         handlePaletteItemClick,
         handleResizeEnd,
         handleTextChange,

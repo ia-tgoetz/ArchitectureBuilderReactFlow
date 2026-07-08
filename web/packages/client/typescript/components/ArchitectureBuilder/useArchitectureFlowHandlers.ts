@@ -132,6 +132,13 @@ export const useArchitectureFlowHandlers = ({
         }
     }, [componentEvents, setSelectedId]);
 
+    const handleActionIconClick = React.useCallback((id: string, iconName: string) => {
+        const node = rawNodesDictRef.current[id];
+        if (componentEvents && node) {
+            componentEvents.fireComponentEvent('onActionIconClick', { id, paletteId: node.paletteId, typeId: node.typeId, type: 'node', name: iconName });
+        }
+    }, [componentEvents]);
+
     const handlePaletteItemClick = React.useCallback((item: any) => {
         if (componentEvents) {
             componentEvents.fireComponentEvent('onPaletteItemClick', { id: item.id, typeId: item.typeId, label: item.label, category: item.category, tooltip: item.tooltip, image: item.image, supportedConnections: item.supportedConnections, swappableWith: item.swappableWith, defaultConfigs: item.defaultConfigs, hideHandles: item.hideHandles, style: item.style, labelStyle: item.labelStyle });
@@ -419,6 +426,7 @@ export const useArchitectureFlowHandlers = ({
                     supportedConnections: paletteItem.supportedConnections || [],
                     useOverrideImage: paletteItem.useOverrideImage || false,
                     inactive: paletteItem.inactive || false,
+                    actionIcons: JSON.parse(JSON.stringify(paletteItem.actionIcons || [])),
                 };
                 if (paletteItem.id === 'container') { newNodeData.width = 300; newNodeData.height = 300; newNodeData.zIndex = -500; }
                 const nextNodes = { ...rawNodesDict };
@@ -699,6 +707,7 @@ export const useArchitectureFlowHandlers = ({
         ...edgeHandlers,
         // Node handlers
         handleGearClick,
+        handleActionIconClick,
         handlePaletteItemClick,
         handleResizeEnd,
         handleTextChange,

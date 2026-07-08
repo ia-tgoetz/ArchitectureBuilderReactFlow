@@ -40,6 +40,7 @@ public class ArchitectureBuilderMeta {
     public static final JsonSchema ERROR_EVENT_SCHEMA = JsonSchema.parse(new ByteArrayInputStream("{ \"type\": \"object\", \"properties\": { \"source\": { \"type\": \"string\" }, \"message\": { \"type\": \"string\" }, \"stack\": { \"type\": \"string\" } } }".getBytes(StandardCharsets.UTF_8)));
     public static final JsonSchema PANE_EVENT_SCHEMA = JsonSchema.parse(new ByteArrayInputStream("{ \"type\": \"object\", \"properties\": { \"type\": { \"type\": \"string\" } } }".getBytes(StandardCharsets.UTF_8)));
     public static final JsonSchema PALETTE_ITEM_EVENT_SCHEMA = JsonSchema.parse(new ByteArrayInputStream("{ \"type\": \"object\", \"properties\": { \"id\": { \"type\": \"string\" }, \"typeId\": { \"type\": \"string\" }, \"label\": { \"type\": \"string\" }, \"category\": { \"type\": \"string\" }, \"tooltip\": { \"type\": \"string\" } } }".getBytes(StandardCharsets.UTF_8)));
+    public static final JsonSchema ACTION_ICON_EVENT_SCHEMA = JsonSchema.parse(new ByteArrayInputStream("{ \"type\": \"object\", \"properties\": { \"id\": { \"type\": \"string\" }, \"paletteId\": { \"type\": \"string\" }, \"typeId\": { \"type\": \"string\" }, \"type\": { \"type\": \"string\" }, \"name\": { \"type\": \"string\" } } }".getBytes(StandardCharsets.UTF_8)));
 
     public static final ComponentDescriptor DESCRIPTOR = ComponentDescriptorImpl.ComponentBuilder.newBuilder()
         .setId(COMPONENT_ID)
@@ -53,6 +54,7 @@ public class ArchitectureBuilderMeta {
                 new ComponentEventDescriptor("onNodeClick", "Fired when a node is clicked.", NODE_EVENT_SCHEMA),
                 new ComponentEventDescriptor("onEdgeClick", "Fired when an edge is clicked.", EDGE_EVENT_SCHEMA),
                 new ComponentEventDescriptor("onGearClick", "Fired when the gear icon is clicked.", GEAR_EVENT_SCHEMA),
+                new ComponentEventDescriptor("onActionIconClick", "Fired when a node action icon is clicked.", ACTION_ICON_EVENT_SCHEMA),
                 new ComponentEventDescriptor("onContextMenuAction", "Fired when a context menu option is selected.", CONTEXT_MENU_EVENT_SCHEMA),
                 new ComponentEventDescriptor("onPaletteItemClick", "Fired when a palette item is clicked in the sidebar.", PALETTE_ITEM_EVENT_SCHEMA),
                 new ComponentEventDescriptor("onCanvasError", "Fired when a canvas rendering or interaction error occurs.", ERROR_EVENT_SCHEMA),
