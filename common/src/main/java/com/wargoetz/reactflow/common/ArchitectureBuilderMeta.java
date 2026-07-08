@@ -6,14 +6,33 @@ import com.inductiveautomation.perspective.common.api.ComponentDescriptor;
 import com.inductiveautomation.perspective.common.api.ComponentDescriptorImpl;
 import com.inductiveautomation.perspective.common.api.ComponentEventDescriptor;
 
+import javax.imageio.ImageIO;
+import javax.swing.ImageIcon;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class ArchitectureBuilderMeta {
 
+    private static final Logger LOGGER = Logger.getLogger(ArchitectureBuilderMeta.class.getName());
+
     public static final String COMPONENT_ID = "com.wargoetz.reactflow.architecturebuilder";
     public static final String MODULE_ID = "com.wargoetz.archbuilder";
+
+    private static final BufferedImage ICON = loadIcon();
+
+    private static BufferedImage loadIcon() {
+        try {
+            return ImageIO.read(ArchitectureBuilderMeta.class.getResourceAsStream("/images/architecture-builder-icon.png"));
+        } catch (IOException | IllegalArgumentException e) {
+            LOGGER.log(Level.WARNING, "Failed to load Architecture Builder palette icon", e);
+            return null;
+        }
+    }
 
     public static final BrowserResource JS_RESOURCE = new BrowserResource(
         "architecturebuilder-0-shared-js",
@@ -48,7 +67,8 @@ public class ArchitectureBuilderMeta {
         .setModuleId(MODULE_ID)
         .setPaletteCategory("WARGoetz")
         .setName("Architecture Builder")
-        .addPaletteEntry("", "Architecture Builder", "Drag and drop architecture builder.", null, null)
+        .addPaletteEntry("", "Architecture Builder", "Drag and drop architecture builder.", ICON, null)
+        .setIcon(ICON != null ? new ImageIcon(ICON) : null)
         .setDefaultMetaName("ArchitectureBuilder")
         .setResources(Set.of(JS_RESOURCE, DESIGNER_JS_RESOURCE, CSS_RESOURCE))
         .setEvents(Set.of(
