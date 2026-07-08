@@ -2,7 +2,7 @@ import * as React from 'react';
 // @ts-ignore
 import { Edge, Connection } from 'reactflow';
 import { ContextMenuState } from './types';
-import { getSafeError, generateShortId } from './utils';
+import { generateShortId } from './utils';
 
 export interface UseEdgeHandlersParams {
     store: any;
@@ -88,7 +88,6 @@ export const useEdgeHandlers = ({
             }
         } catch (error: any) {
             console.error("Error in handleWaypointsChange:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'handleWaypointsChange'));
         }
     }, [store, rawEdgesDict, componentEvents, setLocalEdges]);
 
@@ -112,7 +111,6 @@ export const useEdgeHandlers = ({
             }
         } catch (error: any) {
             console.error("Error in onConnect:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'onConnect'));
         }
     }, [store, rawEdgesDict, rawNodesDict, getValidIntersection, connectionTypes, nodeTypeConnectionDefaults, componentEvents]);
 
@@ -148,7 +146,6 @@ export const useEdgeHandlers = ({
             }
         } catch (error: any) {
             console.error("Error in onEdgeUpdate:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'onEdgeUpdate'));
         }
     }, [store, rawEdgesDict, getValidIntersection, componentEvents]);
 
@@ -197,7 +194,6 @@ export const useEdgeHandlers = ({
             removeEdgesFromStore(deleted);
         } catch (error: any) {
             console.error("Error in onEdgesDelete:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'onEdgesDelete'));
         }
     }, [removeEdgesFromStore, componentEvents]);
 
@@ -217,7 +213,6 @@ export const useEdgeHandlers = ({
             }
         } catch (error: any) {
             console.error("Error in deleteEdgeWithEvent:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'deleteEdgeWithEvent'));
         }
     }, [removeEdgesFromStore, componentEvents, enableOnClickEvents]);
 
@@ -247,7 +242,6 @@ export const useEdgeHandlers = ({
             closeContextMenu();
         } catch (error: any) {
             console.error("Error in handleLineTypeChange:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'handleLineTypeChange'));
         }
     }, [contextMenu, componentEvents, rawEdgesDict, store, closeContextMenu]);
 
@@ -267,7 +261,6 @@ export const useEdgeHandlers = ({
             closeContextMenu();
         } catch (error: any) {
             console.error("Error in handleConnectionTypeChange:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'handleConnectionTypeChange'));
         }
     }, [contextMenu, componentEvents, rawEdgesDict, connectionTypes, store, closeContextMenu]);
 
@@ -285,7 +278,6 @@ export const useEdgeHandlers = ({
             closeContextMenu();
         } catch (error: any) {
             console.error("Error in handleAnimationChange:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'handleAnimationChange'));
         }
     }, [contextMenu, componentEvents, rawEdgesDict, store, closeContextMenu]);
 
@@ -299,7 +291,6 @@ export const useEdgeHandlers = ({
             }
         } catch (error: any) {
             console.error("Error in handleLabelChange:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'handleLabelChange'));
         }
     }, [store, rawEdgesDict, componentEvents]);
 
@@ -327,7 +318,6 @@ export const useEdgeHandlers = ({
             closeContextMenu();
         } catch (error: any) {
             console.error("Error in handleSetConnectionDefault:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'handleSetConnectionDefault'));
         }
     }, [contextMenu, rawEdgesDict, writeDefaultForPair, closeContextMenu, componentEvents]);
 
@@ -337,7 +327,6 @@ export const useEdgeHandlers = ({
             closeContextMenu();
         } catch (error: any) {
             console.error("Error in handleSetDefaultForType:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'handleSetDefaultForType'));
         }
     }, [writeDefaultForPair, closeContextMenu, componentEvents]);
 
@@ -358,7 +347,6 @@ export const useEdgeHandlers = ({
             closeContextMenu();
         } catch (error: any) {
             console.error("Error in handleClearConnectionDefault:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'handleClearConnectionDefault'));
         }
     }, [contextMenu, rawEdgesDict, rawNodesDict, nodeTypeConnectionDefaults, store, closeContextMenu, componentEvents]);
 

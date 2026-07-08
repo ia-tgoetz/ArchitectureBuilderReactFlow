@@ -189,7 +189,6 @@ export interface ArchitectureBuilderProps {
 }
 
 export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureBuilderProps>) => {
-    console.log('DEBUG: ArchitectureBuilder rendering, props:', props);
     const reactFlowWrapper = React.useRef<HTMLDivElement>(null);
     const wrapperBoundsRef = React.useRef<{ top: number; left: number }>({ top: 0, left: 0 });
     const clipboardRef = React.useRef<any>(null);
@@ -644,7 +643,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
     // ─── Render ────────────────────────────────────────────────────────────
 
     return (
-        <ComponentErrorBoundary componentEvents={props.componentEvents}>
+        <ComponentErrorBoundary>
             <div {...emitProps} style={{ ...emitProps.style, display: 'flex', backgroundColor: 'var(--neutral-00)' }} tabIndex={0}>
                 <style>{`
                 .arch-theme-wrapper {

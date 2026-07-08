@@ -4,10 +4,7 @@ import { NodeChange, applyNodeChanges } from 'reactflow';
 import { getHandlePixelPos, computeAutoWaypoints } from './EdgeUtils';
 import { ContextMenuState } from './types';
 import { useEdgeHandlers } from './useEdgeHandlers';
-import { getSafeError, generateShortId } from './utils';
-
-// Re-export for backward compatibility
-export { getSafeError } from './utils';
+import { generateShortId } from './utils';
 
 interface DragStartState {
     nodes: Record<string, { x: number; y: number }>;
@@ -162,7 +159,6 @@ export const useArchitectureFlowHandlers = ({
             }
         } catch (error: any) {
             console.error("Error in handleResizeEnd:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'handleResizeEnd'));
         }
     }, [store, componentEvents]);
 
@@ -177,7 +173,6 @@ export const useArchitectureFlowHandlers = ({
             }
         } catch (error: any) {
             console.error("Error in handleTextChange:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'handleTextChange'));
         }
     }, [store, componentEvents]);
 
@@ -291,7 +286,6 @@ export const useArchitectureFlowHandlers = ({
         } catch (error: any) {
             setTimeout(() => setIsDraggingNode(false), 250);
             console.error("Error in onNodeDragStop:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'onNodeDragStop'));
         }
     }, [store, rawNodesDict, rawEdgesDict, componentEvents]);
 
@@ -321,7 +315,6 @@ export const useArchitectureFlowHandlers = ({
             if (edgesChanged) store.props.write('edges', nextEdges);
         } catch (error: any) {
             console.error("Error in onNodesDelete:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'onNodesDelete'));
         }
     }, [store, rawNodesDict, rawEdgesDict, selectedId, setSelectedId, componentEvents, enableOnClickEvents]);
 
@@ -395,7 +388,6 @@ export const useArchitectureFlowHandlers = ({
             store.props.write('edges', nextEdges);
         } catch (error: any) {
             console.error("Error in executePaste:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'executePaste'));
         }
     }, [store, rawNodesDict, rawEdgesDict, setSelectedId, clipboardRef, componentEvents]);
 
@@ -443,14 +435,12 @@ export const useArchitectureFlowHandlers = ({
                 if (paletteItem.id === 'container') { newNodeData.width = 300; newNodeData.height = 300; newNodeData.zIndex = -500; }
                 const nextNodes = { ...rawNodesDict };
                 nextNodes[newNodeId] = newNodeData;
-                console.log("DEBUG: Writing nodes to store:", JSON.stringify(nextNodes));
                 store.props.write('nodes', nextNodes);
                 setSelectedId(newNodeId);
             }
             draggedItemRef.current = null;
         } catch (error: any) {
             console.error("Error in onDrop:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'onDrop'));
         }
     }, [store, rawNodesDict, snapEnabled, snapPixels, reactFlowInstance, setSelectedId, draggedItemRef, componentEvents]);
 
@@ -523,7 +513,6 @@ export const useArchitectureFlowHandlers = ({
             closeContextMenu();
         } catch (error: any) {
             console.error("Error in handleNodeSwap:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'handleNodeSwap'));
         }
     }, [contextMenu, paletteItems, componentEvents, rawNodesDict, rawEdgesDict, store, closeContextMenu]);
 
@@ -729,7 +718,6 @@ export const useArchitectureFlowHandlers = ({
             closeContextMenu();
         } catch (error: any) {
             console.error("Error in handleContextMenuAction:", error);
-            if (componentEvents?.fireComponentEvent) componentEvents.fireComponentEvent('onCanvasError', getSafeError(error, 'handleContextMenuAction'));
         }
     }, [contextMenu, rawNodesDict, rawEdgesDict, selectedId, snapEnabled, snapPixels, reactFlowInstance, store, componentEvents, enableOnClickEvents, setStyleEditorNodeId, executeCopy, executePaste, closeContextMenu, setSelectedId]);
 

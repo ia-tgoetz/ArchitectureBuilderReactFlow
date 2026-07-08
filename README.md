@@ -189,7 +189,6 @@ Bindable in the Designer's **Component Events** tab. Read fields off the `event`
 | `onContextMenuAction` | `{id, paletteId, type, action}` | Any right-click context menu action is selected (including deletes — see below). |
 | `edgeDeleted` | `{deletedEdgeUuid, source, target}` | An edge is deleted **directly** — via right-click → **Delete**, or `Delete`/`Backspace` while the edge is selected. Does **not** fire when the edge is removed as a side effect of deleting one of its connected nodes (see `nodeDeleted`). |
 | `nodeDeleted` | `{deletedNodeUuid, connectedNodeUuids}` | A node is deleted — via `Delete`/`Backspace`, right-click → **Delete**, or right-click → **Delete with Contents**. `connectedNodeUuids` lists the UUIDs of nodes on the far end of any edges that were removed along with it. Fires once per node removed (e.g. once per node in **Delete with Contents**). |
-| `onCanvasError` | `{source, message, stack}` | An internal rendering/interaction error is caught. |
 
 `edgeDeleted` and `nodeDeleted` are gated by the `enableOnClickEvents` prop — they only fire when it is `true`. The other events above fire regardless of `enableOnClickEvents`.
 
