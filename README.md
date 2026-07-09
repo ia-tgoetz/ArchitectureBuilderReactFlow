@@ -5,9 +5,7 @@ The **Architecture Builder** is a specialized, interactive visualization module 
 ## 📥 Download
 [Download the latest ArchitectureBuilder.modl](https://github.com/ia-tgoetz/ArchitectureBuilderReactFlow/releases/latest/download/ArchitectureBuilder.modl)
 
-**Latest release (v1.0.8):** Adds `actionIcons` to nodes, `nodeDeleted`/`edgeDeleted` events, and an icon for the Perspective component.
-
-**Unreleased:** Consolidates and expands the rules-engine-relevant component events. `nodeDeleted`/`edgeDeleted` are renamed `onNodeDeleted`/`onEdgeDeleted`; adds `onNodeCreated`, `onNodeSwapped`, `onEdgeCreated`, `onEdgeMoved`, and `onEdgePropertyChanged`. Every one of these events now carries a consistent `affectedNodes` array — see [Component Events](#component-events) below. This is a **breaking change** for any project bound to the old `nodeDeleted`/`edgeDeleted` event names.
+**Latest release (v1.0.9):** Consolidates and expands the rules-engine-relevant component events. `nodeDeleted`/`edgeDeleted` are renamed `onNodeDeleted`/`onEdgeDeleted`; adds `onNodeCreated`, `onNodeSwapped`, `onEdgeCreated`, `onEdgeMoved`, and `onEdgePropertyChanged`. Every one of these events now carries a consistent `affectedNodes` array — see [Component Events](#component-events) below. This is a **breaking change** for any project bound to the old `nodeDeleted`/`edgeDeleted` event names.
 
 ---
 
