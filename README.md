@@ -7,6 +7,8 @@ The **Architecture Builder** is a specialized, interactive visualization module 
 
 **Latest release (v1.0.8):** Adds `actionIcons` to nodes, `nodeDeleted`/`edgeDeleted` events, and an icon for the Perspective component.
 
+**Unreleased:** Consolidates and expands the rules-engine-relevant component events. `nodeDeleted`/`edgeDeleted` are renamed `onNodeDeleted`/`onEdgeDeleted`; adds `onNodeCreated`, `onNodeSwapped`, `onEdgeCreated`, `onEdgeMoved`, and `onEdgePropertyChanged`. Every one of these events now carries a consistent `affectedNodes` array — see [Component Events](#component-events) below. This is a **breaking change** for any project bound to the old `nodeDeleted`/`edgeDeleted` event names.
+
 ---
 
 ## Component Overview
@@ -187,10 +189,17 @@ Bindable in the Designer's **Component Events** tab. Read fields off the `event`
 | `onActionIconClick` | `{id, paletteId, typeId, type, name}` | An enabled `actionIcons` entry is clicked. |
 | `onPaletteItemClick` | `{id, typeId, label, category, tooltip, ...}` | A sidebar palette item is clicked. |
 | `onContextMenuAction` | `{id, paletteId, type, action}` | Any right-click context menu action is selected (including deletes — see below). |
-| `edgeDeleted` | `{deletedEdgeUuid, source, target}` | An edge is deleted **directly** — via right-click → **Delete**, or `Delete`/`Backspace` while the edge is selected. Does **not** fire when the edge is removed as a side effect of deleting one of its connected nodes (see `nodeDeleted`). |
-| `nodeDeleted` | `{deletedNodeUuid, connectedNodeUuids}` | A node is deleted — via `Delete`/`Backspace`, right-click → **Delete**, or right-click → **Delete with Contents**. `connectedNodeUuids` lists the UUIDs of nodes on the far end of any edges that were removed along with it. Fires once per node removed (e.g. once per node in **Delete with Contents**). |
+| `onNodeCreated` | `{nodeUuid, typeId, paletteId, affectedNodes}` | A node is created — via palette drop or paste. Fires once per node (e.g. once per node in a group paste). `affectedNodes` is `[nodeUuid]`. |
+| `onNodeSwapped` | `{nodeUuid, typeId, paletteId, affectedNodes}` | A node's type is swapped via the right-click context menu; fields reflect the new type. `affectedNodes` is `[nodeUuid]`. |
+| `onNodeDeleted` | `{deletedNodeUuid, connectedNodeUuids, affectedNodes}` | A node is deleted — via `Delete`/`Backspace`, right-click → **Delete**, or right-click → **Delete with Contents**. `connectedNodeUuids` lists the UUIDs of nodes on the far end of any edges that were removed along with it. Fires once per node removed (e.g. once per node in **Delete with Contents**). `affectedNodes` equals `connectedNodeUuids` (the surviving nodes to re-evaluate). |
+| `onEdgeCreated` | `{edgeUuid, source, target, connectionType, affectedNodes}` | A new edge is drawn between two nodes. `affectedNodes` is `[source, target]`. |
+| `onEdgeDeleted` | `{deletedEdgeUuid, source, target, affectedNodes}` | An edge is deleted **directly** — via right-click → **Delete**, or `Delete`/`Backspace` while the edge is selected. Does **not** fire when the edge is removed as a side effect of deleting one of its connected nodes (see `onNodeDeleted`). `affectedNodes` is `[source, target]`. |
+| `onEdgeMoved` | `{movedEdgeUuid, source, target, previousSource, previousTarget, affectedNodes}` | An edge's endpoint is dragged to reconnect it to a **different** source or target node. `previousSource`/`previousTarget` are the node UUIDs the edge was connected to before the drag. Does **not** fire if the drag ends on the same source/target (e.g. only the handle side changed). `affectedNodes` is the deduplicated union of `[source, target, previousSource, previousTarget]` (up to 4 nodes). |
+| `onEdgePropertyChanged` | `{edgeUuid, source, target, property, value, affectedNodes}` | An edge's `connectionType`, `lineType`, `animation`, or `labelText` is changed via the context menu or label editor. `affectedNodes` is `[source, target]`. |
 
-`edgeDeleted` and `nodeDeleted` are gated by the `enableOnClickEvents` prop — they only fire when it is `true`. The other events above fire regardless of `enableOnClickEvents`.
+`affectedNodes` is a consistent convenience field on every rules-engine-relevant event above — the list of node UUIDs that changed or need re-evaluation as a result of the mutation. The named fields (`source`, `target`, `nodeUuid`, etc.) remain unchanged alongside it for role-specific lookups.
+
+`onNodeCreated`, `onNodeSwapped`, `onNodeDeleted`, `onEdgeCreated`, `onEdgeDeleted`, `onEdgeMoved`, and `onEdgePropertyChanged` are gated by the `enableOnClickEvents` prop — they only fire when it is `true`. The other events above fire regardless of `enableOnClickEvents`.
 
 ---
 

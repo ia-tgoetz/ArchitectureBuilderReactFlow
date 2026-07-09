@@ -308,7 +308,7 @@ export const useArchitectureFlowHandlers = ({
                 delete nextNodes[n.id];
                 if (n.id === selectedId) setSelectedId(null);
                 if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
-                    componentEvents.fireComponentEvent('nodeDeleted', { deletedNodeUuid: n.id, connectedNodeUuids });
+                    componentEvents.fireComponentEvent('onNodeDeleted', { deletedNodeUuid: n.id, connectedNodeUuids, affectedNodes: connectedNodeUuids });
                 }
             });
             store.props.write('nodes', nextNodes);
@@ -360,10 +360,13 @@ export const useArchitectureFlowHandlers = ({
             const nextNodes = { ...rawNodesDict };
             const nextEdges = { ...rawEdgesDict };
 
+            const createdNodes: { nodeUuid: string; typeId: string; paletteId: string }[] = [];
+
             if (clipboard.type === 'single') {
                 const newNodeId = generateShortId();
                 nextNodes[newNodeId] = JSON.parse(JSON.stringify({ ...clipboard.node, x: dropX, y: dropY }));
                 setSelectedId(newNodeId);
+                createdNodes.push({ nodeUuid: newNodeId, typeId: clipboard.node.typeId, paletteId: clipboard.node.paletteId });
             } else if (clipboard.type === 'group') {
                 let minX = Infinity, minY = Infinity;
                 Object.values(clipboard.nodes).forEach((n: any) => { if (n.x < minX) minX = n.x; if (n.y < minY) minY = n.y; });
@@ -375,6 +378,7 @@ export const useArchitectureFlowHandlers = ({
                     idMap[oldId] = newId;
                     const oldNode = clipboard.nodes[oldId];
                     nextNodes[newId] = JSON.parse(JSON.stringify({ ...oldNode, x: oldNode.x + dx, y: oldNode.y + dy }));
+                    createdNodes.push({ nodeUuid: newId, typeId: oldNode.typeId, paletteId: oldNode.paletteId });
                 });
 
                 Object.keys(clipboard.edges).forEach(oldEdgeId => {
@@ -386,10 +390,14 @@ export const useArchitectureFlowHandlers = ({
 
             store.props.write('nodes', nextNodes);
             store.props.write('edges', nextEdges);
+
+            if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
+                createdNodes.forEach(n => componentEvents.fireComponentEvent('onNodeCreated', { ...n, affectedNodes: [n.nodeUuid] }));
+            }
         } catch (error: any) {
             console.error("Error in executePaste:", error);
         }
-    }, [store, rawNodesDict, rawEdgesDict, setSelectedId, clipboardRef, componentEvents]);
+    }, [store, rawNodesDict, rawEdgesDict, setSelectedId, clipboardRef, componentEvents, enableOnClickEvents]);
 
     // ─── Pane handlers ────────────────────────────────────────────────────────
 
@@ -437,12 +445,21 @@ export const useArchitectureFlowHandlers = ({
                 nextNodes[newNodeId] = newNodeData;
                 store.props.write('nodes', nextNodes);
                 setSelectedId(newNodeId);
+
+                if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
+                    componentEvents.fireComponentEvent('onNodeCreated', {
+                        nodeUuid: newNodeId,
+                        typeId: paletteItem.typeId,
+                        paletteId: paletteItem.id,
+                        affectedNodes: [newNodeId],
+                    });
+                }
             }
             draggedItemRef.current = null;
         } catch (error: any) {
             console.error("Error in onDrop:", error);
         }
-    }, [store, rawNodesDict, snapEnabled, snapPixels, reactFlowInstance, setSelectedId, draggedItemRef, componentEvents]);
+    }, [store, rawNodesDict, snapEnabled, snapPixels, reactFlowInstance, setSelectedId, draggedItemRef, componentEvents, enableOnClickEvents]);
 
     const onMoveStart = React.useCallback(() => {
         closeContextMenu();
@@ -509,12 +526,21 @@ export const useArchitectureFlowHandlers = ({
                 });
                 store.props.write('nodes', nextNodes);
                 if (edgesChanged) store.props.write('edges', nextEdges);
+
+                if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
+                    componentEvents.fireComponentEvent('onNodeSwapped', {
+                        nodeUuid: contextMenu.id,
+                        typeId: newItem.typeId,
+                        paletteId: newItem.id,
+                        affectedNodes: [contextMenu.id],
+                    });
+                }
             }
             closeContextMenu();
         } catch (error: any) {
             console.error("Error in handleNodeSwap:", error);
         }
-    }, [contextMenu, paletteItems, componentEvents, rawNodesDict, rawEdgesDict, store, closeContextMenu]);
+    }, [contextMenu, paletteItems, componentEvents, rawNodesDict, rawEdgesDict, store, closeContextMenu, enableOnClickEvents]);
 
     const handleContextMenuAction = React.useCallback((action: string) => {
         try {
@@ -629,7 +655,7 @@ export const useArchitectureFlowHandlers = ({
                         delete nextNodes[idToDel];
                         if (selectedId === idToDel) setSelectedId(null);
                         if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
-                            componentEvents.fireComponentEvent('nodeDeleted', { deletedNodeUuid: idToDel, connectedNodeUuids });
+                            componentEvents.fireComponentEvent('onNodeDeleted', { deletedNodeUuid: idToDel, connectedNodeUuids, affectedNodes: connectedNodeUuids });
                         }
                     });
                     store.props.write('nodes', nextNodes);
@@ -658,7 +684,7 @@ export const useArchitectureFlowHandlers = ({
                         if (edgesChanged) store.props.write('edges', nextEdges);
                         if (selectedId === contextMenu.id) setSelectedId(null);
                         if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
-                            componentEvents.fireComponentEvent('nodeDeleted', { deletedNodeUuid: contextMenu.id, connectedNodeUuids });
+                            componentEvents.fireComponentEvent('onNodeDeleted', { deletedNodeUuid: contextMenu.id, connectedNodeUuids, affectedNodes: connectedNodeUuids });
                         }
                     }
                 } else if (contextMenu.type === 'edge') {
@@ -669,10 +695,11 @@ export const useArchitectureFlowHandlers = ({
                         store.props.write('edges', nextEdges);
                         if (selectedId === contextMenu.id) setSelectedId(null);
                         if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
-                            componentEvents.fireComponentEvent('edgeDeleted', {
+                            componentEvents.fireComponentEvent('onEdgeDeleted', {
                                 deletedEdgeUuid: contextMenu.id,
                                 source: rawEdge?.source,
                                 target: rawEdge?.target,
+                                affectedNodes: [rawEdge?.source, rawEdge?.target],
                             });
                         }
                     }

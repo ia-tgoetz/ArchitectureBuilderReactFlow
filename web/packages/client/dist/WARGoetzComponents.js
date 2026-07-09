@@ -5533,7 +5533,7 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
                 if (n.id === selectedId)
                     setSelectedId(null);
                 if (enableOnClickEvents && (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)) {
-                    componentEvents.fireComponentEvent('nodeDeleted', { deletedNodeUuid: n.id, connectedNodeUuids });
+                    componentEvents.fireComponentEvent('onNodeDeleted', { deletedNodeUuid: n.id, connectedNodeUuids, affectedNodes: connectedNodeUuids });
                 }
             });
             store.props.write('nodes', nextNodes);
@@ -5587,10 +5587,12 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
                 return;
             const nextNodes = Object.assign({}, rawNodesDict);
             const nextEdges = Object.assign({}, rawEdgesDict);
+            const createdNodes = [];
             if (clipboard.type === 'single') {
                 const newNodeId = utils_1.generateShortId();
                 nextNodes[newNodeId] = JSON.parse(JSON.stringify(Object.assign(Object.assign({}, clipboard.node), { x: dropX, y: dropY })));
                 setSelectedId(newNodeId);
+                createdNodes.push({ nodeUuid: newNodeId, typeId: clipboard.node.typeId, paletteId: clipboard.node.paletteId });
             }
             else if (clipboard.type === 'group') {
                 let minX = Infinity, minY = Infinity;
@@ -5604,6 +5606,7 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
                     idMap[oldId] = newId;
                     const oldNode = clipboard.nodes[oldId];
                     nextNodes[newId] = JSON.parse(JSON.stringify(Object.assign(Object.assign({}, oldNode), { x: oldNode.x + dx, y: oldNode.y + dy })));
+                    createdNodes.push({ nodeUuid: newId, typeId: oldNode.typeId, paletteId: oldNode.paletteId });
                 });
                 Object.keys(clipboard.edges).forEach(oldEdgeId => {
                     const newEdgeId = utils_1.generateShortId();
@@ -5613,11 +5616,14 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
             }
             store.props.write('nodes', nextNodes);
             store.props.write('edges', nextEdges);
+            if (enableOnClickEvents && (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)) {
+                createdNodes.forEach(n => componentEvents.fireComponentEvent('onNodeCreated', Object.assign(Object.assign({}, n), { affectedNodes: [n.nodeUuid] })));
+            }
         }
         catch (error) {
             console.error("Error in executePaste:", error);
         }
-    }, [store, rawNodesDict, rawEdgesDict, setSelectedId, clipboardRef, componentEvents]);
+    }, [store, rawNodesDict, rawEdgesDict, setSelectedId, clipboardRef, componentEvents, enableOnClickEvents]);
     // ─── Pane handlers ────────────────────────────────────────────────────────
     const onDragOver = React.useCallback((event) => {
         event.preventDefault();
@@ -5670,13 +5676,21 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
                 nextNodes[newNodeId] = newNodeData;
                 store.props.write('nodes', nextNodes);
                 setSelectedId(newNodeId);
+                if (enableOnClickEvents && (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)) {
+                    componentEvents.fireComponentEvent('onNodeCreated', {
+                        nodeUuid: newNodeId,
+                        typeId: paletteItem.typeId,
+                        paletteId: paletteItem.id,
+                        affectedNodes: [newNodeId],
+                    });
+                }
             }
             draggedItemRef.current = null;
         }
         catch (error) {
             console.error("Error in onDrop:", error);
         }
-    }, [store, rawNodesDict, snapEnabled, snapPixels, reactFlowInstance, setSelectedId, draggedItemRef, componentEvents]);
+    }, [store, rawNodesDict, snapEnabled, snapPixels, reactFlowInstance, setSelectedId, draggedItemRef, componentEvents, enableOnClickEvents]);
     const onMoveStart = React.useCallback(() => {
         closeContextMenu();
     }, [closeContextMenu]);
@@ -5745,13 +5759,21 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
                 store.props.write('nodes', nextNodes);
                 if (edgesChanged)
                     store.props.write('edges', nextEdges);
+                if (enableOnClickEvents && (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)) {
+                    componentEvents.fireComponentEvent('onNodeSwapped', {
+                        nodeUuid: contextMenu.id,
+                        typeId: newItem.typeId,
+                        paletteId: newItem.id,
+                        affectedNodes: [contextMenu.id],
+                    });
+                }
             }
             closeContextMenu();
         }
         catch (error) {
             console.error("Error in handleNodeSwap:", error);
         }
-    }, [contextMenu, paletteItems, componentEvents, rawNodesDict, rawEdgesDict, store, closeContextMenu]);
+    }, [contextMenu, paletteItems, componentEvents, rawNodesDict, rawEdgesDict, store, closeContextMenu, enableOnClickEvents]);
     const handleContextMenuAction = React.useCallback((action) => {
         var _a, _b, _c, _d;
         try {
@@ -5889,7 +5911,7 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
                         if (selectedId === idToDel)
                             setSelectedId(null);
                         if (enableOnClickEvents && (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)) {
-                            componentEvents.fireComponentEvent('nodeDeleted', { deletedNodeUuid: idToDel, connectedNodeUuids });
+                            componentEvents.fireComponentEvent('onNodeDeleted', { deletedNodeUuid: idToDel, connectedNodeUuids, affectedNodes: connectedNodeUuids });
                         }
                     });
                     store.props.write('nodes', nextNodes);
@@ -5921,7 +5943,7 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
                         if (selectedId === contextMenu.id)
                             setSelectedId(null);
                         if (enableOnClickEvents && (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)) {
-                            componentEvents.fireComponentEvent('nodeDeleted', { deletedNodeUuid: contextMenu.id, connectedNodeUuids });
+                            componentEvents.fireComponentEvent('onNodeDeleted', { deletedNodeUuid: contextMenu.id, connectedNodeUuids, affectedNodes: connectedNodeUuids });
                         }
                     }
                 }
@@ -5934,10 +5956,11 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
                         if (selectedId === contextMenu.id)
                             setSelectedId(null);
                         if (enableOnClickEvents && (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)) {
-                            componentEvents.fireComponentEvent('edgeDeleted', {
+                            componentEvents.fireComponentEvent('onEdgeDeleted', {
                                 deletedEdgeUuid: contextMenu.id,
                                 source: rawEdge === null || rawEdge === void 0 ? void 0 : rawEdge.source,
                                 target: rawEdge === null || rawEdge === void 0 ? void 0 : rawEdge.target,
+                                affectedNodes: [rawEdge === null || rawEdge === void 0 ? void 0 : rawEdge.source, rawEdge === null || rawEdge === void 0 ? void 0 : rawEdge.target],
                             });
                         }
                     }
@@ -6146,13 +6169,23 @@ const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, c
             const selectedType = (preferredType && validTypes.includes(preferredType)) ? preferredType : validTypes[0];
             const typeDef = connectionTypes[selectedType] || {};
             if (store === null || store === void 0 ? void 0 : store.props) {
-                store.props.write('edges', Object.assign(Object.assign({}, rawEdgesDict), { [utils_1.generateShortId()]: Object.assign(Object.assign({}, connectionParams), { lineType: 'smoothstep', dashed: false, arrow: typeDef.arrow !== false, showLabel: false, labelText: '', connectionType: selectedType, waypoints: [] }) }));
+                const newEdgeId = utils_1.generateShortId();
+                store.props.write('edges', Object.assign(Object.assign({}, rawEdgesDict), { [newEdgeId]: Object.assign(Object.assign({}, connectionParams), { lineType: 'smoothstep', dashed: false, arrow: typeDef.arrow !== false, showLabel: false, labelText: '', connectionType: selectedType, waypoints: [] }) }));
+                if (enableOnClickEvents && (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)) {
+                    componentEvents.fireComponentEvent('onEdgeCreated', {
+                        edgeUuid: newEdgeId,
+                        source: connectionParams.source,
+                        target: connectionParams.target,
+                        connectionType: selectedType,
+                        affectedNodes: [connectionParams.source, connectionParams.target],
+                    });
+                }
             }
         }
         catch (error) {
             console.error("Error in onConnect:", error);
         }
-    }, [store, rawEdgesDict, rawNodesDict, getValidIntersection, connectionTypes, nodeTypeConnectionDefaults, componentEvents]);
+    }, [store, rawEdgesDict, rawNodesDict, getValidIntersection, connectionTypes, nodeTypeConnectionDefaults, componentEvents, enableOnClickEvents]);
     const onEdgeUpdate = React.useCallback((oldEdge, newConnection) => {
         var _a, _b, _c, _d;
         try {
@@ -6176,12 +6209,24 @@ const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, c
                 const nextWaypoints = (srcAxisChanged || tgtAxisChanged) ? [] : (oldData.waypoints || []);
                 nextEdges[oldEdge.id] = Object.assign(Object.assign({}, oldData), { source: newConnection.source, target: newConnection.target, sourceHandle: newConnection.sourceHandle, targetHandle: newConnection.targetHandle, waypoints: nextWaypoints });
                 store.props.write('edges', nextEdges);
+                const sourceChanged = oldData.source !== newConnection.source;
+                const targetChanged = oldData.target !== newConnection.target;
+                if (enableOnClickEvents && (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent) && (sourceChanged || targetChanged)) {
+                    componentEvents.fireComponentEvent('onEdgeMoved', {
+                        movedEdgeUuid: oldEdge.id,
+                        source: newConnection.source,
+                        target: newConnection.target,
+                        previousSource: oldData.source,
+                        previousTarget: oldData.target,
+                        affectedNodes: Array.from(new Set([newConnection.source, newConnection.target, oldData.source, oldData.target])),
+                    });
+                }
             }
         }
         catch (error) {
             console.error("Error in onEdgeUpdate:", error);
         }
-    }, [store, rawEdgesDict, getValidIntersection, componentEvents]);
+    }, [store, rawEdgesDict, getValidIntersection, componentEvents, enableOnClickEvents]);
     const onEdgeUpdateStart = React.useCallback((event, edge) => {
         updatingEdgeRef.current = (edge === null || edge === void 0 ? void 0 : edge.id) || null;
         setIsUpdatingEdge(true);
@@ -6220,8 +6265,8 @@ const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, c
     // Wired to <ReactFlow onEdgesDelete>. React Flow invokes this only as a cascade
     // when a connected node is deleted (edges never carry top-level `selected`, so
     // React Flow's own deleteKeyCode handling can never route a directly-selected
-    // edge through here). nodeDeleted already reports the affected connections, so
-    // this path must NOT also fire edgeDeleted.
+    // edge through here). onNodeDeleted already reports the affected connections, so
+    // this path must NOT also fire onEdgeDeleted.
     const onEdgesDelete = React.useCallback((deleted) => {
         try {
             removeEdgesFromStore(deleted);
@@ -6231,16 +6276,17 @@ const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, c
         }
     }, [removeEdgesFromStore, componentEvents]);
     // Explicit, user-intentional single-edge deletion (keyboard Delete/Backspace
-    // while an edge is selected). Fires edgeDeleted.
+    // while an edge is selected). Fires onEdgeDeleted.
     const deleteEdgeWithEvent = React.useCallback((edgeId) => {
         try {
             const removed = removeEdgesFromStore([{ id: edgeId }]);
             if (enableOnClickEvents && (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)) {
                 removed.forEach(r => {
-                    componentEvents.fireComponentEvent('edgeDeleted', {
+                    componentEvents.fireComponentEvent('onEdgeDeleted', {
                         deletedEdgeUuid: r.id,
                         source: r.source,
                         target: r.target,
+                        affectedNodes: [r.source, r.target],
                     });
                 });
             }
@@ -6272,9 +6318,20 @@ const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, c
                 componentEvents.fireComponentEvent('onContextMenuAction', { id: contextMenu.id, paletteId: (_a = rawEdgesDict[contextMenu.id]) === null || _a === void 0 ? void 0 : _a.connectionType, type: contextMenu.type, action: `lineType:${newLineType}` });
             if (store === null || store === void 0 ? void 0 : store.props) {
                 const nextEdges = Object.assign({}, rawEdgesDict);
-                if (nextEdges[contextMenu.id]) {
-                    nextEdges[contextMenu.id].lineType = newLineType;
+                const edge = nextEdges[contextMenu.id];
+                if (edge) {
+                    edge.lineType = newLineType;
                     store.props.write('edges', nextEdges);
+                    if (enableOnClickEvents && (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)) {
+                        componentEvents.fireComponentEvent('onEdgePropertyChanged', {
+                            edgeUuid: contextMenu.id,
+                            source: edge.source,
+                            target: edge.target,
+                            property: 'lineType',
+                            value: newLineType,
+                            affectedNodes: [edge.source, edge.target],
+                        });
+                    }
                 }
             }
             closeContextMenu();
@@ -6282,7 +6339,7 @@ const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, c
         catch (error) {
             console.error("Error in handleLineTypeChange:", error);
         }
-    }, [contextMenu, componentEvents, rawEdgesDict, store, closeContextMenu]);
+    }, [contextMenu, componentEvents, rawEdgesDict, store, closeContextMenu, enableOnClickEvents]);
     const handleConnectionTypeChange = React.useCallback((newConnectionType) => {
         var _a;
         try {
@@ -6292,11 +6349,22 @@ const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, c
                 componentEvents.fireComponentEvent('onContextMenuAction', { id: contextMenu.id, paletteId: (_a = rawEdgesDict[contextMenu.id]) === null || _a === void 0 ? void 0 : _a.connectionType, type: contextMenu.type, action: `connectionType:${newConnectionType}` });
             if (store === null || store === void 0 ? void 0 : store.props) {
                 const nextEdges = Object.assign({}, rawEdgesDict);
-                if (nextEdges[contextMenu.id]) {
+                const edge = nextEdges[contextMenu.id];
+                if (edge) {
                     const typeDef = connectionTypes[newConnectionType] || {};
-                    nextEdges[contextMenu.id].connectionType = newConnectionType;
-                    nextEdges[contextMenu.id].arrow = typeDef.arrow !== false;
+                    edge.connectionType = newConnectionType;
+                    edge.arrow = typeDef.arrow !== false;
                     store.props.write('edges', nextEdges);
+                    if (enableOnClickEvents && (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)) {
+                        componentEvents.fireComponentEvent('onEdgePropertyChanged', {
+                            edgeUuid: contextMenu.id,
+                            source: edge.source,
+                            target: edge.target,
+                            property: 'connectionType',
+                            value: newConnectionType,
+                            affectedNodes: [edge.source, edge.target],
+                        });
+                    }
                 }
             }
             closeContextMenu();
@@ -6304,7 +6372,7 @@ const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, c
         catch (error) {
             console.error("Error in handleConnectionTypeChange:", error);
         }
-    }, [contextMenu, componentEvents, rawEdgesDict, connectionTypes, store, closeContextMenu]);
+    }, [contextMenu, componentEvents, rawEdgesDict, connectionTypes, store, closeContextMenu, enableOnClickEvents]);
     const handleAnimationChange = React.useCallback((newAnimation) => {
         var _a;
         try {
@@ -6314,9 +6382,20 @@ const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, c
                 componentEvents.fireComponentEvent('onContextMenuAction', { id: contextMenu.id, paletteId: (_a = rawEdgesDict[contextMenu.id]) === null || _a === void 0 ? void 0 : _a.connectionType, type: contextMenu.type, action: `animation:${newAnimation}` });
             if (store === null || store === void 0 ? void 0 : store.props) {
                 const nextEdges = Object.assign({}, rawEdgesDict);
-                if (nextEdges[contextMenu.id]) {
-                    nextEdges[contextMenu.id].animation = newAnimation;
+                const edge = nextEdges[contextMenu.id];
+                if (edge) {
+                    edge.animation = newAnimation;
                     store.props.write('edges', nextEdges);
+                    if (enableOnClickEvents && (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)) {
+                        componentEvents.fireComponentEvent('onEdgePropertyChanged', {
+                            edgeUuid: contextMenu.id,
+                            source: edge.source,
+                            target: edge.target,
+                            property: 'animation',
+                            value: newAnimation,
+                            affectedNodes: [edge.source, edge.target],
+                        });
+                    }
                 }
             }
             closeContextMenu();
@@ -6324,21 +6403,32 @@ const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, c
         catch (error) {
             console.error("Error in handleAnimationChange:", error);
         }
-    }, [contextMenu, componentEvents, rawEdgesDict, store, closeContextMenu]);
+    }, [contextMenu, componentEvents, rawEdgesDict, store, closeContextMenu, enableOnClickEvents]);
     const handleLabelChange = React.useCallback((edgeId, labelText) => {
         try {
             if (!(store === null || store === void 0 ? void 0 : store.props))
                 return;
             const nextEdges = Object.assign({}, rawEdgesDict);
-            if (nextEdges[edgeId]) {
-                nextEdges[edgeId] = Object.assign(Object.assign({}, nextEdges[edgeId]), { labelText });
+            const edge = nextEdges[edgeId];
+            if (edge) {
+                nextEdges[edgeId] = Object.assign(Object.assign({}, edge), { labelText });
                 store.props.write('edges', nextEdges);
+                if (enableOnClickEvents && (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)) {
+                    componentEvents.fireComponentEvent('onEdgePropertyChanged', {
+                        edgeUuid: edgeId,
+                        source: edge.source,
+                        target: edge.target,
+                        property: 'labelText',
+                        value: labelText,
+                        affectedNodes: [edge.source, edge.target],
+                    });
+                }
             }
         }
         catch (error) {
             console.error("Error in handleLabelChange:", error);
         }
-    }, [store, rawEdgesDict, componentEvents]);
+    }, [store, rawEdgesDict, componentEvents, enableOnClickEvents]);
     const writeDefaultForPair = React.useCallback((connType) => {
         var _a, _b;
         if (!contextMenu || contextMenu.type !== 'edge')
