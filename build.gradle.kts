@@ -24,7 +24,7 @@ if (signPropsFile.exists()) {
 }
 
 allprojects {
-    version = "1.0.8" //Fixes Minor Issues in tsx mapping
+    version = "1.0.9" //Consolidates and expands rules-engine-relevant component events
     group = "com.wargoetz.reactflow"
 }
 
