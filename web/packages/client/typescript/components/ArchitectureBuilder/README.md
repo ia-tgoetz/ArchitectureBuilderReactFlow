@@ -412,6 +412,13 @@ Shortcuts are disabled when focus is inside an `<input>` or `<textarea>`, and wh
 | `onPaletteItemClick` | Full palette item fields. |
 | `onContextMenuAction` | `{ id, paletteId, type, action }` where `action` is the menu action string (e.g. `"delete"`, `"lineType:step"`, `"swapNode:EdgeGateway"`). |
 | `onPaneClick` | `{ type: "pane" }` fired when clicking the canvas background. |
+| `onNodeCreated` | `{ nodeUuid, typeId, paletteId, affectedNodes: [nodeUuid] }` fired when a node is created via palette drop or paste. Gated by `enableOnClickEvents`. |
+| `onNodeSwapped` | `{ nodeUuid, typeId, paletteId, affectedNodes: [nodeUuid] }` fired when a node's type is swapped via the context menu (fields reflect the new type). Gated by `enableOnClickEvents`. |
+| `onNodeDeleted` | `{ deletedNodeUuid, connectedNodeUuids, affectedNodes: connectedNodeUuids }` fired when a node is deleted. Gated by `enableOnClickEvents`. |
+| `onEdgeCreated` | `{ edgeUuid, source, target, connectionType, affectedNodes: [source, target] }` fired when a new edge is drawn. Gated by `enableOnClickEvents`. |
+| `onEdgeDeleted` | `{ deletedEdgeUuid, source, target, affectedNodes: [source, target] }` fired when an edge is deleted directly. Gated by `enableOnClickEvents`. |
+| `onEdgeMoved` | `{ movedEdgeUuid, source, target, previousSource, previousTarget, affectedNodes }` fired when an edge's endpoint is dragged to a new node. `affectedNodes` is the deduped union of `[source, target, previousSource, previousTarget]`. Gated by `enableOnClickEvents`. |
+| `onEdgePropertyChanged` | `{ edgeUuid, source, target, property, value, affectedNodes: [source, target] }` fired when `connectionType`, `lineType`, `animation`, or `labelText` changes. Gated by `enableOnClickEvents`. |
 
 ---
 

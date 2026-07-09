@@ -104,15 +104,26 @@ export const useEdgeHandlers = ({
 
             const typeDef = connectionTypes[selectedType] || {};
             if (store?.props) {
+                const newEdgeId = generateShortId();
                 store.props.write('edges', {
                     ...rawEdgesDict,
-                    [generateShortId()]: { ...connectionParams, lineType: 'smoothstep', dashed: false, arrow: typeDef.arrow !== false, showLabel: false, labelText: '', connectionType: selectedType, waypoints: [] },
+                    [newEdgeId]: { ...connectionParams, lineType: 'smoothstep', dashed: false, arrow: typeDef.arrow !== false, showLabel: false, labelText: '', connectionType: selectedType, waypoints: [] },
                 });
+
+                if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
+                    componentEvents.fireComponentEvent('onEdgeCreated', {
+                        edgeUuid: newEdgeId,
+                        source: connectionParams.source,
+                        target: connectionParams.target,
+                        connectionType: selectedType,
+                        affectedNodes: [connectionParams.source, connectionParams.target],
+                    });
+                }
             }
         } catch (error: any) {
             console.error("Error in onConnect:", error);
         }
-    }, [store, rawEdgesDict, rawNodesDict, getValidIntersection, connectionTypes, nodeTypeConnectionDefaults, componentEvents]);
+    }, [store, rawEdgesDict, rawNodesDict, getValidIntersection, connectionTypes, nodeTypeConnectionDefaults, componentEvents, enableOnClickEvents]);
 
     const onEdgeUpdate = React.useCallback((oldEdge: Edge, newConnection: Connection) => {
         try {
@@ -143,11 +154,24 @@ export const useEdgeHandlers = ({
                     waypoints: nextWaypoints
                 };
                 store.props.write('edges', nextEdges);
+
+                const sourceChanged = oldData.source !== newConnection.source;
+                const targetChanged = oldData.target !== newConnection.target;
+                if (enableOnClickEvents && componentEvents?.fireComponentEvent && (sourceChanged || targetChanged)) {
+                    componentEvents.fireComponentEvent('onEdgeMoved', {
+                        movedEdgeUuid: oldEdge.id,
+                        source: newConnection.source,
+                        target: newConnection.target,
+                        previousSource: oldData.source,
+                        previousTarget: oldData.target,
+                        affectedNodes: Array.from(new Set([newConnection.source, newConnection.target, oldData.source, oldData.target])),
+                    });
+                }
             }
         } catch (error: any) {
             console.error("Error in onEdgeUpdate:", error);
         }
-    }, [store, rawEdgesDict, getValidIntersection, componentEvents]);
+    }, [store, rawEdgesDict, getValidIntersection, componentEvents, enableOnClickEvents]);
 
     const onEdgeUpdateStart = React.useCallback((event: any, edge: any) => {
         updatingEdgeRef.current = edge?.id || null;
@@ -187,8 +211,8 @@ export const useEdgeHandlers = ({
     // Wired to <ReactFlow onEdgesDelete>. React Flow invokes this only as a cascade
     // when a connected node is deleted (edges never carry top-level `selected`, so
     // React Flow's own deleteKeyCode handling can never route a directly-selected
-    // edge through here). nodeDeleted already reports the affected connections, so
-    // this path must NOT also fire edgeDeleted.
+    // edge through here). onNodeDeleted already reports the affected connections, so
+    // this path must NOT also fire onEdgeDeleted.
     const onEdgesDelete = React.useCallback((deleted: Edge[]) => {
         try {
             removeEdgesFromStore(deleted);
@@ -198,16 +222,17 @@ export const useEdgeHandlers = ({
     }, [removeEdgesFromStore, componentEvents]);
 
     // Explicit, user-intentional single-edge deletion (keyboard Delete/Backspace
-    // while an edge is selected). Fires edgeDeleted.
+    // while an edge is selected). Fires onEdgeDeleted.
     const deleteEdgeWithEvent = React.useCallback((edgeId: string) => {
         try {
             const removed = removeEdgesFromStore([{ id: edgeId }]);
             if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
                 removed.forEach(r => {
-                    componentEvents.fireComponentEvent('edgeDeleted', {
+                    componentEvents.fireComponentEvent('onEdgeDeleted', {
                         deletedEdgeUuid: r.id,
                         source: r.source,
                         target: r.target,
+                        affectedNodes: [r.source, r.target],
                     });
                 });
             }
@@ -237,13 +262,27 @@ export const useEdgeHandlers = ({
             if (componentEvents) componentEvents.fireComponentEvent('onContextMenuAction', { id: contextMenu.id, paletteId: rawEdgesDict[contextMenu.id]?.connectionType, type: contextMenu.type, action: `lineType:${newLineType}` });
             if (store?.props) {
                 const nextEdges = { ...rawEdgesDict };
-                if (nextEdges[contextMenu.id]) { nextEdges[contextMenu.id].lineType = newLineType; store.props.write('edges', nextEdges); }
+                const edge = nextEdges[contextMenu.id];
+                if (edge) {
+                    edge.lineType = newLineType;
+                    store.props.write('edges', nextEdges);
+                    if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
+                        componentEvents.fireComponentEvent('onEdgePropertyChanged', {
+                            edgeUuid: contextMenu.id,
+                            source: edge.source,
+                            target: edge.target,
+                            property: 'lineType',
+                            value: newLineType,
+                            affectedNodes: [edge.source, edge.target],
+                        });
+                    }
+                }
             }
             closeContextMenu();
         } catch (error: any) {
             console.error("Error in handleLineTypeChange:", error);
         }
-    }, [contextMenu, componentEvents, rawEdgesDict, store, closeContextMenu]);
+    }, [contextMenu, componentEvents, rawEdgesDict, store, closeContextMenu, enableOnClickEvents]);
 
     const handleConnectionTypeChange = React.useCallback((newConnectionType: string) => {
         try {
@@ -251,18 +290,29 @@ export const useEdgeHandlers = ({
             if (componentEvents) componentEvents.fireComponentEvent('onContextMenuAction', { id: contextMenu.id, paletteId: rawEdgesDict[contextMenu.id]?.connectionType, type: contextMenu.type, action: `connectionType:${newConnectionType}` });
             if (store?.props) {
                 const nextEdges = { ...rawEdgesDict };
-                if (nextEdges[contextMenu.id]) {
+                const edge = nextEdges[contextMenu.id];
+                if (edge) {
                     const typeDef = connectionTypes[newConnectionType] || {};
-                    nextEdges[contextMenu.id].connectionType = newConnectionType;
-                    nextEdges[contextMenu.id].arrow = typeDef.arrow !== false;
+                    edge.connectionType = newConnectionType;
+                    edge.arrow = typeDef.arrow !== false;
                     store.props.write('edges', nextEdges);
+                    if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
+                        componentEvents.fireComponentEvent('onEdgePropertyChanged', {
+                            edgeUuid: contextMenu.id,
+                            source: edge.source,
+                            target: edge.target,
+                            property: 'connectionType',
+                            value: newConnectionType,
+                            affectedNodes: [edge.source, edge.target],
+                        });
+                    }
                 }
             }
             closeContextMenu();
         } catch (error: any) {
             console.error("Error in handleConnectionTypeChange:", error);
         }
-    }, [contextMenu, componentEvents, rawEdgesDict, connectionTypes, store, closeContextMenu]);
+    }, [contextMenu, componentEvents, rawEdgesDict, connectionTypes, store, closeContextMenu, enableOnClickEvents]);
 
     const handleAnimationChange = React.useCallback((newAnimation: string) => {
         try {
@@ -270,29 +320,51 @@ export const useEdgeHandlers = ({
             if (componentEvents) componentEvents.fireComponentEvent('onContextMenuAction', { id: contextMenu.id, paletteId: rawEdgesDict[contextMenu.id]?.connectionType, type: contextMenu.type, action: `animation:${newAnimation}` });
             if (store?.props) {
                 const nextEdges = { ...rawEdgesDict };
-                if (nextEdges[contextMenu.id]) {
-                    nextEdges[contextMenu.id].animation = newAnimation;
+                const edge = nextEdges[contextMenu.id];
+                if (edge) {
+                    edge.animation = newAnimation;
                     store.props.write('edges', nextEdges);
+                    if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
+                        componentEvents.fireComponentEvent('onEdgePropertyChanged', {
+                            edgeUuid: contextMenu.id,
+                            source: edge.source,
+                            target: edge.target,
+                            property: 'animation',
+                            value: newAnimation,
+                            affectedNodes: [edge.source, edge.target],
+                        });
+                    }
                 }
             }
             closeContextMenu();
         } catch (error: any) {
             console.error("Error in handleAnimationChange:", error);
         }
-    }, [contextMenu, componentEvents, rawEdgesDict, store, closeContextMenu]);
+    }, [contextMenu, componentEvents, rawEdgesDict, store, closeContextMenu, enableOnClickEvents]);
 
     const handleLabelChange = React.useCallback((edgeId: string, labelText: string) => {
         try {
             if (!store?.props) return;
             const nextEdges = { ...rawEdgesDict };
-            if (nextEdges[edgeId]) {
-                nextEdges[edgeId] = { ...nextEdges[edgeId], labelText };
+            const edge = nextEdges[edgeId];
+            if (edge) {
+                nextEdges[edgeId] = { ...edge, labelText };
                 store.props.write('edges', nextEdges);
+                if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
+                    componentEvents.fireComponentEvent('onEdgePropertyChanged', {
+                        edgeUuid: edgeId,
+                        source: edge.source,
+                        target: edge.target,
+                        property: 'labelText',
+                        value: labelText,
+                        affectedNodes: [edge.source, edge.target],
+                    });
+                }
             }
         } catch (error: any) {
             console.error("Error in handleLabelChange:", error);
         }
-    }, [store, rawEdgesDict, componentEvents]);
+    }, [store, rawEdgesDict, componentEvents, enableOnClickEvents]);
 
     const writeDefaultForPair = React.useCallback((connType: string) => {
         if (!contextMenu || contextMenu.type !== 'edge') return;
