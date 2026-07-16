@@ -90,7 +90,7 @@ const areArchitectureNodePropsEqual = (
     return true;
 };
 
-const NodeImage = React.memo(({ src, label }: { src: string, label: string }) => {
+const NodeImage = React.memo(({ src }: { src: string }) => {
     const scopeId = React.useMemo(() => nextSvgScopeId(), []);
     const svgHtml = React.useMemo(() => extractSvgMarkup(src, scopeId), [src, scopeId]);
     if (svgHtml) {
@@ -99,7 +99,6 @@ const NodeImage = React.memo(({ src, label }: { src: string, label: string }) =>
                 id={scopeId}
                 style={{padding: '4px', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
                 dangerouslySetInnerHTML={{ __html: svgHtml }}
-                title={label}
             />
         );
     }
@@ -203,13 +202,12 @@ export const ArchitectureNode = React.memo(({ id, data, selected }: NodeProps<Ar
                     cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
                     overflow: 'hidden',
                     zIndex: 10,
-                    ...(data.labelStyle || {}) 
+                    ...(data.labelStyle || {})
                 }}
                 onClick={(e) => {
                     e.stopPropagation();
                     if (data.onGearClick) data.onGearClick(id, e);
                 }}
-                title={data.label} 
             >
                 <div className="arch-node-gear" style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
                     <svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill={finalGearColor} aria-label="Settings">
@@ -230,7 +228,7 @@ export const ArchitectureNode = React.memo(({ id, data, selected }: NodeProps<Ar
                         filter: data.inactive ? 'grayscale(100%) blur(2px)' : undefined
                     }}
                 >
-                    <NodeImage src={data.image} label={data.label} />
+                    <NodeImage src={data.image} />
                 </div>
             )}
 
@@ -251,7 +249,6 @@ export const ArchitectureNode = React.memo(({ id, data, selected }: NodeProps<Ar
                                     e.stopPropagation();
                                     if (enabled && data.onActionIconClick) data.onActionIconClick(id, ai.name, e);
                                 }}
-                                title={ai.name}
                             >
                                 <IconRenderer path={ai.icon} color={ai.color} size={30} />
                             </div>

@@ -3472,11 +3472,11 @@ const areArchitectureNodePropsEqual = (prev, next) => {
         return false;
     return true;
 };
-const NodeImage = react_1.default.memo(({ src, label }) => {
+const NodeImage = react_1.default.memo(({ src }) => {
     const scopeId = react_1.default.useMemo(() => svgSanitize_1.nextSvgScopeId(), []);
     const svgHtml = react_1.default.useMemo(() => svgSanitize_1.extractSvgMarkup(src, scopeId), [src, scopeId]);
     if (svgHtml) {
-        return (react_1.default.createElement("div", { id: scopeId, style: { padding: '4px', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, dangerouslySetInnerHTML: { __html: svgHtml }, title: label }));
+        return (react_1.default.createElement("div", { id: scopeId, style: { padding: '4px', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, dangerouslySetInnerHTML: { __html: svgHtml } }));
     }
     const dataUri = svgSanitize_1.toSafeDataUri(src);
     return dataUri ? react_1.default.createElement("img", { src: dataUri, alt: "", style: { padding: '4px', width: '100%', height: '100%', objectFit: 'contain' } }) : null;
@@ -3534,7 +3534,7 @@ exports.ArchitectureNode = react_1.default.memo(({ id, data, selected }) => {
                 e.stopPropagation();
                 if (data.onGearClick)
                     data.onGearClick(id, e);
-            }, title: data.label },
+            } },
             react_1.default.createElement("div", { className: "arch-node-gear", style: { display: 'flex', alignItems: 'center', flexShrink: 0 } },
                 react_1.default.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", height: "16px", viewBox: "0 -960 960 960", width: "16px", fill: finalGearColor, "aria-label": "Settings" },
                     react_1.default.createElement("path", { d: "m370-80-16-128q-13-5-24.5-12T307-235l-119 50L78-375l103-78q-1-7-1-13.5v-27q0-6.5 1-13.5L78-585l110-190 119 50q11-8 23-15t24-12l16-128h220l16 128q13 5 24.5 12t22.5 15l119-50 110 190-103 78q1 7 1 13.5v27q0 6.5-2 13.5l103 78-110 190-118-50q-11 8-23 15t-24 12L590-80H370Zm70-80h79l14-106q31-8 57.5-23.5T639-327l99 41 39-68-86-65q5-14 7-29.5t2-31.5q0-16-2-31.5t-7-29.5l86-65-39-68-99 42q-22-23-48.5-38.5T533-694l-13-106h-79l-14 106q-31 8-57.5 23.5T321-633l-99-41-39 68 86 64q-5 15-7 30t-2 32q0 16 2 31t7 30l-86 65 39 68 99-42q22 23 48.5 38.5T427-266l13 106Zm42-180q58 0 99-41t41-99q0-58-41-99t-99-41q-59 0-99.5 41T342-480q0 58 40.5 99t99.5 41Zm-2-140Z" }))),
@@ -3544,7 +3544,7 @@ exports.ArchitectureNode = react_1.default.memo(({ id, data, selected }) => {
                 width: '100%', minHeight: 0, zIndex: 1, backgroundColor: imageBg || undefined,
                 filter: data.inactive ? 'grayscale(100%) blur(2px)' : undefined
             } },
-            react_1.default.createElement(NodeImage, { src: data.image, label: data.label }))),
+            react_1.default.createElement(NodeImage, { src: data.image }))),
         data.actionIcons && data.actionIcons.length > 0 && (react_1.default.createElement("div", { style: { position: 'absolute', right: 4, bottom: 4, display: 'flex', flexDirection: 'row', gap: 4, zIndex: 10 } }, data.actionIcons.map((ai) => {
             const enabled = ai.enabled !== false;
             return (react_1.default.createElement("div", { key: ai.name, style: {
@@ -3556,7 +3556,7 @@ exports.ArchitectureNode = react_1.default.memo(({ id, data, selected }) => {
                     e.stopPropagation();
                     if (enabled && data.onActionIconClick)
                         data.onActionIconClick(id, ai.name, e);
-                }, title: ai.name },
+                } },
                 react_1.default.createElement(perspective_client_1.IconRenderer, { path: ai.icon, color: ai.color, size: 30 })));
         })))));
 }, areArchitectureNodePropsEqual);
@@ -4845,6 +4845,11 @@ const Sidebar = ({ paletteItems, isOpen, toggleSidebar, onDragStartItem, onItemC
     const toggleCategory = (category) => {
         setCollapsedCategories((prev) => (Object.assign(Object.assign({}, prev), { [category]: prev[category] === false })));
     };
+    const anyExpanded = Object.keys(groupedItems).some((category) => collapsedCategories[category] === false);
+    const toggleAllCategories = () => {
+        const next = anyExpanded;
+        setCollapsedCategories((prev) => (Object.assign(Object.assign({}, prev), Object.fromEntries(Object.keys(groupedItems).map((category) => [category, next])))));
+    };
     const onDragStart = (event, item) => {
         var _a, _b, _d;
         onDragStartItem(item);
@@ -4873,6 +4878,7 @@ const Sidebar = ({ paletteItems, isOpen, toggleSidebar, onDragStartItem, onItemC
                 react_1.default.createElement("div", { style: { marginBottom: '12px', position: 'relative' } },
                     react_1.default.createElement("input", { type: "text", placeholder: "Search palette...", value: searchQuery, onChange: (e) => setSearchQuery(e.target.value), style: Object.assign(Object.assign({}, constants_1.sharedInputStyle), { paddingRight: searchQuery ? '24px' : '8px' }) }),
                     searchQuery && (react_1.default.createElement("span", { onClick: () => setSearchQuery(''), style: { position: 'absolute', right: '6px', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', color: 'var(--neutral-60)', fontSize: '14px', lineHeight: 1 } }, "\u00D7"))),
+                Object.keys(groupedItems).length > 0 && (react_1.default.createElement("div", { onClick: toggleAllCategories, style: { cursor: 'pointer', fontSize: '12px', color: 'var(--neutral-70)', marginBottom: '10px', textAlign: 'right', userSelect: 'none' } }, anyExpanded ? 'Collapse All' : 'Expand All')),
                 containerItems.length > 0 && (react_1.default.createElement("div", { style: { marginBottom: '20px', paddingBottom: '15px', borderBottom: '1px solid var(--neutral-40)' } }, containerItems.map((item) => {
                     const _a = item.style || {}, { classes: _c, backgroundColor: imageBg } = _a, itemStyle = __rest(_a, ["classes", "backgroundColor"]);
                     const _b = item.labelStyle || {}, { classes: _lc } = _b, labelStyle = __rest(_b, ["classes"]);
