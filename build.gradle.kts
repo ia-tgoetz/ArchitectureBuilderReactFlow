@@ -24,7 +24,7 @@ if (signPropsFile.exists()) {
 }
 
 allprojects {
-    version = "1.0.9" //Consolidates and expands rules-engine-relevant component events
+    version = "1.1.0" //Added collapse functionality for all palette groups
     group = "com.wargoetz.reactflow"
 }
 

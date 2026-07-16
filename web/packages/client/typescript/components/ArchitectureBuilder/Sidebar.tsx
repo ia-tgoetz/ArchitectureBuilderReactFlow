@@ -69,6 +69,16 @@ export const Sidebar = ({ paletteItems, isOpen, toggleSidebar, onDragStartItem, 
         setCollapsedCategories((prev) => ({ ...prev, [category]: prev[category] === false }));
     };
 
+    const anyExpanded = Object.keys(groupedItems).some((category) => collapsedCategories[category] === false);
+
+    const toggleAllCategories = () => {
+        const next = anyExpanded;
+        setCollapsedCategories((prev) => ({
+            ...prev,
+            ...Object.fromEntries(Object.keys(groupedItems).map((category) => [category, next])),
+        }));
+    };
+
     const onDragStart = (event: React.DragEvent<HTMLDivElement>, item: PaletteItem) => {
         onDragStartItem(item);
         event.dataTransfer.effectAllowed = 'move';
@@ -112,6 +122,15 @@ export const Sidebar = ({ paletteItems, isOpen, toggleSidebar, onDragStartItem, 
                             >×</span>
                         )}
                     </div>
+
+                    {Object.keys(groupedItems).length > 0 && (
+                        <div
+                            onClick={toggleAllCategories}
+                            style={{ cursor: 'pointer', fontSize: '12px', color: 'var(--neutral-70)', marginBottom: '10px', textAlign: 'right', userSelect: 'none' }}
+                        >
+                            {anyExpanded ? 'Collapse All' : 'Expand All'}
+                        </div>
+                    )}
 
                     {containerItems.length > 0 && (
                         <div style={{ marginBottom: '20px', paddingBottom: '15px', borderBottom: '1px solid var(--neutral-40)' }}>
