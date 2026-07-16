@@ -5,7 +5,7 @@ The **Architecture Builder** is a specialized, interactive visualization module 
 ## 📥 Download
 [Download the latest ArchitectureBuilder.modl](https://github.com/ia-tgoetz/ArchitectureBuilderReactFlow/releases/latest/download/ArchitectureBuilder.modl)
 
-**Latest release (v1.0.9):** Consolidates and expands the rules-engine-relevant component events. `nodeDeleted`/`edgeDeleted` are renamed `onNodeDeleted`/`onEdgeDeleted`; adds `onNodeCreated`, `onNodeSwapped`, `onEdgeCreated`, `onEdgeMoved`, and `onEdgePropertyChanged`. Every one of these events now carries a consistent `affectedNodes` array — see [Component Events](#component-events) below. This is a **breaking change** for any project bound to the old `nodeDeleted`/`edgeDeleted` event names.
+**Latest release (v1.1.0):** Adds a "Collapse All" / "Expand All" toggle above the sidebar palette groups, letting users collapse or expand every category at once instead of toggling each one individually.
 
 ---
 
@@ -14,7 +14,7 @@ The **Architecture Builder** is a specialized, interactive visualization module 
 The Architecture Builder renders a pan/zoom infinite canvas. Users drag palette items onto the canvas to place nodes, draw edges between them, group nodes inside container zones, and export the full state as structured JSON through Ignition's prop system.
 
 ### Key Functional Features
-- **Drag-and-Drop Palette:** Deploy nodes from a categorized sidebar (Gateways, Databases, Devices, Zones, Text).
+- **Drag-and-Drop Palette:** Deploy nodes from a categorized sidebar (Gateways, Databases, Devices, Zones, Text). A "Collapse All" / "Expand All" toggle lets you fold or unfold every category at once.
 - **Intelligent Edge Routing:** Edges follow strictly orthogonal (horizontal/vertical) paths. Manual waypoint control via segment drag.
 - **Hierarchy & Containers:** Group infrastructure nodes within "Area/Site" containers with nesting support and linked/unlinked move behavior.
 - **In-Place Editing:** Double-click labels or notes for inline text editing (`Enter` for newline, `Ctrl+Enter` to submit).
