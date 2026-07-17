@@ -48,16 +48,26 @@ export const ContainerNode = React.memo(({ id, data, selected }: NodeProps<Conta
     // Use the unified flag passed from mapIgnitionToReactFlowNodes
     const isUnlocked = data.unlockMovement;
 
+    const s = data.style || {};
+    const borderWidth = s.borderWidth || '2px';
+    const borderStyle = s.borderStyle || 'dashed';
+    const borderColor = s.borderColor || 'var(--neutral-50)';
+
+    // Strip the individual border longhands + any stale shorthand from the spread so
+    // they never conflict with the composed `border` shorthand below (mixing shorthand
+    // and longhands lets a deleted longhand collapse the whole border to `none`).
+    const { border, borderWidth: _bw, borderStyle: _bs, borderColor: _bc, ...restStyle } = s;
+
     const combinedStyle: React.CSSProperties = {
         width: '100%',
         height: '100%',
-        backgroundColor: data.style?.backgroundColor || data.style?.fill || 'rgba(128, 128, 128, 0.2)',
-        border: selected ? '2px solid var(--callToAction)' : '2px dashed var(--neutral-50)', 
+        backgroundColor: s.backgroundColor || s.fill || 'rgba(128, 128, 128, 0.2)',
         borderRadius: '8px',
         position: 'relative',
         boxSizing: 'border-box',
-        ...(data.style || {}),
-        
+        ...restStyle,
+        border: `${borderWidth} ${borderStyle} ${borderColor}`, // always a complete shorthand
+        // Selection is signalled via the outline only — never toggle the border shorthand.
         outline: (selected && !data.enableResize) ? '2px solid var(--callToAction)' : 'none',
         outlineOffset: '2px',
         // Panning fall-through handled at the node-wrapper level in ArchitectureBuilder.tsx

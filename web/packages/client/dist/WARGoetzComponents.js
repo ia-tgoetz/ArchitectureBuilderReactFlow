@@ -3784,6 +3784,17 @@ exports.ColorInput = ColorInput;
 
 "use strict";
 
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -3829,14 +3840,24 @@ const areContainerNodePropsEqual = (prev, next) => {
     return true;
 };
 exports.ContainerNode = react_1.default.memo(({ id, data, selected }) => {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c;
     const { zoom } = reactflow_1.useViewport();
     const finalLabelBg = ((_a = data.labelStyle) === null || _a === void 0 ? void 0 : _a.backgroundColor) || 'var(--neutral-30)';
     const finalLabelColor = ((_b = data.labelStyle) === null || _b === void 0 ? void 0 : _b.color) || 'var(--neutral-90)';
     const finalGearColor = ((_c = data.labelStyle) === null || _c === void 0 ? void 0 : _c.fill) || finalLabelColor;
     // Use the unified flag passed from mapIgnitionToReactFlowNodes
     const isUnlocked = data.unlockMovement;
-    const combinedStyle = Object.assign(Object.assign({ width: '100%', height: '100%', backgroundColor: ((_d = data.style) === null || _d === void 0 ? void 0 : _d.backgroundColor) || ((_e = data.style) === null || _e === void 0 ? void 0 : _e.fill) || 'rgba(128, 128, 128, 0.2)', border: selected ? '2px solid var(--callToAction)' : '2px dashed var(--neutral-50)', borderRadius: '8px', position: 'relative', boxSizing: 'border-box' }, (data.style || {})), { outline: (selected && !data.enableResize) ? '2px solid var(--callToAction)' : 'none', outlineOffset: '2px' });
+    const s = data.style || {};
+    const borderWidth = s.borderWidth || '2px';
+    const borderStyle = s.borderStyle || 'dashed';
+    const borderColor = s.borderColor || 'var(--neutral-50)';
+    // Strip the individual border longhands + any stale shorthand from the spread so
+    // they never conflict with the composed `border` shorthand below (mixing shorthand
+    // and longhands lets a deleted longhand collapse the whole border to `none`).
+    const { border, borderWidth: _bw, borderStyle: _bs, borderColor: _bc } = s, restStyle = __rest(s, ["border", "borderWidth", "borderStyle", "borderColor"]);
+    const combinedStyle = Object.assign(Object.assign({ width: '100%', height: '100%', backgroundColor: s.backgroundColor || s.fill || 'rgba(128, 128, 128, 0.2)', borderRadius: '8px', position: 'relative', boxSizing: 'border-box' }, restStyle), { border: `${borderWidth} ${borderStyle} ${borderColor}`, 
+        // Selection is signalled via the outline only — never toggle the border shorthand.
+        outline: (selected && !data.enableResize) ? '2px solid var(--callToAction)' : 'none', outlineOffset: '2px' });
     // Calculate dynamic resizer handle size based on zoom.
     const resizerSize = Math.max(10, Math.round(16 / zoom));
     return (react_1.default.createElement(react_1.default.Fragment, null,
