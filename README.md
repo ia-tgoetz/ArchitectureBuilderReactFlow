@@ -5,7 +5,9 @@ The **Architecture Builder** is a specialized, interactive visualization module 
 ## 📥 Download
 [Download the latest ArchitectureBuilder.modl](https://github.com/ia-tgoetz/ArchitectureBuilderReactFlow/releases/latest/download/ArchitectureBuilder.modl)
 
-**Latest release (v1.1.0):** Adds a "Collapse All" / "Expand All" toggle above the sidebar palette groups, letting users collapse or expand every category at once instead of toggling each one individually.
+**Latest release (v1.1.1):** Fixes Area (Container) border styling — custom borders now persist through selection, and setting the border style to "Default" no longer clears the other border settings.
+
+**v1.1.0:** Adds a "Collapse All" / "Expand All" toggle above the sidebar palette groups, letting users collapse or expand every category at once instead of toggling each one individually.
 
 ---
 
