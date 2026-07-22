@@ -37,6 +37,7 @@ All properties below are accessible in the Ignition Designer's **Props** panel u
 | `enabled` | Boolean | `true` | When `false`, hides the sidebar palette and disables all editing. Pan and zoom remain active. |
 | `enableOnClickEvents` | Boolean | `true` | When `true`, node/edge click events fire even if `enabled` is `false`. Useful for read-only navigation views. |
 | `snapEnabled` | Boolean | `true` | Enables grid snapping when moving nodes. |
+| `showGrid` | Boolean | `true` | When `false`, hides the background dot grid on the canvas. Pan and zoom remain active. |
 | `snapPixels` | Number | `15` | Grid snap resolution in pixels. |
 | `edgeWidth` | Number | `6` | Global edge stroke thickness in pixels. Selected edges render at `edgeWidth + 2`. |
 | `hideHandles` | Boolean | `false` | Hides connection handles on all nodes globally. Can be overridden per palette item. |

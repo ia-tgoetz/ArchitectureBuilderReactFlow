@@ -183,7 +183,7 @@ const computeHierarchyData = (nodesDict: any, edgesDict: any) => {
 
 export interface ArchitectureBuilderProps {
     enabled?: any; enableOnClickEvents?: any; hideHandles?: any; handleCount?: any;
-    refreshHierarchy?: boolean; snapEnabled?: any; snapPixels?: any; edgeWidth?: any;
+    refreshHierarchy?: boolean; snapEnabled?: any; showGrid?: any; snapPixels?: any; edgeWidth?: any;
     style?: any; connectionTypes: any; nodeTypeConnectionDefaults?: any; paletteItems: any[];
     nodes: any; edges: any; hierarchy?: any;
 }
@@ -295,13 +295,14 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
     const rawConfigJson = React.useMemo(() => JSON.stringify({
         edgeWidth:             extractDeep(props.props.edgeWidth),
         snapEnabled:           extractDeep(props.props.snapEnabled),
+        showGrid:              extractDeep(props.props.showGrid),
         snapPixels:            extractDeep(props.props.snapPixels),
         hideHandles:           extractDeep(props.props.hideHandles),
         handleCount:           extractDeep(props.props.handleCount),
         enabled:               extractDeep(props.props.enabled),
         enableOnClickEvents:   extractDeep(props.props.enableOnClickEvents),
     }), [
-        props.props.edgeWidth, props.props.snapEnabled, props.props.snapPixels,
+        props.props.edgeWidth, props.props.snapEnabled, props.props.showGrid, props.props.snapPixels,
         props.props.hideHandles, props.props.handleCount, props.props.enabled,
         props.props.enableOnClickEvents,
     ]);
@@ -317,6 +318,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
     const globalHandleCount = Math.max(1, Math.min(5, Number(rawConfig.handleCount) || 3));
     const isEnabled = rawConfig.enabled !== false && String(rawConfig.enabled ?? 'true').toLowerCase() !== 'false';
     const snapEnabled = rawConfig.snapEnabled !== false && String(rawConfig.snapEnabled ?? 'true').toLowerCase() !== 'false';
+    const showGrid = rawConfig.showGrid !== false && String(rawConfig.showGrid ?? 'true').toLowerCase() !== 'false';
     const snapPixels = Number(rawConfig.snapPixels) || 15;
     const snapGrid = React.useMemo<[number, number]>(() => [snapPixels, snapPixels], [snapPixels]);
     const globalEdgeWidth = Math.max(1, Number(rawConfig.edgeWidth) || 6);
@@ -784,7 +786,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
                                 deleteKeyCode={['Delete', 'Backspace']}
                                 proOptions={{ hideAttribution: true }}
                             >
-                                <Background gap={snapPixels} />
+                                {showGrid && <Background gap={snapPixels} />}
                                 <Controls showInteractive={false}>
                                     <ControlButton onClick={handleScreenshot} title="Download Full Screenshot" aria-label="Download Full Screenshot">
                                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block', color: '#555555' }}>
