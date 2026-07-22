@@ -27,6 +27,7 @@ export class ArchitectureBuilderMeta implements ComponentMeta {
             enabled: tree.read('enabled', true),
             enableOnClickEvents: tree.read('enableOnClickEvents', true),
             snapEnabled: tree.read('snapEnabled', true),
+            showGrid: tree.read('showGrid', true),
             snapPixels: tree.read('snapPixels', 15),
             edgeWidth: tree.read('edgeWidth', 6),
             hideHandles: tree.read('hideHandles', false),

@@ -2855,7 +2855,7 @@ const computeHierarchyData = (nodesDict, edgesDict) => {
     return { nodeEnrichments, rootHierarchy };
 };
 exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     const reactFlowWrapper = React.useRef(null);
     const wrapperBoundsRef = React.useRef({ top: 0, left: 0 });
     const clipboardRef = React.useRef(null);
@@ -2942,13 +2942,14 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
     const rawConfigJson = React.useMemo(() => JSON.stringify({
         edgeWidth: extractDeep(props.props.edgeWidth),
         snapEnabled: extractDeep(props.props.snapEnabled),
+        showGrid: extractDeep(props.props.showGrid),
         snapPixels: extractDeep(props.props.snapPixels),
         hideHandles: extractDeep(props.props.hideHandles),
         handleCount: extractDeep(props.props.handleCount),
         enabled: extractDeep(props.props.enabled),
         enableOnClickEvents: extractDeep(props.props.enableOnClickEvents),
     }), [
-        props.props.edgeWidth, props.props.snapEnabled, props.props.snapPixels,
+        props.props.edgeWidth, props.props.snapEnabled, props.props.showGrid, props.props.snapPixels,
         props.props.hideHandles, props.props.handleCount, props.props.enabled,
         props.props.enableOnClickEvents,
     ]);
@@ -2962,6 +2963,7 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
     const globalHandleCount = Math.max(1, Math.min(5, Number(rawConfig.handleCount) || 3));
     const isEnabled = rawConfig.enabled !== false && String((_b = rawConfig.enabled) !== null && _b !== void 0 ? _b : 'true').toLowerCase() !== 'false';
     const snapEnabled = rawConfig.snapEnabled !== false && String((_c = rawConfig.snapEnabled) !== null && _c !== void 0 ? _c : 'true').toLowerCase() !== 'false';
+    const showGrid = rawConfig.showGrid !== false && String((_d = rawConfig.showGrid) !== null && _d !== void 0 ? _d : 'true').toLowerCase() !== 'false';
     const snapPixels = Number(rawConfig.snapPixels) || 15;
     const snapGrid = React.useMemo(() => [snapPixels, snapPixels], [snapPixels]);
     const globalEdgeWidth = Math.max(1, Number(rawConfig.edgeWidth) || 6);
@@ -3335,7 +3337,7 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
                     React.createElement(reactflow_1.ReactFlowProvider, null,
                         React.createElement(ArchitectureFlowInner, { selectedId: selectedId }),
                         React.createElement(reactflow_1.default, { nodes: localNodes, edges: displayEdges, nodeTypes: nodeTypes, edgeTypes: CustomEdge_1.edgeTypes, isValidConnection: isValidConnection, onInit: setReactFlowInstance, onDrop: isEnabled ? onDrop : undefined, onDragOver: isEnabled ? onDragOver : undefined, onConnect: isEnabled ? onConnect : undefined, onEdgeUpdate: isEnabled ? onEdgeUpdate : undefined, onEdgeUpdateStart: isEnabled ? onEdgeUpdateStart : undefined, onEdgeUpdateEnd: isEnabled ? onEdgeUpdateEnd : undefined, onConnectStart: isEnabled ? onConnectStart : undefined, onConnectEnd: isEnabled ? onConnectEnd : undefined, onNodeDragStart: isEnabled ? onNodeDragStart : undefined, onNodeDrag: isEnabled ? onNodeDrag : undefined, onNodeDragStop: isEnabled ? onNodeDragStop : undefined, onNodesChange: onNodesChange, onNodeClick: onNodeClick, onEdgeClick: onEdgeClick, onNodesDelete: isEnabled ? onNodesDelete : undefined, onEdgesDelete: isEnabled ? onEdgesDelete : undefined, onNodeContextMenu: isEnabled ? onNodeContextMenu : undefined, onEdgeContextMenu: isEnabled ? onEdgeContextMenu : undefined, onEdgeMouseEnter: (_evt, edge) => setHoveredEdgeId(edge.id), onEdgeMouseLeave: () => setHoveredEdgeId(null), onPaneClick: onPaneClick, onPaneContextMenu: isEnabled ? onPaneContextMenu : undefined, onMoveStart: onMoveStart, nodesDraggable: isEnabled, nodesConnectable: isEnabled, elementsSelectable: isEnabled, connectionMode: reactflow_1.ConnectionMode.Loose, snapToGrid: snapEnabled, snapGrid: snapGrid, connectionLineStyle: { stroke: '#cccccc', strokeWidth: 6, fill: 'none' }, elevateNodesOnSelect: false, minZoom: 0.05, panOnScroll: false, zoomOnScroll: true, panOnDrag: true, selectionOnDrag: false, deleteKeyCode: ['Delete', 'Backspace'], proOptions: { hideAttribution: true } },
-                            React.createElement(reactflow_1.Background, { gap: snapPixels }),
+                            showGrid && React.createElement(reactflow_1.Background, { gap: snapPixels }),
                             React.createElement(reactflow_1.Controls, { showInteractive: false },
                                 React.createElement(reactflow_1.ControlButton, { onClick: handleScreenshot, title: "Download Full Screenshot", "aria-label": "Download Full Screenshot" },
                                     React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: "16", height: "16", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", style: { display: 'block', color: '#555555' } },
@@ -6813,6 +6815,7 @@ class ArchitectureBuilderMeta {
             enabled: tree.read('enabled', true),
             enableOnClickEvents: tree.read('enableOnClickEvents', true),
             snapEnabled: tree.read('snapEnabled', true),
+            showGrid: tree.read('showGrid', true),
             snapPixels: tree.read('snapPixels', 15),
             edgeWidth: tree.read('edgeWidth', 6),
             hideHandles: tree.read('hideHandles', false),

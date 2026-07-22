@@ -1954,6 +1954,11 @@
       "description": "Enable snapping to grid when moving components.",
       "default": true
     },
+    "showGrid": {
+      "type": "boolean",
+      "description": "Show the background dot grid on the canvas. When false, the grid is hidden.",
+      "default": true
+    },
     "snapPixels": {
       "type": "number",
       "description": "The size of the snap grid in pixels.",
