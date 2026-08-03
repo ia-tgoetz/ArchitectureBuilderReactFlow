@@ -12,6 +12,7 @@ import { NoteLabelNode } from './NoteLabelNode';
 import { edgeTypes } from './CustomEdge';
 import { mapIgnitionToReactFlowEdges } from './EdgeUtils';
 import { useArchitectureFlowHandlers } from './useArchitectureFlowHandlers';
+import { useCanvasHistory } from './useCanvasHistory';
 import { ComponentErrorBoundary } from '../common/ComponentErrorBoundary';
 import { TEXT_NODE_PALETTE_IDS } from './constants';
 import { ContextMenuState } from './types';
@@ -323,6 +324,17 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
     const snapGrid = React.useMemo<[number, number]>(() => [snapPixels, snapPixels], [snapPixels]);
     const globalEdgeWidth = Math.max(1, Number(rawConfig.edgeWidth) || 6);
 
+    // ─── Undo/redo history ─────────────────────────────────────────────────
+
+    // `historyStore` is substituted for props.store when constructing the
+    // handler hooks, which routes all of their writes through the history
+    // recorder. Derived writes below use writeWithoutHistory instead so they
+    // never appear as undo steps.
+    const {
+        historyStore, writeWithoutHistory,
+        undo, redo, canUndo, canRedo, historyEpoch,
+    } = useCanvasHistory({ store: props.store, rawNodesJson, rawEdgesJson });
+
     // ─── Hierarchy sync ────────────────────────────────────────────────────
 
     React.useEffect(() => {
@@ -330,7 +342,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
 
         const { nodeEnrichments, rootHierarchy } = computeHierarchyData(rawNodesDict, rawEdgesDict);
 
-        props.store.props.write('hierarchy', rootHierarchy);
+        writeWithoutHistory('hierarchy', rootHierarchy);
 
         const enrichedNodes: any = {};
         Object.keys(rawNodesDict).forEach(id => {
@@ -342,10 +354,10 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
         const serialized = JSON.stringify(enrichedNodes);
         if (serialized !== hierarchyWriteRef.current) {
             hierarchyWriteRef.current = serialized;
-            props.store.props.write('nodes', enrichedNodes);
+            writeWithoutHistory('nodes', enrichedNodes);
         }
-        props.store.props.write('refreshHierarchy', false);
-    }, [props.props.refreshHierarchy, props.store]);
+        writeWithoutHistory('refreshHierarchy', false);
+    }, [props.props.refreshHierarchy, props.store, writeWithoutHistory]);
 
     // ─── Handlers hook ─────────────────────────────────────────────────────
 
@@ -368,7 +380,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
         onDragOver, onDrop, onMoveStart, onPaneClick, onPaneContextMenu,
         handleNodeSwap, handleContextMenuAction,
     } = useArchitectureFlowHandlers({
-        store: props.store,
+        store: historyStore,
         componentEvents: props.componentEvents,
         rawNodesDict,
         rawEdgesDict,
@@ -451,11 +463,18 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
         }
     }, [flowNodes, isDraggingNode, selectedId]);
 
+    // Tracks which history epoch the localEdges mirror was built for. The
+    // render immediately after an undo pairs fresh flowEdges with the previous
+    // localEdges (the resync effect only runs post-commit), which would show one
+    // frame of stale waypoints — displayEdges ignores the mirror when it lags.
+    const localEdgesEpochRef = React.useRef(0);
+
     React.useEffect(() => {
         if (!isUpdatingEdge && !isDraggingNode) {
+            localEdgesEpochRef.current = historyEpoch;
             setLocalEdges(flowEdges);
         }
-    }, [flowEdges, isUpdatingEdge, isDraggingNode]);
+    }, [flowEdges, isUpdatingEdge, isDraggingNode, historyEpoch]);
 
     React.useEffect(() => {
         let hasChanges = false;
@@ -482,7 +501,9 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
         }
 
         if (hasChanges) {
-            props.store.props.write('edges', corrected);
+            // Derived migration, not a user edit — and it clears waypoints, so
+            // it must never become an undo target.
+            writeWithoutHistory('edges', corrected);
         }
     }, [globalHandleCount]);
 
@@ -503,7 +524,8 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
             if (isAnimated) zIndex = 5000;
 
             const strokeWidth = (isHovered || isSelected) ? globalEdgeWidth + 2 : globalEdgeWidth;
-            const waypoints = local?.data?.waypoints ?? fresh.data?.waypoints;
+            const waypoints = (localEdgesEpochRef.current === historyEpoch ? local?.data?.waypoints : undefined)
+                ?? fresh.data?.waypoints;
             return {
                 ...fresh,
                 updatable: isEnabled,
@@ -512,7 +534,23 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
                 data: { ...fresh.data, waypoints, isEditable: isEnabled },
             };
         });
-    }, [localEdgeMap, flowEdges, hoveredEdgeId, globalEdgeWidth, isEnabled, isUpdatingEdge]);
+    }, [localEdgeMap, flowEdges, hoveredEdgeId, globalEdgeWidth, isEnabled, isUpdatingEdge, historyEpoch]);
+
+    // ─── Undo/redo guards ──────────────────────────────────────────────────
+
+    // Refuse mid-drag / mid-reconnect: applying a snapshot then writes props
+    // that the local-mirror resync effects deliberately ignore while a gesture
+    // is in flight, leaving the dragged geometry painted over restored props.
+    // The user releases the mouse and undoes the completed gesture as one step.
+    const canHistoryAct = !isDraggingNode && !isUpdatingEdge;
+    const handleUndo = React.useCallback(() => {
+        if (isDraggingNode || isUpdatingEdge) return;
+        undo();
+    }, [undo, isDraggingNode, isUpdatingEdge]);
+    const handleRedo = React.useCallback(() => {
+        if (isDraggingNode || isUpdatingEdge) return;
+        redo();
+    }, [redo, isDraggingNode, isUpdatingEdge]);
 
     // ─── Keyboard shortcuts ────────────────────────────────────────────────
 
@@ -522,6 +560,13 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
             if ((e.ctrlKey || e.metaKey) && e.key === 'f') { e.preventDefault(); setCanvasSearchOpen(open => !open); return; }
             if (!isEnabled) return;
             if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') return;
+            // Placed after the INPUT/TEXTAREA guard on purpose: inline label
+            // editors and the style modal keep native browser undo.
+            if (e.ctrlKey || e.metaKey) {
+                const k = e.key.toLowerCase(); // Ctrl+Shift+Z reports 'Z'
+                if (k === 'z') { e.preventDefault(); if (e.shiftKey) handleRedo(); else handleUndo(); return; }
+                if (k === 'y') { e.preventDefault(); handleRedo(); return; }
+            }
             if ((e.ctrlKey || e.metaKey) && e.key === 'c') { if (selectedId && rawNodesDictRef.current[selectedId]) executeCopy(selectedId); }
             if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId && rawEdgesDictRef.current[selectedId]) {
                 e.preventDefault();
@@ -539,7 +584,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
         };
         document.addEventListener('keydown', handleKeyDown);
         return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [isEnabled, selectedId, snapEnabled, snapPixels, props.store, executeCopy, executePaste, closeContextMenu, deleteEdgeWithEvent, rawEdgesDictRef]);
+    }, [isEnabled, selectedId, snapEnabled, snapPixels, props.store, executeCopy, executePaste, closeContextMenu, deleteEdgeWithEvent, rawEdgesDictRef, handleUndo, handleRedo]);
 
     const flyToNode = React.useCallback((nodeId: string, x: number, y: number, w: number, h: number) => {
         if (reactFlowInstance) {
@@ -788,6 +833,34 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
                             >
                                 {showGrid && <Background gap={snapPixels} />}
                                 <Controls showInteractive={false}>
+                                    {isEnabled && (
+                                        <ControlButton
+                                            onClick={handleUndo}
+                                            disabled={!canUndo || !canHistoryAct}
+                                            title="Undo (Ctrl+Z)"
+                                            aria-label="Undo"
+                                            style={{ opacity: (canUndo && canHistoryAct) ? 1 : 0.35, cursor: (canUndo && canHistoryAct) ? 'pointer' : 'default' }}
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block', color: '#555555' }}>
+                                                <path d="M3 7v6h6"></path>
+                                                <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path>
+                                            </svg>
+                                        </ControlButton>
+                                    )}
+                                    {isEnabled && (
+                                        <ControlButton
+                                            onClick={handleRedo}
+                                            disabled={!canRedo || !canHistoryAct}
+                                            title="Redo (Ctrl+Shift+Z)"
+                                            aria-label="Redo"
+                                            style={{ opacity: (canRedo && canHistoryAct) ? 1 : 0.35, cursor: (canRedo && canHistoryAct) ? 'pointer' : 'default' }}
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block', color: '#555555' }}>
+                                                <path d="M21 7v6h-6"></path>
+                                                <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"></path>
+                                            </svg>
+                                        </ControlButton>
+                                    )}
                                     <ControlButton onClick={handleScreenshot} title="Download Full Screenshot" aria-label="Download Full Screenshot">
                                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block', color: '#555555' }}>
                                             <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
@@ -816,7 +889,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
                                         nextNodes[styleEditorNodeId].style = newStyle;
                                         nextNodes[styleEditorNodeId].labelStyle = newLabelStyle;
                                         nextNodes[styleEditorNodeId].textStyle = newTextStyle;
-                                        props.store.props.write('nodes', nextNodes);
+                                        historyStore.props?.write('nodes', nextNodes);
                                     }
                                     setStyleEditorNodeId(null);
                                 }}

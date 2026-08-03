@@ -24,7 +24,7 @@ if (signPropsFile.exists()) {
 }
 
 allprojects {
-    version = "1.1.2.20260722" //Added showGrid functionality to Component Props
+    version = "1.1.3.20260803" //Added showGrid functionality to Component Props
     group = "com.wargoetz.reactflow"
 }
 

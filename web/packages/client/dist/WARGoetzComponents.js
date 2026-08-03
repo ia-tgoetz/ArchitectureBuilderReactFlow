@@ -2710,6 +2710,7 @@ const NoteLabelNode_1 = __webpack_require__(/*! ./NoteLabelNode */ "./typescript
 const CustomEdge_1 = __webpack_require__(/*! ./CustomEdge */ "./typescript/components/ArchitectureBuilder/CustomEdge.tsx");
 const EdgeUtils_1 = __webpack_require__(/*! ./EdgeUtils */ "./typescript/components/ArchitectureBuilder/EdgeUtils.ts");
 const useArchitectureFlowHandlers_1 = __webpack_require__(/*! ./useArchitectureFlowHandlers */ "./typescript/components/ArchitectureBuilder/useArchitectureFlowHandlers.ts");
+const useCanvasHistory_1 = __webpack_require__(/*! ./useCanvasHistory */ "./typescript/components/ArchitectureBuilder/useCanvasHistory.ts");
 const ComponentErrorBoundary_1 = __webpack_require__(/*! ../common/ComponentErrorBoundary */ "./typescript/components/common/ComponentErrorBoundary.tsx");
 const constants_1 = __webpack_require__(/*! ./constants */ "./typescript/components/ArchitectureBuilder/constants.ts");
 const StyleEditorModal_1 = __webpack_require__(/*! ./StyleEditorModal */ "./typescript/components/ArchitectureBuilder/StyleEditorModal.tsx");
@@ -2967,13 +2968,19 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
     const snapPixels = Number(rawConfig.snapPixels) || 15;
     const snapGrid = React.useMemo(() => [snapPixels, snapPixels], [snapPixels]);
     const globalEdgeWidth = Math.max(1, Number(rawConfig.edgeWidth) || 6);
+    // ─── Undo/redo history ─────────────────────────────────────────────────
+    // `historyStore` is substituted for props.store when constructing the
+    // handler hooks, which routes all of their writes through the history
+    // recorder. Derived writes below use writeWithoutHistory instead so they
+    // never appear as undo steps.
+    const { historyStore, writeWithoutHistory, undo, redo, canUndo, canRedo, historyEpoch, } = useCanvasHistory_1.useCanvasHistory({ store: props.store, rawNodesJson, rawEdgesJson });
     // ─── Hierarchy sync ────────────────────────────────────────────────────
     React.useEffect(() => {
         var _a;
         if (!((_a = props.store) === null || _a === void 0 ? void 0 : _a.props) || !rawNodesDict || !rawEdgesDict)
             return;
         const { nodeEnrichments, rootHierarchy } = computeHierarchyData(rawNodesDict, rawEdgesDict);
-        props.store.props.write('hierarchy', rootHierarchy);
+        writeWithoutHistory('hierarchy', rootHierarchy);
         const enrichedNodes = {};
         Object.keys(rawNodesDict).forEach(id => {
             if (!rawNodesDict[id])
@@ -2984,13 +2991,13 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
         const serialized = JSON.stringify(enrichedNodes);
         if (serialized !== hierarchyWriteRef.current) {
             hierarchyWriteRef.current = serialized;
-            props.store.props.write('nodes', enrichedNodes);
+            writeWithoutHistory('nodes', enrichedNodes);
         }
-        props.store.props.write('refreshHierarchy', false);
-    }, [props.props.refreshHierarchy, props.store]);
+        writeWithoutHistory('refreshHierarchy', false);
+    }, [props.props.refreshHierarchy, props.store, writeWithoutHistory]);
     // ─── Handlers hook ─────────────────────────────────────────────────────
     const { isUpdatingEdge, isDraggingNode, updatingEdgeRef, rawNodesDictRef, rawEdgesDictRef, closeContextMenu, getValidIntersection, isValidConnection, handleWaypointsChange, handleLabelChange, onConnect, onEdgeUpdate, onEdgeUpdateStart, onEdgeUpdateEnd, onConnectStart, onConnectEnd, onEdgesDelete, deleteEdgeWithEvent, onEdgeContextMenu, onEdgeClick, handleLineTypeChange, handleConnectionTypeChange, handleAnimationChange, handleSetConnectionDefault, handleSetDefaultForType, handleClearConnectionDefault, handleGearClick, handlePaletteItemClick, handleResizeEnd, handleTextChange, handleActionIconClick, onNodesChange, onNodeDragStart, onNodeDrag, onNodeDragStop, onNodesDelete, onNodeContextMenu, onNodeClick, executeCopy, executePaste, onDragOver, onDrop, onMoveStart, onPaneClick, onPaneContextMenu, handleNodeSwap, handleContextMenuAction, } = useArchitectureFlowHandlers_1.useArchitectureFlowHandlers({
-        store: props.store,
+        store: historyStore,
         componentEvents: props.componentEvents,
         rawNodesDict,
         rawEdgesDict,
@@ -3054,11 +3061,17 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
             setLocalNodes(flowNodes.map((n) => (Object.assign(Object.assign({}, n), { selected: n.id === selectedId }))));
         }
     }, [flowNodes, isDraggingNode, selectedId]);
+    // Tracks which history epoch the localEdges mirror was built for. The
+    // render immediately after an undo pairs fresh flowEdges with the previous
+    // localEdges (the resync effect only runs post-commit), which would show one
+    // frame of stale waypoints — displayEdges ignores the mirror when it lags.
+    const localEdgesEpochRef = React.useRef(0);
     React.useEffect(() => {
         if (!isUpdatingEdge && !isDraggingNode) {
+            localEdgesEpochRef.current = historyEpoch;
             setLocalEdges(flowEdges);
         }
-    }, [flowEdges, isUpdatingEdge, isDraggingNode]);
+    }, [flowEdges, isUpdatingEdge, isDraggingNode, historyEpoch]);
     React.useEffect(() => {
         var _a, _b;
         let hasChanges = false;
@@ -3080,7 +3093,9 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
             corrected[edgeId] = updated;
         }
         if (hasChanges) {
-            props.store.props.write('edges', corrected);
+            // Derived migration, not a user edit — and it clears waypoints, so
+            // it must never become an undo target.
+            writeWithoutHistory('edges', corrected);
         }
     }, [globalHandleCount]);
     const localEdgeMap = React.useMemo(() => new Map(localEdges.map((e) => [e.id, e])), [localEdges]);
@@ -3097,10 +3112,26 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
             if (isAnimated)
                 zIndex = 5000;
             const strokeWidth = (isHovered || isSelected) ? globalEdgeWidth + 2 : globalEdgeWidth;
-            const waypoints = (_d = (_c = local === null || local === void 0 ? void 0 : local.data) === null || _c === void 0 ? void 0 : _c.waypoints) !== null && _d !== void 0 ? _d : (_e = fresh.data) === null || _e === void 0 ? void 0 : _e.waypoints;
+            const waypoints = (_d = (localEdgesEpochRef.current === historyEpoch ? (_c = local === null || local === void 0 ? void 0 : local.data) === null || _c === void 0 ? void 0 : _c.waypoints : undefined)) !== null && _d !== void 0 ? _d : (_e = fresh.data) === null || _e === void 0 ? void 0 : _e.waypoints;
             return Object.assign(Object.assign({}, fresh), { updatable: isEnabled, zIndex, style: Object.assign(Object.assign({}, fresh.style), { strokeWidth }), data: Object.assign(Object.assign({}, fresh.data), { waypoints, isEditable: isEnabled }) });
         });
-    }, [localEdgeMap, flowEdges, hoveredEdgeId, globalEdgeWidth, isEnabled, isUpdatingEdge]);
+    }, [localEdgeMap, flowEdges, hoveredEdgeId, globalEdgeWidth, isEnabled, isUpdatingEdge, historyEpoch]);
+    // ─── Undo/redo guards ──────────────────────────────────────────────────
+    // Refuse mid-drag / mid-reconnect: applying a snapshot then writes props
+    // that the local-mirror resync effects deliberately ignore while a gesture
+    // is in flight, leaving the dragged geometry painted over restored props.
+    // The user releases the mouse and undoes the completed gesture as one step.
+    const canHistoryAct = !isDraggingNode && !isUpdatingEdge;
+    const handleUndo = React.useCallback(() => {
+        if (isDraggingNode || isUpdatingEdge)
+            return;
+        undo();
+    }, [undo, isDraggingNode, isUpdatingEdge]);
+    const handleRedo = React.useCallback(() => {
+        if (isDraggingNode || isUpdatingEdge)
+            return;
+        redo();
+    }, [redo, isDraggingNode, isUpdatingEdge]);
     // ─── Keyboard shortcuts ────────────────────────────────────────────────
     React.useEffect(() => {
         const handleKeyDown = (e) => {
@@ -3120,6 +3151,24 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
                 return;
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')
                 return;
+            // Placed after the INPUT/TEXTAREA guard on purpose: inline label
+            // editors and the style modal keep native browser undo.
+            if (e.ctrlKey || e.metaKey) {
+                const k = e.key.toLowerCase(); // Ctrl+Shift+Z reports 'Z'
+                if (k === 'z') {
+                    e.preventDefault();
+                    if (e.shiftKey)
+                        handleRedo();
+                    else
+                        handleUndo();
+                    return;
+                }
+                if (k === 'y') {
+                    e.preventDefault();
+                    handleRedo();
+                    return;
+                }
+            }
             if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
                 if (selectedId && rawNodesDictRef.current[selectedId])
                     executeCopy(selectedId);
@@ -3140,7 +3189,7 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
         };
         document.addEventListener('keydown', handleKeyDown);
         return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [isEnabled, selectedId, snapEnabled, snapPixels, props.store, executeCopy, executePaste, closeContextMenu, deleteEdgeWithEvent, rawEdgesDictRef]);
+    }, [isEnabled, selectedId, snapEnabled, snapPixels, props.store, executeCopy, executePaste, closeContextMenu, deleteEdgeWithEvent, rawEdgesDictRef, handleUndo, handleRedo]);
     const flyToNode = React.useCallback((nodeId, x, y, w, h) => {
         if (reactFlowInstance) {
             reactFlowInstance.fitBounds({ x, y, width: w, height: h }, { padding: 0.5, duration: 600 });
@@ -3339,19 +3388,27 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
                         React.createElement(reactflow_1.default, { nodes: localNodes, edges: displayEdges, nodeTypes: nodeTypes, edgeTypes: CustomEdge_1.edgeTypes, isValidConnection: isValidConnection, onInit: setReactFlowInstance, onDrop: isEnabled ? onDrop : undefined, onDragOver: isEnabled ? onDragOver : undefined, onConnect: isEnabled ? onConnect : undefined, onEdgeUpdate: isEnabled ? onEdgeUpdate : undefined, onEdgeUpdateStart: isEnabled ? onEdgeUpdateStart : undefined, onEdgeUpdateEnd: isEnabled ? onEdgeUpdateEnd : undefined, onConnectStart: isEnabled ? onConnectStart : undefined, onConnectEnd: isEnabled ? onConnectEnd : undefined, onNodeDragStart: isEnabled ? onNodeDragStart : undefined, onNodeDrag: isEnabled ? onNodeDrag : undefined, onNodeDragStop: isEnabled ? onNodeDragStop : undefined, onNodesChange: onNodesChange, onNodeClick: onNodeClick, onEdgeClick: onEdgeClick, onNodesDelete: isEnabled ? onNodesDelete : undefined, onEdgesDelete: isEnabled ? onEdgesDelete : undefined, onNodeContextMenu: isEnabled ? onNodeContextMenu : undefined, onEdgeContextMenu: isEnabled ? onEdgeContextMenu : undefined, onEdgeMouseEnter: (_evt, edge) => setHoveredEdgeId(edge.id), onEdgeMouseLeave: () => setHoveredEdgeId(null), onPaneClick: onPaneClick, onPaneContextMenu: isEnabled ? onPaneContextMenu : undefined, onMoveStart: onMoveStart, nodesDraggable: isEnabled, nodesConnectable: isEnabled, elementsSelectable: isEnabled, connectionMode: reactflow_1.ConnectionMode.Loose, snapToGrid: snapEnabled, snapGrid: snapGrid, connectionLineStyle: { stroke: '#cccccc', strokeWidth: 6, fill: 'none' }, elevateNodesOnSelect: false, minZoom: 0.05, panOnScroll: false, zoomOnScroll: true, panOnDrag: true, selectionOnDrag: false, deleteKeyCode: ['Delete', 'Backspace'], proOptions: { hideAttribution: true } },
                             showGrid && React.createElement(reactflow_1.Background, { gap: snapPixels }),
                             React.createElement(reactflow_1.Controls, { showInteractive: false },
+                                isEnabled && (React.createElement(reactflow_1.ControlButton, { onClick: handleUndo, disabled: !canUndo || !canHistoryAct, title: "Undo (Ctrl+Z)", "aria-label": "Undo", style: { opacity: (canUndo && canHistoryAct) ? 1 : 0.35, cursor: (canUndo && canHistoryAct) ? 'pointer' : 'default' } },
+                                    React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: "16", height: "16", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", style: { display: 'block', color: '#555555' } },
+                                        React.createElement("path", { d: "M3 7v6h6" }),
+                                        React.createElement("path", { d: "M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" })))),
+                                isEnabled && (React.createElement(reactflow_1.ControlButton, { onClick: handleRedo, disabled: !canRedo || !canHistoryAct, title: "Redo (Ctrl+Shift+Z)", "aria-label": "Redo", style: { opacity: (canRedo && canHistoryAct) ? 1 : 0.35, cursor: (canRedo && canHistoryAct) ? 'pointer' : 'default' } },
+                                    React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: "16", height: "16", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", style: { display: 'block', color: '#555555' } },
+                                        React.createElement("path", { d: "M21 7v6h-6" }),
+                                        React.createElement("path", { d: "M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13" })))),
                                 React.createElement(reactflow_1.ControlButton, { onClick: handleScreenshot, title: "Download Full Screenshot", "aria-label": "Download Full Screenshot" },
                                     React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: "16", height: "16", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", style: { display: 'block', color: '#555555' } },
                                         React.createElement("path", { d: "M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" }),
                                         React.createElement("circle", { cx: "12", cy: "13", r: "4" })))))),
                     canvasSearchOpen && (React.createElement(CanvasSearch_1.CanvasSearch, { nodes: rawNodesDict, paletteItems: paletteItems, onFlyTo: flyToNode, onClose: () => setCanvasSearchOpen(false) })),
                     styleEditorNodeId && rawNodesDict[styleEditorNodeId] && (React.createElement(StyleEditorModal_1.StyleEditorModal, { node: rawNodesDict[styleEditorNodeId], onSave: (newStyle, newLabelStyle, newTextStyle) => {
-                            var _a;
+                            var _a, _b;
                             if ((_a = props.store) === null || _a === void 0 ? void 0 : _a.props) {
                                 const nextNodes = Object.assign({}, rawNodesDict);
                                 nextNodes[styleEditorNodeId].style = newStyle;
                                 nextNodes[styleEditorNodeId].labelStyle = newLabelStyle;
                                 nextNodes[styleEditorNodeId].textStyle = newTextStyle;
-                                props.store.props.write('nodes', nextNodes);
+                                (_b = historyStore.props) === null || _b === void 0 ? void 0 : _b.write('nodes', nextNodes);
                             }
                             setStyleEditorNodeId(null);
                         }, onCancel: () => setStyleEditorNodeId(null) })),
@@ -6104,6 +6161,266 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
         handleContextMenuAction });
 };
 exports.useArchitectureFlowHandlers = useArchitectureFlowHandlers;
+
+
+/***/ }),
+
+/***/ "./typescript/components/ArchitectureBuilder/useCanvasHistory.ts":
+/*!***********************************************************************!*\
+  !*** ./typescript/components/ArchitectureBuilder/useCanvasHistory.ts ***!
+  \***********************************************************************/
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.useCanvasHistory = void 0;
+const React = __importStar(__webpack_require__(/*! react */ "react"));
+/**
+ * Undo/redo history for the ArchitectureBuilder canvas.
+ *
+ * Design notes:
+ *  - The Ignition prop tree is the source of truth, so a history entry is a
+ *    snapshot of the SERIALIZED `nodes` + `edges` dicts. Strings, not objects:
+ *    several handlers mutate the dict in place without cloning per entry
+ *    (z-order, arrow/dashed/showLabel toggles, StyleEditorModal), so an object
+ *    snapshot would be retroactively corrupted by a later mutation.
+ *  - All ~37 handler write sites are captured by substituting `historyStore`
+ *    for `props.store` at the single place the handler hooks are constructed.
+ *    Both hooks use `store` only as `store?.props` and `store.props.write(...)`.
+ *  - Writes issued in the same synchronous tick coalesce into one undo step via
+ *    a microtask flush, so a container drag (nodes + edges) or a paste undoes
+ *    as a single action rather than leaving an intermediate half-state.
+ *  - Snapshots are applied VERBATIM. Nothing re-derives waypoints or injects
+ *    `waypoints: []`, which is what makes undoing "Clear Path" or a segment
+ *    drag restore the exact prior routing (edge routing rule 4). Snapshots are
+ *    Ignition dicts, never React Flow edge objects, so `selected` can never
+ *    reappear at an edge's top level (rule 6).
+ */
+const HISTORY_KEYS = ['nodes', 'edges'];
+/**
+ * JSON with object keys recursively sorted. Used only to compare a value we
+ * wrote against the value the prop tree echoes back — Perspective does not
+ * guarantee key-insertion order round-trips, and a bare string compare would
+ * misread every one of our own writes as an external edit. Array order is
+ * preserved, so waypoint sequences are unaffected.
+ */
+const canonicalHash = (json) => {
+    try {
+        return JSON.stringify(canonicalize(JSON.parse(json)));
+    }
+    catch (_a) {
+        return json;
+    }
+};
+const canonicalize = (value) => {
+    if (Array.isArray(value))
+        return value.map(canonicalize);
+    if (value && typeof value === 'object') {
+        const out = {};
+        Object.keys(value).sort().forEach(k => { out[k] = canonicalize(value[k]); });
+        return out;
+    }
+    return value;
+};
+/** Bounded FIFO set of hashes for writes we expect to see echoed back. */
+const EXPECTED_LIMIT = 16;
+class ExpectedHashes {
+    constructor() {
+        this.order = [];
+        this.set = new Set();
+    }
+    add(hash) {
+        if (this.set.has(hash))
+            return;
+        this.set.add(hash);
+        this.order.push(hash);
+        while (this.order.length > EXPECTED_LIMIT) {
+            const evicted = this.order.shift();
+            this.set.delete(evicted);
+        }
+    }
+    take(hash) {
+        if (!this.set.has(hash))
+            return false;
+        this.set.delete(hash);
+        this.order = this.order.filter(h => h !== hash);
+        return true;
+    }
+    clear() {
+        this.order = [];
+        this.set.clear();
+    }
+}
+const useCanvasHistory = ({ store, rawNodesJson, rawEdgesJson, maxDepth = 50, }) => {
+    const storeRef = React.useRef(store);
+    storeRef.current = store;
+    // Current serialized state. Updated from props by effect AND optimistically
+    // inside the write path — `rawNodesJson` only refreshes on the next render,
+    // so two writes in one tick would otherwise both read the pre-tick value.
+    const liveRef = React.useRef({ nodes: rawNodesJson, edges: rawEdgesJson });
+    const undoStackRef = React.useRef([]);
+    const redoStackRef = React.useRef([]);
+    const pendingBeforeRef = React.useRef(null);
+    const isApplyingRef = React.useRef(false);
+    const expectedRef = React.useRef({
+        nodes: new ExpectedHashes(),
+        edges: new ExpectedHashes(),
+    });
+    const [canUndo, setCanUndo] = React.useState(false);
+    const [canRedo, setCanRedo] = React.useState(false);
+    const [historyEpoch, setHistoryEpoch] = React.useState(0);
+    const syncFlags = React.useCallback(() => {
+        setCanUndo(undoStackRef.current.length > 0);
+        setCanRedo(redoStackRef.current.length > 0);
+    }, []);
+    const resetHistory = React.useCallback(() => {
+        undoStackRef.current = [];
+        redoStackRef.current = [];
+        pendingBeforeRef.current = null;
+        expectedRef.current.nodes.clear();
+        expectedRef.current.edges.clear();
+        syncFlags();
+    }, [syncFlags]);
+    /** Raw write: registers the value as expected, updates the live mirror, forwards to Perspective. */
+    const passthrough = React.useCallback((name, value) => {
+        const target = storeRef.current;
+        if (!(target === null || target === void 0 ? void 0 : target.props))
+            return;
+        if (name === 'nodes' || name === 'edges') {
+            const json = JSON.stringify(value);
+            liveRef.current = Object.assign(Object.assign({}, liveRef.current), { [name]: json });
+            expectedRef.current[name].add(canonicalHash(json));
+        }
+        target.props.write(name, value);
+    }, []);
+    const flushBatch = React.useCallback(() => {
+        const before = pendingBeforeRef.current;
+        pendingBeforeRef.current = null;
+        if (!before)
+            return;
+        const after = liveRef.current;
+        // Several context-menu toggles write an unchanged dict; don't record a no-op step.
+        if (before.nodes === after.nodes && before.edges === after.edges)
+            return;
+        undoStackRef.current.push(before);
+        if (undoStackRef.current.length > maxDepth)
+            undoStackRef.current.shift();
+        redoStackRef.current = [];
+        syncFlags();
+    }, [maxDepth, syncFlags]);
+    const recordingWrite = React.useCallback((name, value) => {
+        const tracked = name === 'nodes' || name === 'edges';
+        // Untracked props (nodeTypeConnectionDefaults, hierarchy, refreshHierarchy)
+        // and undo/redo's own writes never create a step.
+        if (tracked && !isApplyingRef.current) {
+            if (pendingBeforeRef.current === null) {
+                pendingBeforeRef.current = Object.assign({}, liveRef.current);
+                queueMicrotask(flushBatch);
+            }
+        }
+        passthrough(name, value);
+    }, [flushBatch, passthrough]);
+    // Stable facade. `store` sits in ~20 useCallback dep arrays inside the
+    // handler hooks; an unstable identity would rebuild every handler each
+    // render and cascade into flowNodes/displayEdges recomputation.
+    const historyStore = React.useMemo(() => {
+        const facadeProps = { write: recordingWrite };
+        return {
+            get props() {
+                var _a;
+                return ((_a = storeRef.current) === null || _a === void 0 ? void 0 : _a.props) ? facadeProps : undefined;
+            },
+        };
+    }, [recordingWrite]);
+    const apply = React.useCallback((snap) => {
+        var _a;
+        if (!((_a = storeRef.current) === null || _a === void 0 ? void 0 : _a.props))
+            return;
+        isApplyingRef.current = true;
+        try {
+            // Verbatim — no post-processing of waypoints or any other field.
+            passthrough('nodes', JSON.parse(snap.nodes));
+            passthrough('edges', JSON.parse(snap.edges));
+        }
+        finally {
+            isApplyingRef.current = false;
+            queueMicrotask(() => { isApplyingRef.current = false; });
+        }
+        setHistoryEpoch(e => e + 1);
+    }, [passthrough]);
+    const undo = React.useCallback(() => {
+        if (isApplyingRef.current)
+            return;
+        const snap = undoStackRef.current.pop();
+        if (!snap)
+            return;
+        redoStackRef.current.push(Object.assign({}, liveRef.current));
+        if (redoStackRef.current.length > maxDepth)
+            redoStackRef.current.shift();
+        apply(snap);
+        syncFlags();
+    }, [apply, maxDepth, syncFlags]);
+    const redo = React.useCallback(() => {
+        if (isApplyingRef.current)
+            return;
+        const snap = redoStackRef.current.pop();
+        if (!snap)
+            return;
+        undoStackRef.current.push(Object.assign({}, liveRef.current));
+        if (undoStackRef.current.length > maxDepth)
+            undoStackRef.current.shift();
+        apply(snap);
+        syncFlags();
+    }, [apply, maxDepth, syncFlags]);
+    // ─── External-change detection ─────────────────────────────────────────
+    // An incoming prop value we did not write ourselves means the Designer, a
+    // script, or a view reload changed the canvas out from under us; the stack
+    // no longer describes reachable states, so it is discarded.
+    const firstRunRef = React.useRef({ nodes: true, edges: true });
+    const observeIncoming = React.useCallback((key, incoming) => {
+        const wasExpected = expectedRef.current[key].take(canonicalHash(incoming));
+        liveRef.current = Object.assign(Object.assign({}, liveRef.current), { [key]: incoming });
+        if (firstRunRef.current[key]) {
+            firstRunRef.current[key] = false;
+            return;
+        }
+        if (!wasExpected)
+            resetHistory();
+    }, [resetHistory]);
+    React.useEffect(() => { observeIncoming('nodes', rawNodesJson); }, [rawNodesJson, observeIncoming]);
+    React.useEffect(() => { observeIncoming('edges', rawEdgesJson); }, [rawEdgesJson, observeIncoming]);
+    return {
+        historyStore,
+        writeWithoutHistory: passthrough,
+        undo,
+        redo,
+        canUndo,
+        canRedo,
+        historyEpoch,
+        resetHistory,
+    };
+};
+exports.useCanvasHistory = useCanvasHistory;
 
 
 /***/ }),
