@@ -5,7 +5,9 @@ The **Architecture Builder** is a specialized, interactive visualization module 
 ## 📥 Download
 [Download the latest ArchitectureBuilder.modl](https://github.com/ia-tgoetz/ArchitectureBuilderReactFlow/releases/latest/download/ArchitectureBuilder.modl)
 
-**Latest release (v1.1.2):** Adds a `showGrid` Designer property (Boolean, default `true`). When set to `false`, the background dot grid on the canvas is hidden while pan and zoom remain active.
+**Latest release (v1.1.3):** Adds full **Undo / Redo** to the canvas — `Ctrl+Z` / `Ctrl+Shift+Z` (or `Ctrl+Y`), plus dedicated buttons in the canvas control bar. Covers every canvas edit, undoes each action as a single step, and restores manual edge routing exactly.
+
+**v1.1.2:** Adds a `showGrid` Designer property (Boolean, default `true`). When set to `false`, the background dot grid on the canvas is hidden while pan and zoom remain active.
 
 **v1.1.1:** Fixes Area (Container) border styling — custom borders now persist through selection, and setting the border style to "Default" no longer clears the other border settings.
 
@@ -23,6 +25,7 @@ The Architecture Builder renders a pan/zoom infinite canvas. Users drag palette 
 - **Hierarchy & Containers:** Group infrastructure nodes within "Area/Site" containers with nesting support and linked/unlinked move behavior.
 - **In-Place Editing:** Double-click labels or notes for inline text editing (`Enter` for newline, `Ctrl+Enter` to submit).
 - **Canvas Search:** `Ctrl+F` / `Cmd+F` opens a floating search bar to locate nodes by label, palette type, or ID.
+- **Undo / Redo:** Up to 50 steps of canvas history via `Ctrl+Z` / `Ctrl+Shift+Z` or the control-bar buttons. One action undoes as one step, and changes are written back through the property tree so `nodes` and `edges` stay accurate.
 - **State Management:** Visual flagging of inactive nodes (grayscale/blur) without breaking edge connections.
 - **Context Menus:** Right-click menus for node configuration, style editing, edge routing, and structural operations.
 
@@ -268,6 +271,8 @@ The built-in search feature lets operators and designers quickly locate nodes on
 | Action | Windows/Linux | Mac |
 | :--- | :--- | :--- |
 | Canvas Search | `Ctrl+F` | `Cmd+F` |
+| Undo | `Ctrl+Z` | `Cmd+Z` |
+| Redo | `Ctrl+Shift+Z` / `Ctrl+Y` | `Cmd+Shift+Z` |
 | Copy | `Ctrl+C` | `Cmd+C` |
 | Paste | `Ctrl+V` | `Cmd+V` |
 | Delete selected | `Delete` / `Backspace` | `Delete` / `Backspace` |
@@ -292,6 +297,7 @@ The built-in search feature lets operators and designers quickly locate nodes on
 | `components/ArchitectureBuilder/CustomEdge.tsx` | Edge rendering with orthogonal routing and waypoint handles. |
 | `components/ArchitectureBuilder/EdgeUtils.ts` | Waypoint computation, path building, and segment-drag math. |
 | `components/ArchitectureBuilder/useArchitectureFlowHandlers.ts` | React Flow event handlers (connect, drag, delete, etc.). |
+| `components/ArchitectureBuilder/useCanvasHistory.ts` | Undo/redo history — snapshots the `nodes`/`edges` props and wraps all canvas writes. |
 
 ### Stack
 - **Runtime:** Ignition Perspective 8.3+, Java 17
