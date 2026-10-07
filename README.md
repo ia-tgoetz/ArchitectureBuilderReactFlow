@@ -5,7 +5,9 @@ The **Architecture Builder** is a specialized, interactive visualization module 
 ## 📥 Download
 [Download the latest ArchitectureBuilder.modl](https://github.com/ia-tgoetz/ArchitectureBuilderReactFlow/releases/latest/download/ArchitectureBuilder.modl)
 
-**Latest release (v1.1.3):** Adds full **Undo / Redo** to the canvas — `Ctrl+Z` / `Ctrl+Shift+Z` (or `Ctrl+Y`), plus dedicated buttons in the canvas control bar. Covers every canvas edit, undoes each action as a single step, and restores manual edge routing exactly.
+**Latest release (v1.1.4):** Sidebar palette labels now always render at 14px — `labelStyle.fontSize` applies to the node on the canvas only. Also adds an [Identifier Model](#identifier-model) section to the README and corrects the `typeId` / `paletteId` prop descriptions (`paletteId` drives swap matching; `typeId` feeds `nodeTypeConnectionDefaults`).
+
+**v1.1.3:** Adds full **Undo / Redo** to the canvas — `Ctrl+Z` / `Ctrl+Shift+Z` (or `Ctrl+Y`), plus dedicated buttons in the canvas control bar. Covers every canvas edit, undoes each action as a single step, and restores manual edge routing exactly.
 
 **v1.1.2:** Adds a `showGrid` Designer property (Boolean, default `true`). When set to `false`, the background dot grid on the canvas is hidden while pan and zoom remain active.
 
