@@ -13,7 +13,7 @@
           },
           "typeId": {
             "type": "string",
-            "description": "Secondary identifier for this palette item, stored on nodes when dropped. Independent from id — can be used for grouping or external references."
+            "description": "Coarse logical grouping for this palette item, copied onto nodes when dropped. Many palette items intentionally share one typeId (e.g. every SQL database variant uses 'Database'). That grouping is what nodeTypeConnectionDefaults keys on, so a single entry can cover every item in the group. Distinct from id, which is the per-item key used for icon/style lookup and swappableWith."
           },
           "category": {
             "type": "string"
@@ -1750,11 +1750,12 @@
           "type": "object",
           "properties": {
             "paletteId": {
-              "type": "string"
+              "type": "string",
+              "description": "The id of the palette item this node was created from. This is the node's primary type key: it resolves the icon, style, and renderer, and drives swap matching via that item's swappableWith list. Note this is the palette item's id, not the node's own unique id (which is the key of this node in the nodes dictionary)."
             },
             "typeId": {
               "type": "string",
-              "description": "The typeId of the palette item this node was created from. Used for swap matching."
+              "description": "The typeId of the palette item this node was created from. Matched against nodeTypeConnectionDefaults via the sorted 'typeIdA__typeIdB' pair key to auto-select a default connection type for new edges. Swap matching uses paletteId, not this field."
             },
             "label": {
               "type": "string"

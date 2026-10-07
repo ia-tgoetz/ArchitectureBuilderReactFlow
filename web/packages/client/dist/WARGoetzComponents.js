@@ -4961,7 +4961,9 @@ const Sidebar = ({ paletteItems, isOpen, toggleSidebar, onDragStartItem, onItemC
                 Object.keys(groupedItems).length > 0 && (react_1.default.createElement("div", { onClick: toggleAllCategories, style: { cursor: 'pointer', fontSize: '12px', color: 'var(--neutral-70)', marginBottom: '10px', textAlign: 'right', userSelect: 'none' } }, anyExpanded ? 'Collapse All' : 'Expand All')),
                 containerItems.length > 0 && (react_1.default.createElement("div", { style: { marginBottom: '20px', paddingBottom: '15px', borderBottom: '1px solid var(--neutral-40)' } }, containerItems.map((item) => {
                     const _a = item.style || {}, { classes: _c, backgroundColor: imageBg } = _a, itemStyle = __rest(_a, ["classes", "backgroundColor"]);
-                    const _b = item.labelStyle || {}, { classes: _lc } = _b, labelStyle = __rest(_b, ["classes"]);
+                    // fontSize is intentionally dropped: the palette label is always 14px,
+                    // while labelStyle.fontSize still applies to the node on the canvas.
+                    const _b = item.labelStyle || {}, { classes: _lc, fontSize: _lfs } = _b, labelStyle = __rest(_b, ["classes", "fontSize"]);
                     return (react_1.default.createElement("div", { key: item.id, draggable: true, onDragStart: (e) => onDragStart(e, item), onClick: () => onItemClick(item), style: Object.assign({ border: '1px dashed var(--neutral-50)', backgroundColor: 'var(--neutral-30)', padding: '10px', marginBottom: '8px', cursor: 'grab', display: 'flex', alignItems: 'center', borderRadius: '4px', fontWeight: 'bold' }, itemStyle) },
                         react_1.default.createElement("div", { style: { width: '20px', height: '20px', marginRight: '10px', backgroundColor: imageBg || undefined } },
                             react_1.default.createElement(PaletteThumb, { src: item.image, label: item.label })),
@@ -4975,7 +4977,7 @@ const Sidebar = ({ paletteItems, isOpen, toggleSidebar, onDragStartItem, onItemC
                             react_1.default.createElement("span", { style: { fontSize: '12px' } }, isCollapsed ? '▶' : '▼')),
                         !isCollapsed && (react_1.default.createElement("div", { style: { paddingLeft: '5px' } }, items.map((item) => {
                             const _a = item.style || {}, { classes: _c, backgroundColor: imageBg } = _a, itemStyle = __rest(_a, ["classes", "backgroundColor"]);
-                            const _b = item.labelStyle || {}, { classes: _lc } = _b, labelStyle = __rest(_b, ["classes"]);
+                            const _b = item.labelStyle || {}, { classes: _lc, fontSize: _lfs } = _b, labelStyle = __rest(_b, ["classes", "fontSize"]);
                             return (react_1.default.createElement("div", { key: item.id, draggable: true, onDragStart: (e) => onDragStart(e, item), onClick: () => onItemClick(item), style: Object.assign({ border: '1px solid var(--neutral-40)', backgroundColor: 'var(--neutral-10)', padding: '8px', marginBottom: '8px', cursor: 'grab', display: 'flex', alignItems: 'center', borderRadius: '4px' }, itemStyle) },
                                 react_1.default.createElement("div", { style: { width: '20px', height: '20px', marginRight: '10px', backgroundColor: imageBg || undefined } },
                                     react_1.default.createElement(PaletteThumb, { src: item.image, label: item.label })),

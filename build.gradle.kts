@@ -24,7 +24,7 @@ if (signPropsFile.exists()) {
 }
 
 allprojects {
-    version = "1.1.3.20260803" //Added showGrid functionality to Component Props
+    version = "1.1.4.20260804" //Documented identifier model; palette labels ignore labelStyle.fontSize
     group = "com.wargoetz.reactflow"
 }
 
