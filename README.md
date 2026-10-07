@@ -56,14 +56,38 @@ All properties below are accessible in the Ignition Designer's **Props** panel u
 
 These properties hold the live canvas state. Read them in scripts to export or analyze the diagram; write them to load a saved diagram.
 
+### Identifier Model
+
+Three distinct identifiers appear across palette items and canvas nodes. They are **not** interchangeable, and the naming is the most common source of confusion — so read this before the tables below.
+
+| Level | Field | Meaning | Cardinality |
+| :--- | :--- | :--- | :--- |
+| Palette item | `id` | Unique key for one palette entry. | 1 per palette item (59 shipped) |
+| Palette item | `typeId` | Coarse logical grouping, deliberately shared across entries. | ~20 distinct values across those 59 |
+| Canvas node | `id` | Unique **instance** id, generated on drop. | 1 per node on the canvas |
+| Canvas node | `paletteId` | Copy of the source palette item's `id`. | — |
+| Canvas node | `typeId` | Copy of the source palette item's `typeId`. | — |
+
+> **The naming caveat:** a node's own unique id is `id` (it is the key of the entry in the `nodes` dictionary). The *palette item's* `id` is stored on the node as **`paletteId`**. Two different things, and `id` refers to whichever level you are currently looking at.
+
+**Which one do I use?**
+
+- Reference a specific node instance — edge `source`/`target`, selection, `hierarchy`, event `nodeUuid` → **node `id`**
+- Resolve the icon, style, renderer, or swap candidates → **`paletteId`**
+- Define behavior for a whole *class* of components, i.e. `nodeTypeConnectionDefaults` → **`typeId`**
+
+**Why both `paletteId` and `typeId`?** Because `typeId` groups. Only 13 of the 59 built-in palette items have `typeId === id`; the rest collapse into shared buckets — 11 items map to `Database`, 9 to `Client`, 7 to `Broker`, 5 each to `Device` and `network-component`. That grouping exists so a single `nodeTypeConnectionDefaults` entry (`"Client__Database": "db"`) covers every combination in those buckets. Keyed by `paletteId` instead, the same rule would need 11 × 9 = 99 separate entries. Everything else — rendering, geometry, edge validity — keys off `paletteId`; `typeId` never reaches the renderer.
+
+> **A third, unrelated use of the name:** edge event payloads reuse the field name `paletteId` to carry the edge's `connectionType`. In an edge event, `paletteId` is **not** a palette item id. See [Component Events](#component-events).
+
 #### `nodes` (Object)
 
 A dictionary keyed by UUID. Each entry represents a node on the canvas.
 
 | Field | Type | Description |
 | :--- | :--- | :--- |
-| `paletteId` | String | References a `paletteItems[].id` entry to resolve icon and defaults. |
-| `typeId` | String | Logical type identifier (e.g., `"standard-gateway"`, `"sqldb"`). |
+| `paletteId` | String | References a `paletteItems[].id` entry. The node's primary type key — resolves icon, style, renderer, and swap candidates. |
+| `typeId` | String | Copied from the source palette item's `typeId` (e.g., `"Database"`, `"Client"`). Consumed by [`nodeTypeConnectionDefaults`](#nodetypeconnectiondefaults-object) to auto-select a connection type; **not** used for swap matching. |
 | `label` | String | Display label rendered below the node image. |
 | `x` / `y` | Number | Canvas coordinates (pixels). |
 | `width` / `height` | Number | Node dimensions; used by containers and resizable text nodes. |
@@ -109,7 +133,7 @@ Defines the sidebar catalog. Each item controls what is draggable and how it ren
 | Field | Type | Description |
 | :--- | :--- | :--- |
 | `id` | String | Unique palette identifier. Referenced by `nodes[].paletteId`. |
-| `typeId` | String | Logical type; multiple palette IDs can share a typeId. |
+| `typeId` | String | Coarse logical grouping; multiple palette IDs can share a typeId — and that sharing is the point. It is the grouping [`nodeTypeConnectionDefaults`](#nodetypeconnectiondefaults-object) builds its pair key from. |
 | `label` | String | Display name in the sidebar and default node label. |
 | `category` | String | Sidebar group heading (e.g., `"Gateways"`, `"Databases"`, `"Devices/OPC"`). |
 | `image` | String | Path to the node icon image. |
@@ -119,7 +143,7 @@ Defines the sidebar catalog. Each item controls what is draggable and how it ren
 | `swappableWith` | Array | Palette IDs that this node can be swapped to via right-click. |
 | `defaultConfigs` | Object | Initial `configs` values written when a node is first dropped. |
 | `hideHandles` | Boolean | Overrides global `hideHandles` for this palette item only. |
-| `style` / `labelStyle` | Object | Default visual overrides applied when the node is created. |
+| `style` / `labelStyle` | Object | Default visual overrides applied when the node is created. `labelStyle.fontSize` applies to the node on the canvas only — the sidebar palette label always renders at 14px. |
 
 **Built-in palette categories (40+ items):**
 - **Gateways:** Standard, Edge IIOT, Edge Panel, Cloud

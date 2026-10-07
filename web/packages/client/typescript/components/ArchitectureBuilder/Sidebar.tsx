@@ -136,7 +136,9 @@ export const Sidebar = ({ paletteItems, isOpen, toggleSidebar, onDragStartItem, 
                         <div style={{ marginBottom: '20px', paddingBottom: '15px', borderBottom: '1px solid var(--neutral-40)' }}>
                             {containerItems.map((item) => {
                                 const { classes: _c, backgroundColor: imageBg, ...itemStyle } = item.style || {};
-                                const { classes: _lc, ...labelStyle } = item.labelStyle || {};
+                                // fontSize is intentionally dropped: the palette label is always 14px,
+                                // while labelStyle.fontSize still applies to the node on the canvas.
+                                const { classes: _lc, fontSize: _lfs, ...labelStyle } = item.labelStyle || {};
                                 return (
                                     <div
                                         key={item.id}
@@ -164,7 +166,7 @@ export const Sidebar = ({ paletteItems, isOpen, toggleSidebar, onDragStartItem, 
                                     <div style={{ paddingLeft: '5px' }}>
                                         {items.map((item) => {
                                             const { classes: _c, backgroundColor: imageBg, ...itemStyle } = item.style || {};
-                                            const { classes: _lc, ...labelStyle } = item.labelStyle || {};
+                                            const { classes: _lc, fontSize: _lfs, ...labelStyle } = item.labelStyle || {};
                                             return (
                                                 <div
                                                     key={item.id}
