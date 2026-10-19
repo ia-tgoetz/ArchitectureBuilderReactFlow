@@ -442,6 +442,16 @@ Nodes with `paletteId` of `"Note"` or `"Label"` render a `<textarea>` instead of
 
 `image` and `overrideImage` accept an image path or URL (e.g. `/system/images/ArchitectureBuilder/aws.svg`, `https://...`), raw SVG markup (detected by leading `<`), or `data:` URIs. Paths and URLs are loaded with `<img>` so the browser caches them; this is preferred over embedding base64 in the view. Raw SVG is encoded as a `data:image/svg+xml,` URL for drag ghosts. Other URL schemes (`javascript:` etc.) are ignored.
 
+### Embedded Perspective Views
+
+A palette item can set `viewPath` (project-relative view path) and optional `viewParams`. Its nodes then render that view live (a standard embedded `View`, so bindings and params work) instead of the image; `image` is still shown if the view cannot be shown. Notes:
+
+- View nodes are resizable: select the node and drag a handle. Size is saved as `width`/`height` on the node (default 150×150, minimum 100×100). Edges follow the new size.
+- The view is display-only inside a node (pointer events are disabled so drag, select and right-click keep working).
+- Below 35% zoom the view is unmounted and the image is shown, to save DOM; it mounts again on zoom-in.
+- Every view node mounts a full view, so cost grows with view complexity. A trivial view measured about 35 DOM elements and about 0.5 MB heap per node (200 nodes: smooth panning).
+- The Architecture Builder is passed as the view's `parent`, so Perspective's own cycle detection applies if a view embeds the builder.
+
 ### Snap to Grid
 
 When `snapEnabled` is true, node drops and drags snap to a `snapPixels × snapPixels` grid. The ReactFlow `<Background>` dot grid matches this spacing.

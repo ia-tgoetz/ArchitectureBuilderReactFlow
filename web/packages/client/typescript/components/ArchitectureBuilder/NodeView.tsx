@@ -29,8 +29,8 @@ export const NodeView = React.memo(({ nodeId, viewPath, params, fallback }: { no
     const parent = React.useContext(ViewParentContext);
     const { zoom } = useViewport();
     const mountPath = React.useMemo(() => `ab-node-${nodeId}-${++mountCounter}`, [nodeId]);
-    if (!client) return null;
-    if (zoom < VIEW_MIN_ZOOM) return <>{fallback ?? null}</>;
+    // No client store (for example in a host that does not provide one): show the image instead of nothing.
+    if (!client || zoom < VIEW_MIN_ZOOM) return <>{fallback ?? null}</>;
     return (
         <div className="nodrag nopan" style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', pointerEvents: 'none' }}>
             <View

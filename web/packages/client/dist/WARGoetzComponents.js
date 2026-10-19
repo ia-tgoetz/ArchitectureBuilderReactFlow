@@ -4878,9 +4878,8 @@ exports.NodeView = react_1.default.memo(({ nodeId, viewPath, params, fallback })
     const parent = react_1.default.useContext(exports.ViewParentContext);
     const { zoom } = reactflow_1.useViewport();
     const mountPath = react_1.default.useMemo(() => `ab-node-${nodeId}-${++mountCounter}`, [nodeId]);
-    if (!client)
-        return null;
-    if (zoom < exports.VIEW_MIN_ZOOM)
+    // No client store (for example in a host that does not provide one): show the image instead of nothing.
+    if (!client || zoom < exports.VIEW_MIN_ZOOM)
         return react_1.default.createElement(react_1.default.Fragment, null, fallback !== null && fallback !== void 0 ? fallback : null);
     return (react_1.default.createElement("div", { className: "nodrag nopan", style: { position: 'relative', width: '100%', height: '100%', overflow: 'hidden', pointerEvents: 'none' } },
         react_1.default.createElement(perspective_client_1.View, { store: client, resourcePath: viewPath.trim(), mountPath: mountPath, parent: parent, params: params })));

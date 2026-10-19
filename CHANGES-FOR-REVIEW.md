@@ -124,6 +124,29 @@ Copy/Paste, `Delete` on a multi-selection, single-node copy/paste, `Ctrl+Z` afte
 
 ---
 
+## 5. Palette items can show a live Perspective view (`viewPath`) (2026-10-19)
+
+Work is in git: `7d4bcc5` is the baseline before this item; roll back with `git reset --hard 7d4bcc5`. Commits after it are the spike and the resize/cycle/zoom follow-up.
+
+**Change:**
+- `architecturebuilder.props.json`: palette items get `viewPath` (string) and `viewParams` (object).
+- New `NodeView.tsx`: renders Perspective's `View` (from `@inductiveautomation/perspective-client`) using `ClientStoreProviderContext`, a unique `mountPath` per node, `params` from `viewParams`, and `parent` from a new `ViewParentContext` (provided in `ArchitectureBuilder.tsx` with `props.store`). `isViewPath()` rejects values containing `<`, `>`, `:` or `\`. Below zoom 0.35 (or with no client store) it renders the node image instead.
+- `ArchitectureNode.tsx`: shows `NodeView` in place of the image when the palette item has `viewPath`; new `viewPath`, `viewParams`, `enableResize` fields in the memo comparison; renders `NodeResizer` when `data.enableResize`.
+- `ArchitectureBuilder.tsx`: `viewPath`/`viewParams` copied into node data; view nodes get `enableResize` and `onResizeEnd` (existing `handleResizeEnd` saves x, y, width, height).
+- Size fallbacks: `node.width || 150` / `node.height || 150` for non-containers in `isInsideContainer`, `EdgeUtils.ts` (edge anchors) and `useArchitectureFlowHandlers.ts` (container contents). Previously these were fixed at 150 for non-containers, so a resized node would have had wrong edge anchors.
+- Docs: both READMEs.
+
+**Tested** on the test gateway (port 8089), palette item pointing at the existing `templateApproval` view: renders; `viewParams` reach the view; drag, Ctrl+C/Ctrl+V, Delete work; resize saves and survives a reload and the view fills the new size; an edge to a resized node anchors on the new size; zoom below 0.35 unmounts views and zooming in remounts them; no console errors.
+**Scale** (200 view nodes of a trivial text-field-plus-icon view): about 35 DOM elements and 0.56 MB JS heap per node (image-only nodes were 0.21 to 0.43 MB); panning median 8 ms, p95 33 ms. Real views will cost more.
+
+**Limits and not tested:**
+- Display-only inside the node (pointer events off), so you cannot type into an embedded input.
+- Not tested: the Designer, a view that actually embeds the builder (the real cycle case), Perspective views with their own bindings/scripts or heavy content, PNG export with view nodes, undo/redo and swap on view nodes, and the real gateway.
+- Only palette-level `viewPath`; no per-node override. The test palette item `view-test` lives in the test project only.
+- Resizing is only for palette items with `viewPath`; other architecture nodes stay 150x150.
+
+---
+
 ## Things to know when reviewing
 
 - **Stale bundle:** web changes only appear after a clean build, a module reinstall, and a hard browser refresh.

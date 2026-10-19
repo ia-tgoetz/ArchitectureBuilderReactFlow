@@ -114,6 +114,8 @@ Defines the sidebar catalog. Each item controls what is draggable and how it ren
 | `category` | String | Sidebar group heading (e.g., `"Gateways"`, `"Databases"`, `"Devices/OPC"`). |
 | `image` | String | Path to the node icon image. |
 | `overrideImage` | String | Optional alternate icon (swapped in via style editor). |
+| `viewPath` | String | Optional project-relative path of a Perspective view (e.g. `Exchange/Widgets/PumpCard`) rendered live inside nodes of this item, instead of the image. Selected view nodes can be resized. |
+| `viewParams` | Object | Optional parameters passed to the `viewPath` view. |
 | `tooltip` | String | Sidebar hover tooltip. |
 | `supportedConnections` | Array | List of `connectionType` keys this node type can participate in. |
 | `swappableWith` | Array | Palette IDs that this node can be swapped to via right-click. |
