@@ -1,0 +1,55 @@
+
+# Build artifacts (ignore all build directories)
+**/out/
+**/bin/
+**/build/
+!/build/
+/Ignition83_JavaDocs/
+/build/checksum/
+/build/moduleContent/
+common/build/
+designer/build/
+gateway/build/
+web/build/
+# Dependencies
+**/node_modules/
+.mcp.json
+# IDE and Editor files
+.idea/
+.vscode/
+.tools/
+.gradle/
+.settings/
+.project
+.classpath
+.factorypath
+.buildpath
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+lessons-learned/
+# Project-specific ignores
+reports
+.claude/
+.gemini
+.gemini/*
+.skills/
+.claudeignore
+.playwright-mcp/
+.gemini/g
+*.skill
+trace*
+*.class
+hs_err_pid*
+local.properties
+*.map
+*.log
+sign.props
+/private/
+Ignition-Build/
+claude.md
+GEMINI.md
+ignition-module-primer.md

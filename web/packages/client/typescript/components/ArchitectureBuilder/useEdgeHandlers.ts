@@ -1,0 +1,449 @@
+import * as React from 'react';
+// @ts-ignore
+import { Edge, Connection } from 'reactflow';
+import { ContextMenuState } from './types';
+import { generateShortId } from './utils';
+
+export interface UseEdgeHandlersParams {
+    store: any;
+    componentEvents: any;
+    rawNodesDict: any;
+    rawEdgesDict: any;
+    connectionTypes: any;
+    nodeTypeConnectionDefaults: any;
+    selectedId: string | null;
+    setSelectedId: React.Dispatch<React.SetStateAction<string | null>>;
+    contextMenu: ContextMenuState | null;
+    setContextMenu: React.Dispatch<React.SetStateAction<ContextMenuState | null>>;
+    setActiveSubMenu: React.Dispatch<React.SetStateAction<any>>;
+    setLocalEdges: React.Dispatch<React.SetStateAction<any[]>>;
+    reactFlowWrapper: React.RefObject<HTMLDivElement>;
+    wrapperBoundsRef: React.MutableRefObject<{ top: number; left: number }>;
+    closeContextMenu: () => void;
+    enableOnClickEvents: boolean;
+}
+
+const getPairKey = (typeIdA: string, typeIdB: string): string =>
+    [typeIdA, typeIdB].sort().join('__');
+
+export const useEdgeHandlers = ({
+    store,
+    componentEvents,
+    rawNodesDict,
+    rawEdgesDict,
+    connectionTypes,
+    nodeTypeConnectionDefaults,
+    selectedId,
+    setSelectedId,
+    contextMenu,
+    setContextMenu,
+    setActiveSubMenu,
+    setLocalEdges,
+    reactFlowWrapper,
+    wrapperBoundsRef,
+    closeContextMenu,
+    enableOnClickEvents,
+}: UseEdgeHandlersParams) => {
+    const [isUpdatingEdge, setIsUpdatingEdge] = React.useState(false);
+    const updatingEdgeRef = React.useRef<string | null>(null);
+
+    // ─── Validation ──────────────────────────────────────────────────────────
+
+    const getValidIntersection = React.useCallback((sourceId: string, targetId: string, ignoreEdgeId?: string): string[] => {
+        const sourceNode = rawNodesDict[sourceId];
+        const targetNode = rawNodesDict[targetId];
+        if (!sourceNode || !targetNode || !sourceNode.supportedConnections || !targetNode.supportedConnections) return [];
+        let intersection = sourceNode.supportedConnections.filter((c: string) => targetNode.supportedConnections.includes(c));
+        intersection = intersection.filter((connType: string) => {
+            const typeDef = connectionTypes[connType];
+            const isMultipleFalse = typeDef && (typeDef.multiple === false || String(typeDef.multiple).toLowerCase() === 'false');
+            if (isMultipleFalse) {
+                const edgeExists = Object.entries(rawEdgesDict).some(([id, e]: any) => {
+                    if (ignoreEdgeId && id === ignoreEdgeId) return false;
+                    return (e.source === sourceId && e.target === targetId && e.connectionType === connType) ||
+                           (e.source === targetId && e.target === sourceId && e.connectionType === connType);
+                });
+                return !edgeExists;
+            }
+            return true;
+        });
+        return intersection;
+    }, [rawNodesDict, rawEdgesDict, connectionTypes]);
+
+    const isValidConnection = React.useCallback((connection: any) => {
+        return getValidIntersection(connection.source, connection.target, updatingEdgeRef.current || undefined).length > 0;
+    }, [getValidIntersection]);
+
+    // ─── Edge handlers ───────────────────────────────────────────────────────
+
+
+    const handleWaypointsChange = React.useCallback((edgeId: string, waypoints: { x: number; y: number }[]) => {
+        try {
+            if (!store?.props) return;
+            const nextEdges = { ...rawEdgesDict };
+            if (nextEdges[edgeId]) {
+                nextEdges[edgeId] = { ...nextEdges[edgeId], waypoints };
+                store.props.write('edges', nextEdges);
+                setLocalEdges(edges => edges.map(e => e.id === edgeId ? { ...e, data: { ...e.data, waypoints } } : e));
+            }
+        } catch (error: any) {
+            console.error("Error in handleWaypointsChange:", error);
+        }
+    }, [store, rawEdgesDict, componentEvents, setLocalEdges]);
+
+    const onConnect = React.useCallback((connectionParams: any) => {
+        try {
+            const validTypes = getValidIntersection(connectionParams.source, connectionParams.target);
+            if (validTypes.length === 0) return;
+
+            const sourceTypeId = rawNodesDict[connectionParams.source]?.typeId;
+            const targetTypeId = rawNodesDict[connectionParams.target]?.typeId;
+            const pairKey = sourceTypeId && targetTypeId ? getPairKey(sourceTypeId, targetTypeId) : null;
+            const preferredType = pairKey ? nodeTypeConnectionDefaults?.[pairKey] : null;
+            const selectedType = (preferredType && validTypes.includes(preferredType)) ? preferredType : validTypes[0];
+
+            const typeDef = connectionTypes[selectedType] || {};
+            if (store?.props) {
+                const newEdgeId = generateShortId();
+                store.props.write('edges', {
+                    ...rawEdgesDict,
+                    [newEdgeId]: { ...connectionParams, lineType: 'smoothstep', dashed: false, arrow: typeDef.arrow !== false, showLabel: false, labelText: '', connectionType: selectedType, waypoints: [] },
+                });
+
+                if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
+                    componentEvents.fireComponentEvent('onEdgeCreated', {
+                        edgeUuid: newEdgeId,
+                        source: connectionParams.source,
+                        target: connectionParams.target,
+                        connectionType: selectedType,
+                        affectedNodes: [connectionParams.source, connectionParams.target],
+                    });
+                }
+            }
+        } catch (error: any) {
+            console.error("Error in onConnect:", error);
+        }
+    }, [store, rawEdgesDict, rawNodesDict, getValidIntersection, connectionTypes, nodeTypeConnectionDefaults, componentEvents, enableOnClickEvents]);
+
+    const onEdgeUpdate = React.useCallback((oldEdge: Edge, newConnection: Connection) => {
+        try {
+            if (!newConnection.source || !newConnection.target) return;
+            const validTypes = getValidIntersection(newConnection.source, newConnection.target, oldEdge.id);
+            if (validTypes.length === 0) return;
+            if (store?.props) {
+                const nextEdges = { ...rawEdgesDict };
+                const oldData = nextEdges[oldEdge.id];
+                if (!validTypes.includes(oldData.connectionType)) return;
+
+                const isHoriz = (side: string | undefined) => side === 'left' || side === 'right';
+                const oldSrcSide = oldEdge.sourceHandle?.split('-')[0];
+                const newSrcSide = newConnection.sourceHandle?.split('-')[0];
+                const oldTgtSide = oldEdge.targetHandle?.split('-')[0];
+                const newTgtSide = newConnection.targetHandle?.split('-')[0];
+
+                const srcAxisChanged = isHoriz(oldSrcSide) !== isHoriz(newSrcSide);
+                const tgtAxisChanged = isHoriz(oldTgtSide) !== isHoriz(newTgtSide);
+                const nextWaypoints = (srcAxisChanged || tgtAxisChanged) ? [] : (oldData.waypoints || []);
+
+                nextEdges[oldEdge.id] = {
+                    ...oldData,
+                    source: newConnection.source,
+                    target: newConnection.target,
+                    sourceHandle: newConnection.sourceHandle,
+                    targetHandle: newConnection.targetHandle,
+                    waypoints: nextWaypoints
+                };
+                store.props.write('edges', nextEdges);
+
+                const sourceChanged = oldData.source !== newConnection.source;
+                const targetChanged = oldData.target !== newConnection.target;
+                if (enableOnClickEvents && componentEvents?.fireComponentEvent && (sourceChanged || targetChanged)) {
+                    componentEvents.fireComponentEvent('onEdgeMoved', {
+                        movedEdgeUuid: oldEdge.id,
+                        source: newConnection.source,
+                        target: newConnection.target,
+                        previousSource: oldData.source,
+                        previousTarget: oldData.target,
+                        affectedNodes: Array.from(new Set([newConnection.source, newConnection.target, oldData.source, oldData.target])),
+                    });
+                }
+            }
+        } catch (error: any) {
+            console.error("Error in onEdgeUpdate:", error);
+        }
+    }, [store, rawEdgesDict, getValidIntersection, componentEvents, enableOnClickEvents]);
+
+    const onEdgeUpdateStart = React.useCallback((event: any, edge: any) => {
+        updatingEdgeRef.current = edge?.id || null;
+        setIsUpdatingEdge(true);
+    }, []);
+
+    const onEdgeUpdateEnd = React.useCallback(() => {
+        updatingEdgeRef.current = null;
+        setIsUpdatingEdge(false);
+    }, []);
+
+    const onConnectStart = React.useCallback(() => {
+        reactFlowWrapper.current?.classList.add('arch-creating-edge');
+    }, [reactFlowWrapper]);
+    const onConnectEnd = React.useCallback(() => {
+        reactFlowWrapper.current?.classList.remove('arch-creating-edge');
+    }, [reactFlowWrapper]);
+
+    // Shared removal logic: deletes the given edges from the store and returns
+    // the ones actually removed (with source/target captured before deletion).
+    const removeEdgesFromStore = React.useCallback((deleted: { id: string }[]) => {
+        if (!store?.props) return [];
+        const nextEdges = { ...rawEdgesDict };
+        const removed: { id: string; source?: string; target?: string }[] = [];
+        deleted.forEach(e => {
+            const rawEdge = rawEdgesDict[e.id];
+            if (nextEdges[e.id]) {
+                removed.push({ id: e.id, source: rawEdge?.source, target: rawEdge?.target });
+                delete nextEdges[e.id];
+            }
+            if (e.id === selectedId) setSelectedId(null);
+        });
+        store.props.write('edges', nextEdges);
+        return removed;
+    }, [store, rawEdgesDict, selectedId, setSelectedId]);
+
+    // Wired to <ReactFlow onEdgesDelete>. React Flow invokes this only as a cascade
+    // when a connected node is deleted (edges never carry top-level `selected`, so
+    // React Flow's own deleteKeyCode handling can never route a directly-selected
+    // edge through here). onNodeDeleted already reports the affected connections, so
+    // this path must NOT also fire onEdgeDeleted.
+    const onEdgesDelete = React.useCallback((deleted: Edge[]) => {
+        try {
+            removeEdgesFromStore(deleted);
+        } catch (error: any) {
+            console.error("Error in onEdgesDelete:", error);
+        }
+    }, [removeEdgesFromStore, componentEvents]);
+
+    // Explicit, user-intentional single-edge deletion (keyboard Delete/Backspace
+    // while an edge is selected). Fires onEdgeDeleted.
+    const deleteEdgeWithEvent = React.useCallback((edgeId: string) => {
+        try {
+            const removed = removeEdgesFromStore([{ id: edgeId }]);
+            if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
+                removed.forEach(r => {
+                    componentEvents.fireComponentEvent('onEdgeDeleted', {
+                        deletedEdgeUuid: r.id,
+                        source: r.source,
+                        target: r.target,
+                        affectedNodes: [r.source, r.target],
+                    });
+                });
+            }
+        } catch (error: any) {
+            console.error("Error in deleteEdgeWithEvent:", error);
+        }
+    }, [removeEdgesFromStore, componentEvents, enableOnClickEvents]);
+
+    const onEdgeContextMenu = React.useCallback((event: any, edge: any) => {
+        event.preventDefault();
+        setSelectedId(edge.id);
+        const bounds = wrapperBoundsRef.current;
+        setContextMenu({ id: edge.id, top: event.clientY - bounds.top, left: event.clientX - bounds.left, type: 'edge' });
+        setActiveSubMenu(null);
+    }, [wrapperBoundsRef, setSelectedId, setContextMenu, setActiveSubMenu]);
+
+    const onEdgeClick = React.useCallback((event: any, edge: any) => {
+        closeContextMenu();
+        setSelectedId(edge.id);
+        const rawEdge = rawEdgesDict[edge.id];
+        if (componentEvents) componentEvents.fireComponentEvent('onEdgeClick', { id: edge.id, paletteId: rawEdge?.connectionType, type: 'edge' });
+    }, [componentEvents, rawEdgesDict, setSelectedId, closeContextMenu]);
+
+    const handleLineTypeChange = React.useCallback((newLineType: string) => {
+        try {
+            if (!contextMenu || contextMenu.type !== 'edge') return;
+            if (componentEvents) componentEvents.fireComponentEvent('onContextMenuAction', { id: contextMenu.id, paletteId: rawEdgesDict[contextMenu.id]?.connectionType, type: contextMenu.type, action: `lineType:${newLineType}` });
+            if (store?.props) {
+                const nextEdges = { ...rawEdgesDict };
+                const edge = nextEdges[contextMenu.id];
+                if (edge) {
+                    edge.lineType = newLineType;
+                    store.props.write('edges', nextEdges);
+                    if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
+                        componentEvents.fireComponentEvent('onEdgePropertyChanged', {
+                            edgeUuid: contextMenu.id,
+                            source: edge.source,
+                            target: edge.target,
+                            property: 'lineType',
+                            value: newLineType,
+                            affectedNodes: [edge.source, edge.target],
+                        });
+                    }
+                }
+            }
+            closeContextMenu();
+        } catch (error: any) {
+            console.error("Error in handleLineTypeChange:", error);
+        }
+    }, [contextMenu, componentEvents, rawEdgesDict, store, closeContextMenu, enableOnClickEvents]);
+
+    const handleConnectionTypeChange = React.useCallback((newConnectionType: string) => {
+        try {
+            if (!contextMenu || contextMenu.type !== 'edge') return;
+            if (componentEvents) componentEvents.fireComponentEvent('onContextMenuAction', { id: contextMenu.id, paletteId: rawEdgesDict[contextMenu.id]?.connectionType, type: contextMenu.type, action: `connectionType:${newConnectionType}` });
+            if (store?.props) {
+                const nextEdges = { ...rawEdgesDict };
+                const edge = nextEdges[contextMenu.id];
+                if (edge) {
+                    const typeDef = connectionTypes[newConnectionType] || {};
+                    edge.connectionType = newConnectionType;
+                    edge.arrow = typeDef.arrow !== false;
+                    store.props.write('edges', nextEdges);
+                    if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
+                        componentEvents.fireComponentEvent('onEdgePropertyChanged', {
+                            edgeUuid: contextMenu.id,
+                            source: edge.source,
+                            target: edge.target,
+                            property: 'connectionType',
+                            value: newConnectionType,
+                            affectedNodes: [edge.source, edge.target],
+                        });
+                    }
+                }
+            }
+            closeContextMenu();
+        } catch (error: any) {
+            console.error("Error in handleConnectionTypeChange:", error);
+        }
+    }, [contextMenu, componentEvents, rawEdgesDict, connectionTypes, store, closeContextMenu, enableOnClickEvents]);
+
+    const handleAnimationChange = React.useCallback((newAnimation: string) => {
+        try {
+            if (!contextMenu || contextMenu.type !== 'edge') return;
+            if (componentEvents) componentEvents.fireComponentEvent('onContextMenuAction', { id: contextMenu.id, paletteId: rawEdgesDict[contextMenu.id]?.connectionType, type: contextMenu.type, action: `animation:${newAnimation}` });
+            if (store?.props) {
+                const nextEdges = { ...rawEdgesDict };
+                const edge = nextEdges[contextMenu.id];
+                if (edge) {
+                    edge.animation = newAnimation;
+                    store.props.write('edges', nextEdges);
+                    if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
+                        componentEvents.fireComponentEvent('onEdgePropertyChanged', {
+                            edgeUuid: contextMenu.id,
+                            source: edge.source,
+                            target: edge.target,
+                            property: 'animation',
+                            value: newAnimation,
+                            affectedNodes: [edge.source, edge.target],
+                        });
+                    }
+                }
+            }
+            closeContextMenu();
+        } catch (error: any) {
+            console.error("Error in handleAnimationChange:", error);
+        }
+    }, [contextMenu, componentEvents, rawEdgesDict, store, closeContextMenu, enableOnClickEvents]);
+
+    const handleLabelChange = React.useCallback((edgeId: string, labelText: string) => {
+        try {
+            if (!store?.props) return;
+            const nextEdges = { ...rawEdgesDict };
+            const edge = nextEdges[edgeId];
+            if (edge) {
+                nextEdges[edgeId] = { ...edge, labelText, showLabel: true };
+                store.props.write('edges', nextEdges);
+                if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
+                    componentEvents.fireComponentEvent('onEdgePropertyChanged', {
+                        edgeUuid: edgeId,
+                        source: edge.source,
+                        target: edge.target,
+                        property: 'labelText',
+                        value: labelText,
+                        affectedNodes: [edge.source, edge.target],
+                    });
+                }
+            }
+        } catch (error: any) {
+            console.error("Error in handleLabelChange:", error);
+        }
+    }, [store, rawEdgesDict, componentEvents, enableOnClickEvents]);
+
+    const writeDefaultForPair = React.useCallback((connType: string) => {
+        if (!contextMenu || contextMenu.type !== 'edge') return;
+        const edge = rawEdgesDict[contextMenu.id];
+        if (!edge) return;
+        const sourceTypeId = rawNodesDict[edge.source]?.typeId;
+        const targetTypeId = rawNodesDict[edge.target]?.typeId;
+        if (!sourceTypeId || !targetTypeId) return;
+        const pairKey = getPairKey(sourceTypeId, targetTypeId);
+        if (store?.props) {
+            store.props.write('nodeTypeConnectionDefaults', {
+                ...nodeTypeConnectionDefaults,
+                [pairKey]: connType,
+            });
+        }
+    }, [contextMenu, rawEdgesDict, rawNodesDict, nodeTypeConnectionDefaults, store]);
+
+    const handleSetConnectionDefault = React.useCallback(() => {
+        try {
+            const edge = rawEdgesDict[contextMenu?.id];
+            if (!edge) return;
+            writeDefaultForPair(edge.connectionType);
+            closeContextMenu();
+        } catch (error: any) {
+            console.error("Error in handleSetConnectionDefault:", error);
+        }
+    }, [contextMenu, rawEdgesDict, writeDefaultForPair, closeContextMenu, componentEvents]);
+
+    const handleSetDefaultForType = React.useCallback((connType: string) => {
+        try {
+            writeDefaultForPair(connType);
+            closeContextMenu();
+        } catch (error: any) {
+            console.error("Error in handleSetDefaultForType:", error);
+        }
+    }, [writeDefaultForPair, closeContextMenu, componentEvents]);
+
+    const handleClearConnectionDefault = React.useCallback(() => {
+        try {
+            if (!contextMenu || contextMenu.type !== 'edge') return;
+            const edge = rawEdgesDict[contextMenu.id];
+            if (!edge) return;
+            const sourceTypeId = rawNodesDict[edge.source]?.typeId;
+            const targetTypeId = rawNodesDict[edge.target]?.typeId;
+            if (!sourceTypeId || !targetTypeId) return;
+            const pairKey = getPairKey(sourceTypeId, targetTypeId);
+            if (store?.props) {
+                const next = { ...nodeTypeConnectionDefaults };
+                delete next[pairKey];
+                store.props.write('nodeTypeConnectionDefaults', next);
+            }
+            closeContextMenu();
+        } catch (error: any) {
+            console.error("Error in handleClearConnectionDefault:", error);
+        }
+    }, [contextMenu, rawEdgesDict, rawNodesDict, nodeTypeConnectionDefaults, store, closeContextMenu, componentEvents]);
+
+    return {
+        isUpdatingEdge,
+        updatingEdgeRef,
+        getValidIntersection,
+        isValidConnection,
+        handleWaypointsChange,
+        onConnect,
+        onEdgeUpdate,
+        onEdgeUpdateStart,
+        onEdgeUpdateEnd,
+        onConnectStart,
+        onConnectEnd,
+        onEdgesDelete,
+        deleteEdgeWithEvent,
+        onEdgeContextMenu,
+        onEdgeClick,
+        handleLineTypeChange,
+        handleConnectionTypeChange,
+        handleAnimationChange,
+        handleLabelChange,
+        handleSetConnectionDefault,
+        handleSetDefaultForType,
+        handleClearConnectionDefault,
+    };
+};
