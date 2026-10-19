@@ -2781,7 +2781,9 @@ const mapIgnitionToReactFlowNodes = (ignitionNodes, paletteMap, handleGearClick,
             },
             dragHandle: (isContainer && !isUnlocked) ? '.custom-drag-handle' : undefined,
             data: {
-                label: nodeData.label || 'Unknown', image: paletteImage || nodeData.image || '', text: nodeData.text || '', tooltip: nodeData.tooltip || '', configs: nodeData.configs || {},
+                label: nodeData.label || 'Unknown', image: paletteImage || nodeData.image || '',
+                viewPath: (palette === null || palette === void 0 ? void 0 : palette.viewPath) || undefined, viewParams: (palette === null || palette === void 0 ? void 0 : palette.viewParams) ? extractDeep(palette.viewParams) : undefined,
+                text: nodeData.text || '', tooltip: nodeData.tooltip || '', configs: nodeData.configs || {},
                 style: nodeData.style || {}, labelStyle: nodeData.labelStyle || {}, textStyle: nodeData.textStyle || {},
                 paletteId: nodeData.paletteId || 'unknown', inactive: nodeData.inactive || false,
                 hideHandles: nodeData.hideHandles, globalHideHandles, handleCount: globalHandleCount,
@@ -3507,6 +3509,7 @@ const react_1 = __importDefault(__webpack_require__(/*! react */ "react"));
 const reactflow_1 = __webpack_require__(/*! reactflow */ "./node_modules/reactflow/dist/umd/index.js");
 const perspective_client_1 = __webpack_require__(/*! @inductiveautomation/perspective-client */ "@inductiveautomation/perspective-client");
 const svgSanitize_1 = __webpack_require__(/*! ./svgSanitize */ "./typescript/components/ArchitectureBuilder/svgSanitize.ts");
+const NodeView_1 = __webpack_require__(/*! ./NodeView */ "./typescript/components/ArchitectureBuilder/NodeView.tsx");
 const TEXT_PALETTE_IDS = new Set(['Note', 'Label']);
 // ─── Memoization helpers ──────────────────────────────────────────────────────
 const shallowEqualObjects = (a, b) => {
@@ -3552,6 +3555,10 @@ const areArchitectureNodePropsEqual = (prev, next) => {
     if (pd.label !== nd.label)
         return false;
     if (pd.image !== nd.image)
+        return false;
+    if (pd.viewPath !== nd.viewPath)
+        return false;
+    if (!shallowEqualObjects(pd.viewParams, nd.viewParams))
         return false;
     if (pd.text !== nd.text)
         return false;
@@ -3662,8 +3669,11 @@ exports.ArchitectureNode = react_1.default.memo(({ id, data, selected }) => {
                 flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
                 width: '100%', minHeight: 0, zIndex: 1, backgroundColor: imageBg || undefined,
                 filter: data.inactive ? 'grayscale(100%) blur(2px)' : undefined
-            } },
-            react_1.default.createElement(NodeImage, { src: data.image }))),
+            } }, NodeView_1.isViewPath(data.viewPath)
+            ? react_1.default.createElement(NodeView_1.NodeView, { nodeId: id, viewPath: data.viewPath, params: data.viewParams })
+            : react_1.default.createElement(NodeImage, { src: data.image }))),
+        !data.image && NodeView_1.isViewPath(data.viewPath) && (react_1.default.createElement("div", { style: { flex: 1, width: '100%', minHeight: 0, zIndex: 1, filter: data.inactive ? 'grayscale(100%) blur(2px)' : undefined } },
+            react_1.default.createElement(NodeView_1.NodeView, { nodeId: id, viewPath: data.viewPath, params: data.viewParams }))),
         data.actionIcons && data.actionIcons.length > 0 && (react_1.default.createElement("div", { style: { position: 'absolute', right: 4, bottom: 4, display: 'flex', flexDirection: 'row', gap: 4, zIndex: 10 } }, data.actionIcons.map((ai) => {
             const enabled = ai.enabled !== false;
             return (react_1.default.createElement("div", { key: ai.name, style: {
@@ -4816,6 +4826,42 @@ const mapIgnitionToReactFlowEdges = (ignitionEdges, ignitionNodes, connectionTyp
     });
 };
 exports.mapIgnitionToReactFlowEdges = mapIgnitionToReactFlowEdges;
+
+
+/***/ }),
+
+/***/ "./typescript/components/ArchitectureBuilder/NodeView.tsx":
+/*!****************************************************************!*\
+  !*** ./typescript/components/ArchitectureBuilder/NodeView.tsx ***!
+  \****************************************************************/
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+"use strict";
+
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.NodeView = exports.isViewPath = void 0;
+const react_1 = __importDefault(__webpack_require__(/*! react */ "react"));
+const perspective_client_1 = __webpack_require__(/*! @inductiveautomation/perspective-client */ "@inductiveautomation/perspective-client");
+// A viewPath is a project-relative Perspective view resource path (e.g. "Exchange/Widgets/PumpCard").
+// It is never rendered as markup; reject anything that looks like a URL scheme or HTML.
+const isViewPath = (value) => typeof value === 'string' && value.trim().length > 0 && !/[<>:\\]/.test(value);
+exports.isViewPath = isViewPath;
+let mountCounter = 0;
+/**
+ * Renders a live Perspective view inside a node. The view is a child of the page, so it gets its own
+ * property tree, bindings and params like any embedded view.
+ */
+exports.NodeView = react_1.default.memo(({ nodeId, viewPath, params }) => {
+    const client = react_1.default.useContext(perspective_client_1.ClientStoreProviderContext);
+    const mountPath = react_1.default.useMemo(() => `ab-node-${nodeId}-${++mountCounter}`, [nodeId]);
+    if (!client)
+        return null;
+    return (react_1.default.createElement("div", { className: "nodrag nopan", style: { position: 'relative', width: '100%', height: '100%', overflow: 'hidden', pointerEvents: 'none' } },
+        react_1.default.createElement(perspective_client_1.View, { store: client, resourcePath: viewPath.trim(), mountPath: mountPath, params: params })));
+});
 
 
 /***/ }),

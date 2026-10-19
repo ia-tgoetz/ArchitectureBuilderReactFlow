@@ -32,6 +32,14 @@
             "type": "string",
             "description": "Optional alternate image for this palette item. Nodes with useOverrideImage set to true will display this image instead of the primary image."
           },
+          "viewPath": {
+            "type": "string",
+            "description": "Optional project-relative path of a Perspective view to render live inside nodes of this palette item (e.g. Exchange/Widgets/PumpCard). When set, the view is shown instead of the image."
+          },
+          "viewParams": {
+            "type": "object",
+            "description": "Optional parameters passed to the view named by viewPath."
+          },
           "supportedConnections": {
             "type": "array",
             "items": {

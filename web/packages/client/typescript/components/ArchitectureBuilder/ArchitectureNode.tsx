@@ -3,6 +3,7 @@ import React from 'react';
 import { Handle, Position, NodeProps, useViewport, NodeResizer, useStore } from 'reactflow';
 import { IconRenderer } from '@inductiveautomation/perspective-client';
 import { extractSvgMarkup, toSafeDataUri, nextSvgScopeId } from './svgSanitize';
+import { NodeView, isViewPath } from './NodeView';
 
 export interface ActionIconData {
     icon: string;
@@ -14,6 +15,8 @@ export interface ActionIconData {
 export interface ArchitectureNodeData {
     label: string;
     image: string;
+    viewPath?: string;
+    viewParams?: any;
     text?: string;
     tooltip?: string;
     configs?: any;
@@ -69,6 +72,8 @@ const areArchitectureNodePropsEqual = (
     const pd = prev.data, nd = next.data;
     if (pd.label !== nd.label) return false;
     if (pd.image !== nd.image) return false;
+    if (pd.viewPath !== nd.viewPath) return false;
+    if (!shallowEqualObjects(pd.viewParams, nd.viewParams)) return false;
     if (pd.text !== nd.text) return false;
     if (pd.tooltip !== nd.tooltip) return false;
     if (pd.paletteId !== nd.paletteId) return false;
@@ -228,7 +233,14 @@ export const ArchitectureNode = React.memo(({ id, data, selected }: NodeProps<Ar
                         filter: data.inactive ? 'grayscale(100%) blur(2px)' : undefined
                     }}
                 >
-                    <NodeImage src={data.image} />
+                    {isViewPath(data.viewPath)
+                        ? <NodeView nodeId={id} viewPath={data.viewPath} params={data.viewParams} />
+                        : <NodeImage src={data.image} />}
+                </div>
+            )}
+            {!data.image && isViewPath(data.viewPath) && (
+                <div style={{ flex: 1, width: '100%', minHeight: 0, zIndex: 1, filter: data.inactive ? 'grayscale(100%) blur(2px)' : undefined }}>
+                    <NodeView nodeId={id} viewPath={data.viewPath} params={data.viewParams} />
                 </div>
             )}
 

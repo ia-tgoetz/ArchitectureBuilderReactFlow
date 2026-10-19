@@ -104,7 +104,7 @@ const mapIgnitionToReactFlowNodes = (
                 },
                 dragHandle: (isContainer && !isUnlocked) ? '.custom-drag-handle' : undefined,
                 data: {
-                    label: nodeData.label || 'Unknown', image: paletteImage || nodeData.image || '', text: nodeData.text || '', tooltip: nodeData.tooltip || '', configs: nodeData.configs || {},
+                    label: nodeData.label || 'Unknown', image: paletteImage || nodeData.image || '', viewPath: palette?.viewPath || undefined, viewParams: palette?.viewParams ? extractDeep(palette.viewParams) : undefined, text: nodeData.text || '', tooltip: nodeData.tooltip || '', configs: nodeData.configs || {},
                     style: nodeData.style || {}, labelStyle: nodeData.labelStyle || {}, textStyle: nodeData.textStyle || {},
                     paletteId: nodeData.paletteId || 'unknown', inactive: nodeData.inactive || false,
                     hideHandles: nodeData.hideHandles, globalHideHandles, handleCount: globalHandleCount,
