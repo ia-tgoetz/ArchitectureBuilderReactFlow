@@ -16,7 +16,8 @@ import { useArchitectureFlowHandlers } from './useArchitectureFlowHandlers';
 import { useCanvasHistory } from './useCanvasHistory';
 import { ComponentErrorBoundary } from '../common/ComponentErrorBoundary';
 import { TEXT_NODE_PALETTE_IDS } from './constants';
-import { ContextMenuState } from './types';
+import { ContextMenuState, QuickAddState } from './types';
+import { QuickAddMenu } from './QuickAddMenu';
 import { StyleEditorModal } from './StyleEditorModal';
 import { EdgeLabelDialog } from './EdgeLabelDialog';
 import { ContextMenu } from './ContextMenu';
@@ -206,6 +207,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
     // Edge whose label editor was requested via right-click → Config; cleared once the edge opens it.
     const [editingEdgeId, setEditingEdgeId] = React.useState<string | null>(null);
     const [contextMenu, setContextMenu] = React.useState<ContextMenuState | null>(null);
+    const [quickAdd, setQuickAdd] = React.useState<QuickAddState | null>(null);
     const [activeSubMenu, setActiveSubMenu] = React.useState<'lineType' | 'connectionType' | 'animation' | 'swapNode' | 'order' | null>(null);
     // selectedId: the single selected node or edge. selectedNodeIds: every selected node (Ctrl-click / box select).
     // selectedId mirrors selectedNodeIds when exactly one node is selected, and is null for 2+.
@@ -418,7 +420,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
         onNodesChange, onNodeDragStart, onNodeDrag, onNodeDragStop,
         onNodesDelete, onNodeContextMenu, onNodeClick,
         executeCopy, executePaste,
-        onDragOver, onDrop, onMoveStart, onPaneClick, onPaneContextMenu,
+        onDragOver, onDrop, addNodeFromEdgeDrop, onMoveStart, onPaneClick, onPaneContextMenu,
         handleNodeSwap, handleContextMenuAction,
     } = useArchitectureFlowHandlers({
         store: historyStore,
@@ -449,7 +451,17 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
         setEditingEdgeId,
         clipboardRef,
         draggedItemRef,
+        setQuickAdd,
     });
+
+    // Palette items the edge-drop menu offers: anything that shares a connection type with the source node.
+    const quickAddItems = React.useMemo(() => {
+        if (!quickAdd) return [];
+        const sourceTypes: string[] = rawNodesDict?.[quickAdd.sourceId]?.supportedConnections || [];
+        return (paletteItems || []).filter((item: any) =>
+            item.id !== 'container' && !TEXT_NODE_PALETTE_IDS.has(item.id) &&
+            (item.supportedConnections || []).some((c: string) => sourceTypes.includes(c)));
+    }, [quickAdd, rawNodesDict, paletteItems]);
 
     // ─── Derived flow data ─────────────────────────────────────────────────
 
@@ -970,6 +982,16 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
                                     setEditingEdgeId(null);
                                 }}
                                 onCancel={() => setEditingEdgeId(null)}
+                            />
+                        )}
+
+                        {quickAdd && quickAddItems.length > 0 && (
+                            <QuickAddMenu
+                                quickAdd={quickAdd}
+                                items={quickAddItems}
+                                wrapperRef={reactFlowWrapper}
+                                onSelect={(item) => addNodeFromEdgeDrop(item, quickAdd)}
+                                onClose={closeContextMenu}
                             />
                         )}
 

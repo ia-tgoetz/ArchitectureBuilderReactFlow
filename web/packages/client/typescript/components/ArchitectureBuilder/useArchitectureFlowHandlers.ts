@@ -2,7 +2,8 @@ import * as React from 'react';
 // @ts-ignore
 import { NodeChange, applyNodeChanges } from 'reactflow';
 import { getHandlePixelPos, computeAutoWaypoints } from './EdgeUtils';
-import { ContextMenuState } from './types';
+import { ContextMenuState, QuickAddState } from './types';
+import { createPaletteNodeData } from './nodeFactory';
 import { useEdgeHandlers } from './useEdgeHandlers';
 import { generateShortId } from './utils';
 
@@ -62,6 +63,7 @@ export interface UseArchitectureFlowHandlersParams {
     setEditingEdgeId: React.Dispatch<React.SetStateAction<string | null>>;
     clipboardRef: React.MutableRefObject<any>;
     draggedItemRef: React.MutableRefObject<any>;
+    setQuickAdd: (state: QuickAddState | null) => void;
 }
 
 export const useArchitectureFlowHandlers = ({
@@ -93,6 +95,7 @@ export const useArchitectureFlowHandlers = ({
     setEditingEdgeId,
     clipboardRef,
     draggedItemRef,
+    setQuickAdd,
 }: UseArchitectureFlowHandlersParams) => {
     const [isDraggingNode, setIsDraggingNode] = React.useState(false);
     const dragStartPos = React.useRef<DragStartState | null>(null);
@@ -107,7 +110,8 @@ export const useArchitectureFlowHandlers = ({
     const closeContextMenu = React.useCallback(() => {
         setContextMenu(null);
         setActiveSubMenu(null);
-    }, [setContextMenu, setActiveSubMenu]);
+        setQuickAdd(null);
+    }, [setContextMenu, setActiveSubMenu, setQuickAdd]);
 
     // ─── Edge handlers (delegated) ────────────────────────────────────────────
 
@@ -128,7 +132,10 @@ export const useArchitectureFlowHandlers = ({
         wrapperBoundsRef,
         closeContextMenu,
         enableOnClickEvents,
+        setQuickAdd,
+        handleCount: globalHandleCount,
     });
+    const { createEdgeToNewNode, quickAddOpenedAtRef } = edgeHandlers;
 
     // ─── Node handlers ────────────────────────────────────────────────────────
 
@@ -468,28 +475,9 @@ export const useArchitectureFlowHandlers = ({
             let dropX = Math.round(position.x - nodeW / 2);
             let dropY = Math.round(position.y - nodeH / 2);
             if (snapEnabled) { dropX = Math.round(dropX / snapPixels) * snapPixels; dropY = Math.round(dropY / snapPixels) * snapPixels; }
-            const initialConfigs = JSON.parse(JSON.stringify(paletteItem.defaultConfigs || {}));
-            const initialStyle = JSON.parse(JSON.stringify(paletteItem.style || { classes: '' }));
-            const initialLabelStyle = JSON.parse(JSON.stringify(paletteItem.labelStyle || { classes: '' }));
             if (store?.props) {
                 const newNodeId = generateShortId();
-                const newNodeData: any = {
-                    paletteId: paletteItem.id,
-                    typeId: paletteItem.typeId,
-                    label: paletteItem.label,
-                    tooltip: paletteItem.tooltip,
-                    x: dropX,
-                    y: dropY,
-                    hideHandles: paletteItem.hideHandles === true,
-                    style: initialStyle,
-                    labelStyle: initialLabelStyle,
-                    configs: initialConfigs,
-                    supportedConnections: paletteItem.supportedConnections || [],
-                    useOverrideImage: paletteItem.useOverrideImage || false,
-                    inactive: paletteItem.inactive || false,
-                    actionIcons: JSON.parse(JSON.stringify(paletteItem.actionIcons || [])),
-                };
-                if (paletteItem.id === 'container') { newNodeData.width = 300; newNodeData.height = 300; newNodeData.zIndex = -500; }
+                const newNodeData = createPaletteNodeData(paletteItem, dropX, dropY);
                 const nextNodes = { ...rawNodesDict };
                 nextNodes[newNodeId] = newNodeData;
                 store.props.write('nodes', nextNodes);
@@ -510,17 +498,48 @@ export const useArchitectureFlowHandlers = ({
         }
     }, [store, rawNodesDict, snapEnabled, snapPixels, reactFlowInstance, setSelectedId, draggedItemRef, componentEvents, enableOnClickEvents]);
 
+    // Picks a palette item from the menu shown after an edge is dropped on empty canvas: places the node
+    // centered on the drop point (snapped like a normal drop) and connects the dragged edge to it.
+    const addNodeFromEdgeDrop = React.useCallback((paletteItem: any, quickAdd: QuickAddState) => {
+        try {
+            if (!store?.props || !reactFlowInstance) return;
+            const position = reactFlowInstance.screenToFlowPosition({ x: quickAdd.clientX, y: quickAdd.clientY });
+            let x = Math.round(position.x - 75);
+            let y = Math.round(position.y - 75);
+            if (snapEnabled) { x = Math.round(x / snapPixels) * snapPixels; y = Math.round(y / snapPixels) * snapPixels; }
+            const newNodeId = generateShortId();
+            const newNodeData = createPaletteNodeData(paletteItem, x, y);
+            store.props.write('nodes', { ...rawNodesDict, [newNodeId]: newNodeData });
+            createEdgeToNewNode(quickAdd.sourceId, quickAdd.sourceHandle, newNodeId, newNodeData);
+            setSelectedId(newNodeId);
+            if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
+                componentEvents.fireComponentEvent('onNodeCreated', {
+                    nodeUuid: newNodeId,
+                    typeId: paletteItem.typeId,
+                    paletteId: paletteItem.id,
+                    affectedNodes: [newNodeId],
+                });
+            }
+        } catch (error: any) {
+            console.error("Error in addNodeFromEdgeDrop:", error);
+        } finally {
+            setQuickAdd(null);
+        }
+    }, [store, rawNodesDict, reactFlowInstance, snapEnabled, snapPixels, createEdgeToNewNode, setSelectedId, componentEvents, enableOnClickEvents, setQuickAdd]);
+
     const onMoveStart = React.useCallback(() => {
         closeContextMenu();
     }, [closeContextMenu]);
 
     const onPaneClick = React.useCallback(() => {
+        // Ignore the click the browser sends right after an edge was dropped on the pane (it would close the new menu).
+        if (performance.now() - quickAddOpenedAtRef.current < 400) return;
         setSelectedId(null);
         closeContextMenu();
         if (componentEvents) {
             componentEvents.fireComponentEvent('onPaneClick', { type: 'pane' });
         }
-    }, [setSelectedId, closeContextMenu, componentEvents]);
+    }, [setSelectedId, closeContextMenu, componentEvents, quickAddOpenedAtRef]);
 
     const onPaneContextMenu = React.useCallback((event: any) => {
         event.preventDefault();
@@ -836,6 +855,7 @@ export const useArchitectureFlowHandlers = ({
         // Pane
         onDragOver,
         onDrop,
+        addNodeFromEdgeDrop,
         onMoveStart,
         onPaneClick,
         onPaneContextMenu,

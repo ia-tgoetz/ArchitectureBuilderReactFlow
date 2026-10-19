@@ -147,6 +147,23 @@ Work is in git: `7d4bcc5` is the baseline before this item; roll back with `git 
 
 ---
 
+## 6. Drop an edge on empty canvas to add and connect a node (2026-10-19)
+
+**Behavior:** drag an edge from a node handle and release on empty canvas (or inside an unlocked container). A context-menu-style "Add node" popup opens at the pointer. Picking an item creates the node centered on the drop point (snapped if snap is on), connects it, and selects it. Nothing opens if the edge connected to a node, was dropped on a node or edge, was an existing edge being moved, or the source node has no `supportedConnections`.
+
+**Change:**
+- New `QuickAddMenu.tsx`: filter box (autofocus, `Enter` picks the first match), items grouped by category with icons (reuses the now-exported `SwapIcon` from `ContextMenu.tsx`), clamped inside the canvas, closes on Escape or an outside press. Items are palette items sharing at least one connection type with the source node, excluding containers and Note/Label.
+- `types.ts`: `QuickAddState`.
+- `useEdgeHandlers.ts`: `onConnectStart` records the source node and handle; `onConnectEnd` opens the menu when no connection was made and the pointer is on the pane or an unlocked container. The edge writing in `onConnect` moved into a shared `writeNewEdge`; new `createEdgeToNewNode` connects the source handle to the middle handle on the facing side of the new node, using the same connection-type choice (saved pair default, else first valid type).
+- `useArchitectureFlowHandlers.ts`: new `addNodeFromEdgeDrop`; `closeContextMenu` also closes this menu; `onPaneClick` ignores the click the browser fires right after the drop (the pane is an ancestor of the handle, so that click otherwise closed the menu instantly).
+- New `nodeFactory.ts` (`createPaletteNodeData`): node creation from a palette item, now shared with `onDrop`.
+- `ArchitectureBuilder.tsx`: `quickAdd` state, the item filter, and rendering.
+
+**Tested** on the test gateway (port 8089): menu opens at the drop point with compatible items; filter narrows the list; picking an item adds the node and edge; one `Ctrl+Z` removes both, `Ctrl+Y` restores both; Escape and an outside click close it without adding anything; dropping on another node and moving an existing edge's end to empty canvas open no menu; the menu stays inside the canvas near the bottom-right corner.
+**Not tested:** touch devices, an unlocked container as the drop area, view nodes as the source, the real gateway.
+
+---
+
 ## Things to know when reviewing
 
 - **Stale bundle:** web changes only appear after a clean build, a module reinstall, and a hard browser refresh.

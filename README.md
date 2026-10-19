@@ -240,6 +240,7 @@ The built-in search feature lets operators and designers quickly locate nodes on
 - **Copy/Paste:** `Ctrl+C` copies every selected node (plus everything inside selected containers and the edges between copied nodes). `Ctrl+V` pastes the group centered on the mouse position (snapped to the grid) and selects the pasted nodes. Right-click → **Paste** pastes at the click position.
 
 ### Editing
+- **Add node from an edge:** Drag an edge out of a node's handle and drop it on empty canvas (or an unlocked area) to open an "Add node" menu at the pointer. It lists palette items that share a connection type with the source node, grouped by category, with a filter box (`Enter` picks the first match). Picking one places the node centered on the drop point (snapped to the grid), connects it with the usual connection-type rules, and selects it. `Escape` or clicking elsewhere closes the menu. Undo removes the node and edge together.
 - **Label/Note text:** Double-click. `Enter` inserts a newline; `Ctrl+Enter` submits.
 - **Style editor:** Right-click node → **Edit Style** to customize background, border, label font/color.
 - **Swap type:** Right-click node → **Swap** (only shown when `swappableWith` is configured).

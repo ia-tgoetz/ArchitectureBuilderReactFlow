@@ -2714,6 +2714,7 @@ const useArchitectureFlowHandlers_1 = __webpack_require__(/*! ./useArchitectureF
 const useCanvasHistory_1 = __webpack_require__(/*! ./useCanvasHistory */ "./typescript/components/ArchitectureBuilder/useCanvasHistory.ts");
 const ComponentErrorBoundary_1 = __webpack_require__(/*! ../common/ComponentErrorBoundary */ "./typescript/components/common/ComponentErrorBoundary.tsx");
 const constants_1 = __webpack_require__(/*! ./constants */ "./typescript/components/ArchitectureBuilder/constants.ts");
+const QuickAddMenu_1 = __webpack_require__(/*! ./QuickAddMenu */ "./typescript/components/ArchitectureBuilder/QuickAddMenu.tsx");
 const StyleEditorModal_1 = __webpack_require__(/*! ./StyleEditorModal */ "./typescript/components/ArchitectureBuilder/StyleEditorModal.tsx");
 const EdgeLabelDialog_1 = __webpack_require__(/*! ./EdgeLabelDialog */ "./typescript/components/ArchitectureBuilder/EdgeLabelDialog.tsx");
 const ContextMenu_1 = __webpack_require__(/*! ./ContextMenu */ "./typescript/components/ArchitectureBuilder/ContextMenu.tsx");
@@ -2874,6 +2875,7 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
     // Edge whose label editor was requested via right-click → Config; cleared once the edge opens it.
     const [editingEdgeId, setEditingEdgeId] = React.useState(null);
     const [contextMenu, setContextMenu] = React.useState(null);
+    const [quickAdd, setQuickAdd] = React.useState(null);
     const [activeSubMenu, setActiveSubMenu] = React.useState(null);
     // selectedId: the single selected node or edge. selectedNodeIds: every selected node (Ctrl-click / box select).
     // selectedId mirrors selectedNodeIds when exactly one node is selected, and is null for 2+.
@@ -3037,7 +3039,7 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
         setSelectedNodeIds(ids);
     }, []);
     // ─── Handlers hook ─────────────────────────────────────────────────────
-    const { isUpdatingEdge, isDraggingNode, updatingEdgeRef, rawNodesDictRef, rawEdgesDictRef, closeContextMenu, getValidIntersection, isValidConnection, handleWaypointsChange, handleLabelChange, onConnect, onEdgeUpdate, onEdgeUpdateStart, onEdgeUpdateEnd, onConnectStart, onConnectEnd, onEdgesDelete, deleteEdgeWithEvent, onEdgeContextMenu, onEdgeClick, handleLineTypeChange, handleConnectionTypeChange, handleAnimationChange, handleSetConnectionDefault, handleSetDefaultForType, handleClearConnectionDefault, handleGearClick, handlePaletteItemClick, handleResizeEnd, handleTextChange, handleActionIconClick, onNodesChange, onNodeDragStart, onNodeDrag, onNodeDragStop, onNodesDelete, onNodeContextMenu, onNodeClick, executeCopy, executePaste, onDragOver, onDrop, onMoveStart, onPaneClick, onPaneContextMenu, handleNodeSwap, handleContextMenuAction, } = useArchitectureFlowHandlers_1.useArchitectureFlowHandlers({
+    const { isUpdatingEdge, isDraggingNode, updatingEdgeRef, rawNodesDictRef, rawEdgesDictRef, closeContextMenu, getValidIntersection, isValidConnection, handleWaypointsChange, handleLabelChange, onConnect, onEdgeUpdate, onEdgeUpdateStart, onEdgeUpdateEnd, onConnectStart, onConnectEnd, onEdgesDelete, deleteEdgeWithEvent, onEdgeContextMenu, onEdgeClick, handleLineTypeChange, handleConnectionTypeChange, handleAnimationChange, handleSetConnectionDefault, handleSetDefaultForType, handleClearConnectionDefault, handleGearClick, handlePaletteItemClick, handleResizeEnd, handleTextChange, handleActionIconClick, onNodesChange, onNodeDragStart, onNodeDrag, onNodeDragStop, onNodesDelete, onNodeContextMenu, onNodeClick, executeCopy, executePaste, onDragOver, onDrop, addNodeFromEdgeDrop, onMoveStart, onPaneClick, onPaneContextMenu, handleNodeSwap, handleContextMenuAction, } = useArchitectureFlowHandlers_1.useArchitectureFlowHandlers({
         store: historyStore,
         componentEvents: props.componentEvents,
         rawNodesDict,
@@ -3066,7 +3068,17 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
         setEditingEdgeId,
         clipboardRef,
         draggedItemRef,
+        setQuickAdd,
     });
+    // Palette items the edge-drop menu offers: anything that shares a connection type with the source node.
+    const quickAddItems = React.useMemo(() => {
+        var _a;
+        if (!quickAdd)
+            return [];
+        const sourceTypes = ((_a = rawNodesDict === null || rawNodesDict === void 0 ? void 0 : rawNodesDict[quickAdd.sourceId]) === null || _a === void 0 ? void 0 : _a.supportedConnections) || [];
+        return (paletteItems || []).filter((item) => item.id !== 'container' && !constants_1.TEXT_NODE_PALETTE_IDS.has(item.id) &&
+            (item.supportedConnections || []).some((c) => sourceTypes.includes(c)));
+    }, [quickAdd, rawNodesDict, paletteItems]);
     // ─── Derived flow data ─────────────────────────────────────────────────
     // Stable fingerprint of connection topology only — excludes waypoints, animation, labels.
     // Recomputes only when a connection endpoint changes, not on every waypoint drag.
@@ -3477,6 +3489,7 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
                                 handleLabelChange(editingEdgeId, text);
                             setEditingEdgeId(null);
                         }, onCancel: () => setEditingEdgeId(null) })),
+                    quickAdd && quickAddItems.length > 0 && (React.createElement(QuickAddMenu_1.QuickAddMenu, { quickAdd: quickAdd, items: quickAddItems, wrapperRef: reactFlowWrapper, onSelect: (item) => addNodeFromEdgeDrop(item, quickAdd), onClose: closeContextMenu })),
                     contextMenu && (React.createElement(ContextMenu_1.ContextMenu, { contextMenu: contextMenu, activeSubMenu: activeSubMenu, setActiveSubMenu: setActiveSubMenu, rawNodesDict: rawNodesDict, rawEdgesDict: rawEdgesDict, paletteItems: paletteItems, connectionTypes: connectionTypes, clipboardRef: clipboardRef, wrapperRef: reactFlowWrapper, getValidIntersection: getValidIntersection, handleContextMenuAction: handleContextMenuAction, handleNodeSwap: handleNodeSwap, handleLineTypeChange: handleLineTypeChange, handleConnectionTypeChange: handleConnectionTypeChange, handleAnimationChange: handleAnimationChange, handleSetConnectionDefault: handleSetConnectionDefault, handleSetDefaultForType: handleSetDefaultForType, handleClearConnectionDefault: handleClearConnectionDefault, nodeTypeConnectionDefaults: nodeTypeConnectionDefaults })))))));
 });
 
@@ -4069,7 +4082,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ContextMenu = void 0;
+exports.ContextMenu = exports.SwapIcon = void 0;
 const React = __importStar(__webpack_require__(/*! react */ "react"));
 const svgSanitize_1 = __webpack_require__(/*! ./svgSanitize */ "./typescript/components/ArchitectureBuilder/svgSanitize.ts");
 const constants_1 = __webpack_require__(/*! ./constants */ "./typescript/components/ArchitectureBuilder/constants.ts");
@@ -4088,6 +4101,7 @@ const SwapIcon = ({ image, label }) => {
     const dataUri = svgSanitize_1.toSafeDataUri(image);
     return dataUri ? React.createElement("img", { src: dataUri, alt: label, style: { width: '100%', height: '100%', objectFit: 'contain' } }) : null;
 };
+exports.SwapIcon = SwapIcon;
 exports.ContextMenu = React.memo(({ contextMenu, activeSubMenu, setActiveSubMenu, rawNodesDict, rawEdgesDict, paletteItems, connectionTypes, clipboardRef, wrapperRef, getValidIntersection, handleContextMenuAction, handleNodeSwap, handleLineTypeChange, handleConnectionTypeChange, handleAnimationChange, handleSetConnectionDefault, handleSetDefaultForType, handleClearConnectionDefault, nodeTypeConnectionDefaults, }) => {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q;
     const containerRef = React.useRef(null);
@@ -4246,7 +4260,7 @@ exports.ContextMenu = React.memo(({ contextMenu, activeSubMenu, setActiveSubMenu
                         React.createElement("span", null, "\u25B6")),
                     activeSubMenu === 'swapNode' && (React.createElement("div", { ref: (el) => { if (el)
                             flyoutRefs.current['swapNode'] = el; }, style: Object.assign(Object.assign(Object.assign({}, getFlyoutStyle('swapNode')), FLYOUT_PANEL_STYLE), { minWidth: '150px' }) }, validSwapItems.map((targetItem) => (React.createElement("div", { key: targetItem.id, style: { padding: '5px 8px', cursor: 'pointer', color: 'var(--neutral-90)', display: 'flex', alignItems: 'center' }, onClick: () => handleNodeSwap(targetItem.id) },
-                        React.createElement("div", { style: { width: '16px', height: '16px', marginRight: '6px', display: 'flex', alignItems: 'center' } }, targetItem.image && React.createElement(SwapIcon, { image: targetItem.image, label: targetItem.label })),
+                        React.createElement("div", { style: { width: '16px', height: '16px', marginRight: '6px', display: 'flex', alignItems: 'center' } }, targetItem.image && React.createElement(exports.SwapIcon, { image: targetItem.image, label: targetItem.label })),
                         React.createElement("span", null, targetItem.label)))))))))),
             contextMenu.type === 'edge' && (React.createElement(React.Fragment, null,
                 React.createElement("div", { style: MENU_ITEM_STYLE, onMouseEnter: () => setActiveSubMenu(null), onClick: () => handleContextMenuAction('reverseEdge') }, "\uD83D\uDD04 Reverse Direction"),
@@ -5008,6 +5022,113 @@ exports.NoteLabelNode = react_1.default.memo(({ id, data, selected }) => {
 
 /***/ }),
 
+/***/ "./typescript/components/ArchitectureBuilder/QuickAddMenu.tsx":
+/*!********************************************************************!*\
+  !*** ./typescript/components/ArchitectureBuilder/QuickAddMenu.tsx ***!
+  \********************************************************************/
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.QuickAddMenu = void 0;
+const React = __importStar(__webpack_require__(/*! react */ "react"));
+const ContextMenu_1 = __webpack_require__(/*! ./ContextMenu */ "./typescript/components/ArchitectureBuilder/ContextMenu.tsx");
+const CONTAINER_STYLE = {
+    position: 'absolute', zIndex: 10, backgroundColor: 'var(--neutral-20)', border: '1px solid var(--neutral-50)',
+    borderRadius: '4px', boxShadow: '0 4px 6px rgba(0,0,0,0.3)', padding: '4px', width: '220px', fontSize: '12px',
+};
+/**
+ * Menu shown when an edge is dragged out of a node and dropped on empty canvas. Behaves like the
+ * right-click menu: opens at the pointer, clamps inside the canvas, closes on Escape or an outside click.
+ */
+const QuickAddMenu = ({ quickAdd, items, wrapperRef, onSelect, onClose }) => {
+    const containerRef = React.useRef(null);
+    const [filter, setFilter] = React.useState('');
+    const [adjustment, setAdjustment] = React.useState({ dx: 0, dy: 0 });
+    // Keep the menu inside the canvas (wrapper-local coordinates, same as the context menu).
+    React.useLayoutEffect(() => {
+        if (!containerRef.current || !wrapperRef.current)
+            return;
+        const menuW = containerRef.current.offsetWidth;
+        const menuH = containerRef.current.offsetHeight;
+        const wrapW = wrapperRef.current.clientWidth;
+        const wrapH = wrapperRef.current.clientHeight;
+        let dx = 0, dy = 0;
+        if (quickAdd.left + menuW > wrapW - 8)
+            dx = wrapW - 8 - (quickAdd.left + menuW);
+        if (quickAdd.top + menuH > wrapH - 8)
+            dy = wrapH - 8 - (quickAdd.top + menuH);
+        if (quickAdd.left + dx < 8)
+            dx = 8 - quickAdd.left;
+        if (quickAdd.top + dy < 8)
+            dy = 8 - quickAdd.top;
+        setAdjustment({ dx, dy });
+    }, [quickAdd.top, quickAdd.left, items.length]);
+    // Close on an outside press.
+    React.useEffect(() => {
+        const onPointerDown = (e) => {
+            if (containerRef.current && !containerRef.current.contains(e.target))
+                onClose();
+        };
+        document.addEventListener('pointerdown', onPointerDown, true);
+        return () => document.removeEventListener('pointerdown', onPointerDown, true);
+    }, [onClose]);
+    const groups = React.useMemo(() => {
+        const needle = filter.trim().toLowerCase();
+        const byCategory = new Map();
+        items.forEach(item => {
+            if (needle && !String(item.label || '').toLowerCase().includes(needle))
+                return;
+            const category = item.category || 'Other';
+            if (!byCategory.has(category))
+                byCategory.set(category, []);
+            byCategory.get(category).push(item);
+        });
+        return Array.from(byCategory.entries());
+    }, [items, filter]);
+    return (React.createElement("div", { ref: containerRef, role: "menu", "aria-label": "Add node", style: Object.assign(Object.assign({}, CONTAINER_STYLE), { top: quickAdd.top + adjustment.dy, left: quickAdd.left + adjustment.dx }), onContextMenu: (e) => e.preventDefault() },
+        React.createElement("input", { autoFocus: true, value: filter, onChange: (e) => setFilter(e.target.value), onKeyDown: (e) => {
+                if (e.key === 'Escape') {
+                    e.stopPropagation();
+                    onClose();
+                }
+                else if (e.key === 'Enter' && groups.length > 0) {
+                    onSelect(groups[0][1][0]);
+                }
+            }, placeholder: "Add node...", style: { width: '100%', boxSizing: 'border-box', marginBottom: '4px', padding: '4px 6px', fontSize: '12px', backgroundColor: 'var(--neutral-10)', color: 'var(--neutral-90)', border: '1px solid var(--neutral-50)', borderRadius: '3px' } }),
+        React.createElement("div", { style: { maxHeight: '280px', overflowY: 'auto' } },
+            groups.length === 0 && React.createElement("div", { style: { padding: '5px 8px', color: 'var(--neutral-60)' } }, "No matching nodes"),
+            groups.map(([category, categoryItems]) => (React.createElement("div", { key: category },
+                React.createElement("div", { style: { padding: '4px 8px 2px', color: 'var(--neutral-60)', fontSize: '11px', fontWeight: 'bold' } }, category),
+                categoryItems.map(item => (React.createElement("div", { key: item.id, role: "menuitem", className: "arch-quickadd-item", style: { padding: '4px 8px', cursor: 'pointer', color: 'var(--neutral-90)', display: 'flex', alignItems: 'center', gap: '8px' }, onMouseEnter: (e) => { e.currentTarget.style.backgroundColor = 'var(--neutral-30)'; }, onMouseLeave: (e) => { e.currentTarget.style.backgroundColor = 'transparent'; }, onClick: () => onSelect(item) },
+                    React.createElement("div", { style: { width: '20px', height: '20px', flexShrink: 0 } }, item.image ? React.createElement(ContextMenu_1.SwapIcon, { image: item.image, label: item.label }) : null),
+                    React.createElement("span", { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, item.label))))))))));
+};
+exports.QuickAddMenu = QuickAddMenu;
+
+
+/***/ }),
+
 /***/ "./typescript/components/ArchitectureBuilder/Sidebar.tsx":
 /*!***************************************************************!*\
   !*** ./typescript/components/ArchitectureBuilder/Sidebar.tsx ***!
@@ -5342,6 +5463,49 @@ exports.STANDARD_PALETTE = [
 
 /***/ }),
 
+/***/ "./typescript/components/ArchitectureBuilder/nodeFactory.ts":
+/*!******************************************************************!*\
+  !*** ./typescript/components/ArchitectureBuilder/nodeFactory.ts ***!
+  \******************************************************************/
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.createPaletteNodeData = void 0;
+/**
+ * Builds the persisted node dict for a new node created from a palette item (drag-drop, or an edge dropped
+ * on empty canvas). The image is not stored; it is resolved from the palette at render time.
+ */
+const createPaletteNodeData = (paletteItem, x, y) => {
+    const data = {
+        paletteId: paletteItem.id,
+        typeId: paletteItem.typeId,
+        label: paletteItem.label,
+        tooltip: paletteItem.tooltip,
+        x,
+        y,
+        hideHandles: paletteItem.hideHandles === true,
+        style: JSON.parse(JSON.stringify(paletteItem.style || { classes: '' })),
+        labelStyle: JSON.parse(JSON.stringify(paletteItem.labelStyle || { classes: '' })),
+        configs: JSON.parse(JSON.stringify(paletteItem.defaultConfigs || {})),
+        supportedConnections: paletteItem.supportedConnections || [],
+        useOverrideImage: paletteItem.useOverrideImage || false,
+        inactive: paletteItem.inactive || false,
+        actionIcons: JSON.parse(JSON.stringify(paletteItem.actionIcons || [])),
+    };
+    if (paletteItem.id === 'container') {
+        data.width = 300;
+        data.height = 300;
+        data.zIndex = -500;
+    }
+    return data;
+};
+exports.createPaletteNodeData = createPaletteNodeData;
+
+
+/***/ }),
+
 /***/ "./typescript/components/ArchitectureBuilder/svgSanitize.ts":
 /*!******************************************************************!*\
   !*** ./typescript/components/ArchitectureBuilder/svgSanitize.ts ***!
@@ -5560,6 +5724,7 @@ exports.useArchitectureFlowHandlers = void 0;
 const React = __importStar(__webpack_require__(/*! react */ "react"));
 // @ts-ignore
 const reactflow_1 = __webpack_require__(/*! reactflow */ "./node_modules/reactflow/dist/umd/index.js");
+const nodeFactory_1 = __webpack_require__(/*! ./nodeFactory */ "./typescript/components/ArchitectureBuilder/nodeFactory.ts");
 const useEdgeHandlers_1 = __webpack_require__(/*! ./useEdgeHandlers */ "./typescript/components/ArchitectureBuilder/useEdgeHandlers.ts");
 const utils_1 = __webpack_require__(/*! ./utils */ "./typescript/components/ArchitectureBuilder/utils.ts");
 const getNodesInside = (containerId, allNodes) => {
@@ -5586,7 +5751,7 @@ const getNodesInside = (containerId, allNodes) => {
     });
     return inside;
 };
-const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, connectionTypes, nodeTypeConnectionDefaults, globalHandleCount, paletteItems, snapEnabled, snapPixels, reactFlowInstance, reactFlowWrapper, wrapperBoundsRef, isEnabled, enableOnClickEvents, selectedId, setSelectedId, selectedNodeIdsRef, setSelectedNodes, setLocalNodes, setLocalEdges, contextMenu, setContextMenu, setActiveSubMenu, setStyleEditorNodeId, setEditingEdgeId, clipboardRef, draggedItemRef, }) => {
+const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, connectionTypes, nodeTypeConnectionDefaults, globalHandleCount, paletteItems, snapEnabled, snapPixels, reactFlowInstance, reactFlowWrapper, wrapperBoundsRef, isEnabled, enableOnClickEvents, selectedId, setSelectedId, selectedNodeIdsRef, setSelectedNodes, setLocalNodes, setLocalEdges, contextMenu, setContextMenu, setActiveSubMenu, setStyleEditorNodeId, setEditingEdgeId, clipboardRef, draggedItemRef, setQuickAdd, }) => {
     const [isDraggingNode, setIsDraggingNode] = React.useState(false);
     const dragStartPos = React.useRef(null);
     // Stable refs so callbacks that only READ rawNodesDict/rawEdgesDict at call-time
@@ -5598,7 +5763,8 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
     const closeContextMenu = React.useCallback(() => {
         setContextMenu(null);
         setActiveSubMenu(null);
-    }, [setContextMenu, setActiveSubMenu]);
+        setQuickAdd(null);
+    }, [setContextMenu, setActiveSubMenu, setQuickAdd]);
     // ─── Edge handlers (delegated) ────────────────────────────────────────────
     const edgeHandlers = useEdgeHandlers_1.useEdgeHandlers({
         store,
@@ -5617,7 +5783,10 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
         wrapperBoundsRef,
         closeContextMenu,
         enableOnClickEvents,
+        setQuickAdd,
+        handleCount: globalHandleCount,
     });
+    const { createEdgeToNewNode, quickAddOpenedAtRef } = edgeHandlers;
     // ─── Node handlers ────────────────────────────────────────────────────────
     const handleGearClick = React.useCallback((id) => {
         setSelectedId(id);
@@ -5956,32 +6125,9 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
                 dropX = Math.round(dropX / snapPixels) * snapPixels;
                 dropY = Math.round(dropY / snapPixels) * snapPixels;
             }
-            const initialConfigs = JSON.parse(JSON.stringify(paletteItem.defaultConfigs || {}));
-            const initialStyle = JSON.parse(JSON.stringify(paletteItem.style || { classes: '' }));
-            const initialLabelStyle = JSON.parse(JSON.stringify(paletteItem.labelStyle || { classes: '' }));
             if (store === null || store === void 0 ? void 0 : store.props) {
                 const newNodeId = utils_1.generateShortId();
-                const newNodeData = {
-                    paletteId: paletteItem.id,
-                    typeId: paletteItem.typeId,
-                    label: paletteItem.label,
-                    tooltip: paletteItem.tooltip,
-                    x: dropX,
-                    y: dropY,
-                    hideHandles: paletteItem.hideHandles === true,
-                    style: initialStyle,
-                    labelStyle: initialLabelStyle,
-                    configs: initialConfigs,
-                    supportedConnections: paletteItem.supportedConnections || [],
-                    useOverrideImage: paletteItem.useOverrideImage || false,
-                    inactive: paletteItem.inactive || false,
-                    actionIcons: JSON.parse(JSON.stringify(paletteItem.actionIcons || [])),
-                };
-                if (paletteItem.id === 'container') {
-                    newNodeData.width = 300;
-                    newNodeData.height = 300;
-                    newNodeData.zIndex = -500;
-                }
+                const newNodeData = nodeFactory_1.createPaletteNodeData(paletteItem, dropX, dropY);
                 const nextNodes = Object.assign({}, rawNodesDict);
                 nextNodes[newNodeId] = newNodeData;
                 store.props.write('nodes', nextNodes);
@@ -6001,16 +6147,53 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
             console.error("Error in onDrop:", error);
         }
     }, [store, rawNodesDict, snapEnabled, snapPixels, reactFlowInstance, setSelectedId, draggedItemRef, componentEvents, enableOnClickEvents]);
+    // Picks a palette item from the menu shown after an edge is dropped on empty canvas: places the node
+    // centered on the drop point (snapped like a normal drop) and connects the dragged edge to it.
+    const addNodeFromEdgeDrop = React.useCallback((paletteItem, quickAdd) => {
+        try {
+            if (!(store === null || store === void 0 ? void 0 : store.props) || !reactFlowInstance)
+                return;
+            const position = reactFlowInstance.screenToFlowPosition({ x: quickAdd.clientX, y: quickAdd.clientY });
+            let x = Math.round(position.x - 75);
+            let y = Math.round(position.y - 75);
+            if (snapEnabled) {
+                x = Math.round(x / snapPixels) * snapPixels;
+                y = Math.round(y / snapPixels) * snapPixels;
+            }
+            const newNodeId = utils_1.generateShortId();
+            const newNodeData = nodeFactory_1.createPaletteNodeData(paletteItem, x, y);
+            store.props.write('nodes', Object.assign(Object.assign({}, rawNodesDict), { [newNodeId]: newNodeData }));
+            createEdgeToNewNode(quickAdd.sourceId, quickAdd.sourceHandle, newNodeId, newNodeData);
+            setSelectedId(newNodeId);
+            if (enableOnClickEvents && (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)) {
+                componentEvents.fireComponentEvent('onNodeCreated', {
+                    nodeUuid: newNodeId,
+                    typeId: paletteItem.typeId,
+                    paletteId: paletteItem.id,
+                    affectedNodes: [newNodeId],
+                });
+            }
+        }
+        catch (error) {
+            console.error("Error in addNodeFromEdgeDrop:", error);
+        }
+        finally {
+            setQuickAdd(null);
+        }
+    }, [store, rawNodesDict, reactFlowInstance, snapEnabled, snapPixels, createEdgeToNewNode, setSelectedId, componentEvents, enableOnClickEvents, setQuickAdd]);
     const onMoveStart = React.useCallback(() => {
         closeContextMenu();
     }, [closeContextMenu]);
     const onPaneClick = React.useCallback(() => {
+        // Ignore the click the browser sends right after an edge was dropped on the pane (it would close the new menu).
+        if (performance.now() - quickAddOpenedAtRef.current < 400)
+            return;
         setSelectedId(null);
         closeContextMenu();
         if (componentEvents) {
             componentEvents.fireComponentEvent('onPaneClick', { type: 'pane' });
         }
-    }, [setSelectedId, closeContextMenu, componentEvents]);
+    }, [setSelectedId, closeContextMenu, componentEvents, quickAddOpenedAtRef]);
     const onPaneContextMenu = React.useCallback((event) => {
         event.preventDefault();
         const bounds = wrapperBoundsRef.current;
@@ -6382,6 +6565,7 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
         // Pane
         onDragOver,
         onDrop,
+        addNodeFromEdgeDrop,
         onMoveStart,
         onPaneClick,
         onPaneContextMenu,
@@ -6686,9 +6870,12 @@ exports.useEdgeHandlers = void 0;
 const React = __importStar(__webpack_require__(/*! react */ "react"));
 const utils_1 = __webpack_require__(/*! ./utils */ "./typescript/components/ArchitectureBuilder/utils.ts");
 const getPairKey = (typeIdA, typeIdB) => [typeIdA, typeIdB].sort().join('__');
-const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, connectionTypes, nodeTypeConnectionDefaults, selectedId, setSelectedId, contextMenu, setContextMenu, setActiveSubMenu, setLocalEdges, reactFlowWrapper, wrapperBoundsRef, closeContextMenu, enableOnClickEvents, }) => {
+const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, connectionTypes, nodeTypeConnectionDefaults, selectedId, setSelectedId, contextMenu, setContextMenu, setActiveSubMenu, setLocalEdges, reactFlowWrapper, wrapperBoundsRef, closeContextMenu, enableOnClickEvents, setQuickAdd, handleCount, }) => {
     const [isUpdatingEdge, setIsUpdatingEdge] = React.useState(false);
     const updatingEdgeRef = React.useRef(null);
+    const connectStartRef = React.useRef(null);
+    const connectMadeRef = React.useRef(false);
+    const quickAddOpenedAtRef = React.useRef(0);
     // ─── Validation ──────────────────────────────────────────────────────────
     const getValidIntersection = React.useCallback((sourceId, targetId, ignoreEdgeId) => {
         const sourceNode = rawNodesDict[sourceId];
@@ -6731,36 +6918,60 @@ const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, c
             console.error("Error in handleWaypointsChange:", error);
         }
     }, [store, rawEdgesDict, componentEvents, setLocalEdges]);
+    // Picks the connection type (saved per-pair default if still valid, else the first valid one) and writes
+    // the new edge. Shared by dragging between two existing nodes and by dropping an edge on empty canvas.
+    const writeNewEdge = React.useCallback((connectionParams, validTypes, sourceTypeId, targetTypeId) => {
+        const pairKey = sourceTypeId && targetTypeId ? getPairKey(sourceTypeId, targetTypeId) : null;
+        const preferredType = pairKey ? nodeTypeConnectionDefaults === null || nodeTypeConnectionDefaults === void 0 ? void 0 : nodeTypeConnectionDefaults[pairKey] : null;
+        const selectedType = (preferredType && validTypes.includes(preferredType)) ? preferredType : validTypes[0];
+        const typeDef = connectionTypes[selectedType] || {};
+        if (store === null || store === void 0 ? void 0 : store.props) {
+            const newEdgeId = utils_1.generateShortId();
+            store.props.write('edges', Object.assign(Object.assign({}, rawEdgesDict), { [newEdgeId]: Object.assign(Object.assign({}, connectionParams), { lineType: 'smoothstep', dashed: false, arrow: typeDef.arrow !== false, showLabel: false, labelText: '', connectionType: selectedType, waypoints: [] }) }));
+            if (enableOnClickEvents && (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)) {
+                componentEvents.fireComponentEvent('onEdgeCreated', {
+                    edgeUuid: newEdgeId,
+                    source: connectionParams.source,
+                    target: connectionParams.target,
+                    connectionType: selectedType,
+                    affectedNodes: [connectionParams.source, connectionParams.target],
+                });
+            }
+        }
+    }, [store, rawEdgesDict, connectionTypes, nodeTypeConnectionDefaults, componentEvents, enableOnClickEvents]);
     const onConnect = React.useCallback((connectionParams) => {
         var _a, _b;
+        connectMadeRef.current = true;
         try {
             const validTypes = getValidIntersection(connectionParams.source, connectionParams.target);
             if (validTypes.length === 0)
                 return;
-            const sourceTypeId = (_a = rawNodesDict[connectionParams.source]) === null || _a === void 0 ? void 0 : _a.typeId;
-            const targetTypeId = (_b = rawNodesDict[connectionParams.target]) === null || _b === void 0 ? void 0 : _b.typeId;
-            const pairKey = sourceTypeId && targetTypeId ? getPairKey(sourceTypeId, targetTypeId) : null;
-            const preferredType = pairKey ? nodeTypeConnectionDefaults === null || nodeTypeConnectionDefaults === void 0 ? void 0 : nodeTypeConnectionDefaults[pairKey] : null;
-            const selectedType = (preferredType && validTypes.includes(preferredType)) ? preferredType : validTypes[0];
-            const typeDef = connectionTypes[selectedType] || {};
-            if (store === null || store === void 0 ? void 0 : store.props) {
-                const newEdgeId = utils_1.generateShortId();
-                store.props.write('edges', Object.assign(Object.assign({}, rawEdgesDict), { [newEdgeId]: Object.assign(Object.assign({}, connectionParams), { lineType: 'smoothstep', dashed: false, arrow: typeDef.arrow !== false, showLabel: false, labelText: '', connectionType: selectedType, waypoints: [] }) }));
-                if (enableOnClickEvents && (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)) {
-                    componentEvents.fireComponentEvent('onEdgeCreated', {
-                        edgeUuid: newEdgeId,
-                        source: connectionParams.source,
-                        target: connectionParams.target,
-                        connectionType: selectedType,
-                        affectedNodes: [connectionParams.source, connectionParams.target],
-                    });
-                }
-            }
+            writeNewEdge(connectionParams, validTypes, (_a = rawNodesDict[connectionParams.source]) === null || _a === void 0 ? void 0 : _a.typeId, (_b = rawNodesDict[connectionParams.target]) === null || _b === void 0 ? void 0 : _b.typeId);
         }
         catch (error) {
             console.error("Error in onConnect:", error);
         }
-    }, [store, rawEdgesDict, rawNodesDict, getValidIntersection, connectionTypes, nodeTypeConnectionDefaults, componentEvents, enableOnClickEvents]);
+    }, [rawNodesDict, getValidIntersection, writeNewEdge]);
+    // Connects an existing node to a node that was just created (and is not in rawNodesDict yet).
+    // The new node's handle is the middle one on the side facing the source handle.
+    const createEdgeToNewNode = React.useCallback((sourceId, sourceHandle, newNodeId, newNodeData) => {
+        try {
+            const source = rawNodesDict[sourceId];
+            if (!source)
+                return;
+            const targetSupported = newNodeData.supportedConnections || [];
+            const validTypes = (source.supportedConnections || []).filter((c) => targetSupported.includes(c));
+            if (validTypes.length === 0)
+                return;
+            const opposite = { left: 'right', right: 'left', top: 'bottom', bottom: 'top' };
+            const sourceSide = (sourceHandle === null || sourceHandle === void 0 ? void 0 : sourceHandle.split('-')[0]) || 'right';
+            const targetHandle = `${opposite[sourceSide] || 'left'}-${Math.floor(handleCount / 2)}`;
+            writeNewEdge({ source: sourceId, sourceHandle, target: newNodeId, targetHandle }, validTypes, source.typeId, newNodeData.typeId);
+        }
+        catch (error) {
+            console.error("Error in createEdgeToNewNode:", error);
+        }
+    }, [rawNodesDict, writeNewEdge, handleCount]);
     const onEdgeUpdate = React.useCallback((oldEdge, newConnection) => {
         var _a, _b, _c, _d;
         try {
@@ -6810,14 +7021,42 @@ const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, c
         updatingEdgeRef.current = null;
         setIsUpdatingEdge(false);
     }, []);
-    const onConnectStart = React.useCallback(() => {
+    const onConnectStart = React.useCallback((_event, params) => {
         var _a;
         (_a = reactFlowWrapper.current) === null || _a === void 0 ? void 0 : _a.classList.add('arch-creating-edge');
-    }, [reactFlowWrapper]);
-    const onConnectEnd = React.useCallback(() => {
-        var _a;
+        connectStartRef.current = (params === null || params === void 0 ? void 0 : params.nodeId) ? { nodeId: params.nodeId, handleId: params.handleId || null } : null;
+        connectMadeRef.current = false;
+        setQuickAdd(null);
+    }, [reactFlowWrapper, setQuickAdd]);
+    const onConnectEnd = React.useCallback((event) => {
+        var _a, _b, _c, _d, _e;
         (_a = reactFlowWrapper.current) === null || _a === void 0 ? void 0 : _a.classList.remove('arch-creating-edge');
-    }, [reactFlowWrapper]);
+        const start = connectStartRef.current;
+        connectStartRef.current = null;
+        // React Flow calls onConnect before onConnectEnd, so connectMadeRef is already set for a completed connection.
+        if (!start || connectMadeRef.current || updatingEdgeRef.current)
+            return;
+        const target = event === null || event === void 0 ? void 0 : event.target;
+        const onEmptyCanvas = !!((_b = target === null || target === void 0 ? void 0 : target.classList) === null || _b === void 0 ? void 0 : _b.contains('react-flow__pane')) || !!((_c = target === null || target === void 0 ? void 0 : target.closest) === null || _c === void 0 ? void 0 : _c.call(target, '.react-flow__node-container'));
+        if (!onEmptyCanvas)
+            return;
+        // Nothing to offer if the source can't connect to anything.
+        if (!(((_d = rawNodesDict[start.nodeId]) === null || _d === void 0 ? void 0 : _d.supportedConnections) || []).length)
+            return;
+        const point = ((_e = event.changedTouches) === null || _e === void 0 ? void 0 : _e[0]) || event;
+        const bounds = wrapperBoundsRef.current;
+        // The pane is an ancestor of the handle we dragged from, so the browser follows this pointer-up with a
+        // click on the pane. Remember when the menu opened so onPaneClick can ignore that click.
+        quickAddOpenedAtRef.current = performance.now();
+        setQuickAdd({
+            sourceId: start.nodeId,
+            sourceHandle: start.handleId,
+            clientX: point.clientX,
+            clientY: point.clientY,
+            top: point.clientY - bounds.top,
+            left: point.clientX - bounds.left,
+        });
+    }, [reactFlowWrapper, rawNodesDict, wrapperBoundsRef, setQuickAdd]);
     // Shared removal logic: deletes the given edges from the store and returns
     // the ones actually removed (with source/target captured before deletion).
     const removeEdgesFromStore = React.useCallback((deleted) => {
@@ -7072,6 +7311,8 @@ const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, c
         isValidConnection,
         handleWaypointsChange,
         onConnect,
+        createEdgeToNewNode,
+        quickAddOpenedAtRef,
         onEdgeUpdate,
         onEdgeUpdateStart,
         onEdgeUpdateEnd,

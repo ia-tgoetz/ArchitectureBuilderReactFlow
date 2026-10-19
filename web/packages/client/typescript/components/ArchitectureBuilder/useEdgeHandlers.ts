@@ -1,7 +1,7 @@
 import * as React from 'react';
 // @ts-ignore
 import { Edge, Connection } from 'reactflow';
-import { ContextMenuState } from './types';
+import { ContextMenuState, QuickAddState } from './types';
 import { generateShortId } from './utils';
 
 export interface UseEdgeHandlersParams {
@@ -21,6 +21,8 @@ export interface UseEdgeHandlersParams {
     wrapperBoundsRef: React.MutableRefObject<{ top: number; left: number }>;
     closeContextMenu: () => void;
     enableOnClickEvents: boolean;
+    setQuickAdd: (state: QuickAddState | null) => void;
+    handleCount: number;
 }
 
 const getPairKey = (typeIdA: string, typeIdB: string): string =>
@@ -43,9 +45,14 @@ export const useEdgeHandlers = ({
     wrapperBoundsRef,
     closeContextMenu,
     enableOnClickEvents,
+    setQuickAdd,
+    handleCount,
 }: UseEdgeHandlersParams) => {
     const [isUpdatingEdge, setIsUpdatingEdge] = React.useState(false);
     const updatingEdgeRef = React.useRef<string | null>(null);
+    const connectStartRef = React.useRef<{ nodeId: string; handleId: string | null } | null>(null);
+    const connectMadeRef = React.useRef(false);
+    const quickAddOpenedAtRef = React.useRef(0);
 
     // ─── Validation ──────────────────────────────────────────────────────────
 
@@ -91,39 +98,61 @@ export const useEdgeHandlers = ({
         }
     }, [store, rawEdgesDict, componentEvents, setLocalEdges]);
 
+    // Picks the connection type (saved per-pair default if still valid, else the first valid one) and writes
+    // the new edge. Shared by dragging between two existing nodes and by dropping an edge on empty canvas.
+    const writeNewEdge = React.useCallback((connectionParams: any, validTypes: string[], sourceTypeId?: string, targetTypeId?: string) => {
+        const pairKey = sourceTypeId && targetTypeId ? getPairKey(sourceTypeId, targetTypeId) : null;
+        const preferredType = pairKey ? nodeTypeConnectionDefaults?.[pairKey] : null;
+        const selectedType = (preferredType && validTypes.includes(preferredType)) ? preferredType : validTypes[0];
+
+        const typeDef = connectionTypes[selectedType] || {};
+        if (store?.props) {
+            const newEdgeId = generateShortId();
+            store.props.write('edges', {
+                ...rawEdgesDict,
+                [newEdgeId]: { ...connectionParams, lineType: 'smoothstep', dashed: false, arrow: typeDef.arrow !== false, showLabel: false, labelText: '', connectionType: selectedType, waypoints: [] },
+            });
+
+            if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
+                componentEvents.fireComponentEvent('onEdgeCreated', {
+                    edgeUuid: newEdgeId,
+                    source: connectionParams.source,
+                    target: connectionParams.target,
+                    connectionType: selectedType,
+                    affectedNodes: [connectionParams.source, connectionParams.target],
+                });
+            }
+        }
+    }, [store, rawEdgesDict, connectionTypes, nodeTypeConnectionDefaults, componentEvents, enableOnClickEvents]);
+
     const onConnect = React.useCallback((connectionParams: any) => {
+        connectMadeRef.current = true;
         try {
             const validTypes = getValidIntersection(connectionParams.source, connectionParams.target);
             if (validTypes.length === 0) return;
-
-            const sourceTypeId = rawNodesDict[connectionParams.source]?.typeId;
-            const targetTypeId = rawNodesDict[connectionParams.target]?.typeId;
-            const pairKey = sourceTypeId && targetTypeId ? getPairKey(sourceTypeId, targetTypeId) : null;
-            const preferredType = pairKey ? nodeTypeConnectionDefaults?.[pairKey] : null;
-            const selectedType = (preferredType && validTypes.includes(preferredType)) ? preferredType : validTypes[0];
-
-            const typeDef = connectionTypes[selectedType] || {};
-            if (store?.props) {
-                const newEdgeId = generateShortId();
-                store.props.write('edges', {
-                    ...rawEdgesDict,
-                    [newEdgeId]: { ...connectionParams, lineType: 'smoothstep', dashed: false, arrow: typeDef.arrow !== false, showLabel: false, labelText: '', connectionType: selectedType, waypoints: [] },
-                });
-
-                if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
-                    componentEvents.fireComponentEvent('onEdgeCreated', {
-                        edgeUuid: newEdgeId,
-                        source: connectionParams.source,
-                        target: connectionParams.target,
-                        connectionType: selectedType,
-                        affectedNodes: [connectionParams.source, connectionParams.target],
-                    });
-                }
-            }
+            writeNewEdge(connectionParams, validTypes, rawNodesDict[connectionParams.source]?.typeId, rawNodesDict[connectionParams.target]?.typeId);
         } catch (error: any) {
             console.error("Error in onConnect:", error);
         }
-    }, [store, rawEdgesDict, rawNodesDict, getValidIntersection, connectionTypes, nodeTypeConnectionDefaults, componentEvents, enableOnClickEvents]);
+    }, [rawNodesDict, getValidIntersection, writeNewEdge]);
+
+    // Connects an existing node to a node that was just created (and is not in rawNodesDict yet).
+    // The new node's handle is the middle one on the side facing the source handle.
+    const createEdgeToNewNode = React.useCallback((sourceId: string, sourceHandle: string | null, newNodeId: string, newNodeData: any) => {
+        try {
+            const source = rawNodesDict[sourceId];
+            if (!source) return;
+            const targetSupported: string[] = newNodeData.supportedConnections || [];
+            const validTypes = (source.supportedConnections || []).filter((c: string) => targetSupported.includes(c));
+            if (validTypes.length === 0) return;
+            const opposite: Record<string, string> = { left: 'right', right: 'left', top: 'bottom', bottom: 'top' };
+            const sourceSide = sourceHandle?.split('-')[0] || 'right';
+            const targetHandle = `${opposite[sourceSide] || 'left'}-${Math.floor(handleCount / 2)}`;
+            writeNewEdge({ source: sourceId, sourceHandle, target: newNodeId, targetHandle }, validTypes, source.typeId, newNodeData.typeId);
+        } catch (error: any) {
+            console.error("Error in createEdgeToNewNode:", error);
+        }
+    }, [rawNodesDict, writeNewEdge, handleCount]);
 
     const onEdgeUpdate = React.useCallback((oldEdge: Edge, newConnection: Connection) => {
         try {
@@ -183,12 +212,37 @@ export const useEdgeHandlers = ({
         setIsUpdatingEdge(false);
     }, []);
 
-    const onConnectStart = React.useCallback(() => {
+    const onConnectStart = React.useCallback((_event: any, params: any) => {
         reactFlowWrapper.current?.classList.add('arch-creating-edge');
-    }, [reactFlowWrapper]);
-    const onConnectEnd = React.useCallback(() => {
+        connectStartRef.current = params?.nodeId ? { nodeId: params.nodeId, handleId: params.handleId || null } : null;
+        connectMadeRef.current = false;
+        setQuickAdd(null);
+    }, [reactFlowWrapper, setQuickAdd]);
+    const onConnectEnd = React.useCallback((event: any) => {
         reactFlowWrapper.current?.classList.remove('arch-creating-edge');
-    }, [reactFlowWrapper]);
+        const start = connectStartRef.current;
+        connectStartRef.current = null;
+        // React Flow calls onConnect before onConnectEnd, so connectMadeRef is already set for a completed connection.
+        if (!start || connectMadeRef.current || updatingEdgeRef.current) return;
+        const target = event?.target as Element | null;
+        const onEmptyCanvas = !!target?.classList?.contains('react-flow__pane') || !!target?.closest?.('.react-flow__node-container');
+        if (!onEmptyCanvas) return;
+        // Nothing to offer if the source can't connect to anything.
+        if (!(rawNodesDict[start.nodeId]?.supportedConnections || []).length) return;
+        const point = event.changedTouches?.[0] || event;
+        const bounds = wrapperBoundsRef.current;
+        // The pane is an ancestor of the handle we dragged from, so the browser follows this pointer-up with a
+        // click on the pane. Remember when the menu opened so onPaneClick can ignore that click.
+        quickAddOpenedAtRef.current = performance.now();
+        setQuickAdd({
+            sourceId: start.nodeId,
+            sourceHandle: start.handleId,
+            clientX: point.clientX,
+            clientY: point.clientY,
+            top: point.clientY - bounds.top,
+            left: point.clientX - bounds.left,
+        });
+    }, [reactFlowWrapper, rawNodesDict, wrapperBoundsRef, setQuickAdd]);
 
     // Shared removal logic: deletes the given edges from the store and returns
     // the ones actually removed (with source/target captured before deletion).
@@ -429,6 +483,8 @@ export const useEdgeHandlers = ({
         isValidConnection,
         handleWaypointsChange,
         onConnect,
+        createEdgeToNewNode,
+        quickAddOpenedAtRef,
         onEdgeUpdate,
         onEdgeUpdateStart,
         onEdgeUpdateEnd,
