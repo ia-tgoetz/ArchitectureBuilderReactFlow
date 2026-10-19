@@ -23,8 +23,8 @@ const getNodesInside = (containerId: string, allNodes: any): string[] => {
         if (id === containerId) return;
         const node = allNodes[id];
         if (!node) return;
-        const nw = node.paletteId === 'container' ? (node.width || 300) : 150;
-        const nh = node.paletteId === 'container' ? (node.height || 300) : 150;
+        const nw = node.width || (node.paletteId === 'container' ? 300 : 150);
+        const nh = node.height || (node.paletteId === 'container' ? 300 : 150);
         if (nw >= cWidth || nh >= cHeight) return;
         if (node.x >= cx1 && node.y >= cy1 && node.x + nw <= cx2 && node.y + nh <= cy2) inside.push(id);
     });

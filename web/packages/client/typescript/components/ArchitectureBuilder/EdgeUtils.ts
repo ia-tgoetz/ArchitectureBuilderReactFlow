@@ -16,8 +16,8 @@ export const getHandlePixelPos = (
     if (isNaN(idx)) return null;
     const pos = (idx + 0.5) / handleCount;
     const isContainer = node.paletteId === 'container';
-    const nw = isContainer ? (node.width || 300) : 150;
-    const nh = isContainer ? (node.height || 300) : 150;
+    const nw = node.width || (isContainer ? 300 : 150);
+    const nh = node.height || (isContainer ? 300 : 150);
     switch (side) {
         case 'top':    return { x: node.x + pos * nw, y: node.y,           position: 'top' };
         case 'bottom': return { x: node.x + pos * nw, y: node.y + nh,      position: 'bottom' };

@@ -7,6 +7,7 @@ import 'reactflow/dist/style.css';
 import { toPng } from 'html-to-image';
 import { Sidebar, PaletteItem } from './Sidebar';
 import { ArchitectureNode } from './ArchitectureNode';
+import { ViewParentContext } from './NodeView';
 import { ContainerNode } from './ContainerNode';
 import { NoteLabelNode } from './NoteLabelNode';
 import { edgeTypes } from './CustomEdge';
@@ -92,6 +93,7 @@ const mapIgnitionToReactFlowNodes = (
             else if (isTextNode) type = nodeData.paletteId;
 
             const isUnlocked = nodeData.configs?.unlocked === true;
+            const isViewNode = !isContainer && !isTextNode && !!palette?.viewPath;
 
             return {
                 id, type, selected: false,
@@ -112,9 +114,9 @@ const mapIgnitionToReactFlowNodes = (
                     actionIcons: nodeData.actionIcons,
                     isEditable,
                     unlockMovement: isUnlocked,
-                    enableResize: isContainer || isTextNode,
+                    enableResize: isContainer || isTextNode || isViewNode,
                     onGearClick: handleGearClick, onTextChange: handleTextChange,
-                    onResizeEnd: (isContainer || isTextNode) ? handleResizeEnd : undefined,
+                    onResizeEnd: (isContainer || isTextNode || isViewNode) ? handleResizeEnd : undefined,
                     onActionIconClick: handleActionIconClick,
                 },
             };
@@ -122,8 +124,8 @@ const mapIgnitionToReactFlowNodes = (
 };
 
 const isInsideContainer = (item: any, container: any): boolean => {
-    const iw = item.paletteId === 'container' ? (item.width || 300) : 150;
-    const ih = item.paletteId === 'container' ? (item.height || 300) : 150;
+    const iw = item.width || (item.paletteId === 'container' ? 300 : 150);
+    const ih = item.height || (item.paletteId === 'container' ? 300 : 150);
     const cw = container.width || 300, ch = container.height || 300;
     if (iw >= cw || ih >= ch) return false;
     return item.x >= container.x && item.y >= container.y && item.x + iw <= container.x + cw && item.y + ih <= container.y + ch;
@@ -857,6 +859,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
                     {isEnabled && <Sidebar paletteItems={paletteItems} isOpen={isSidebarOpen} toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} onDragStartItem={(item) => { draggedItemRef.current = item; }} onItemClick={handlePaletteItemClick} />}
 
                     <div role="main" aria-label="Architecture Builder Canvas" style={{ flexGrow: 1, height: '100%', position: 'relative', overflow: 'hidden' }} ref={reactFlowWrapper} className={isUpdatingEdge ? 'arch-moving-edge' : ''} {...longPressHandlers} onMouseMove={(e) => { lastPointerRef.current = { x: e.clientX, y: e.clientY }; }}>
+                        <ViewParentContext.Provider value={props.store}>
                         <ReactFlowProvider>
                             <ArchitectureFlowInner selectedNodeIds={selectedNodeIds} />
                             <ReactFlow
@@ -929,6 +932,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
                                 </Controls>
                             </ReactFlow>
                         </ReactFlowProvider>
+                        </ViewParentContext.Provider>
 
                         {canvasSearchOpen && (
                             <CanvasSearch

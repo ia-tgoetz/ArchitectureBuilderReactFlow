@@ -1,4 +1,6 @@
 import React from 'react';
+// @ts-ignore
+import { useViewport } from 'reactflow';
 import { View, ClientStoreProviderContext } from '@inductiveautomation/perspective-client';
 
 // A viewPath is a project-relative Perspective view resource path (e.g. "Exchange/Widgets/PumpCard").
@@ -6,22 +8,36 @@ import { View, ClientStoreProviderContext } from '@inductiveautomation/perspecti
 export const isViewPath = (value: unknown): value is string =>
     typeof value === 'string' && value.trim().length > 0 && !/[<>:\\]/.test(value);
 
+/**
+ * The Architecture Builder's own ComponentStore. Passed to embedded views as `parent` so Perspective can
+ * detect a view that (directly or indirectly) embeds itself.
+ */
+export const ViewParentContext = React.createContext<any>(undefined);
+
+// Below this zoom level a view is not worth its DOM cost and is too small to read, so the node shows its
+// image (or an empty box) instead. The view mounts again as soon as the user zooms back in.
+export const VIEW_MIN_ZOOM = 0.35;
+
 let mountCounter = 0;
 
 /**
  * Renders a live Perspective view inside a node. The view is a child of the page, so it gets its own
  * property tree, bindings and params like any embedded view.
  */
-export const NodeView = React.memo(({ nodeId, viewPath, params }: { nodeId: string; viewPath: string; params?: any }) => {
+export const NodeView = React.memo(({ nodeId, viewPath, params, fallback }: { nodeId: string; viewPath: string; params?: any; fallback?: React.ReactNode }) => {
     const client = React.useContext(ClientStoreProviderContext);
+    const parent = React.useContext(ViewParentContext);
+    const { zoom } = useViewport();
     const mountPath = React.useMemo(() => `ab-node-${nodeId}-${++mountCounter}`, [nodeId]);
     if (!client) return null;
+    if (zoom < VIEW_MIN_ZOOM) return <>{fallback ?? null}</>;
     return (
         <div className="nodrag nopan" style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', pointerEvents: 'none' }}>
             <View
                 store={client as any}
                 resourcePath={viewPath.trim()}
                 mountPath={mountPath}
+                parent={parent}
                 params={params}
             />
         </div>

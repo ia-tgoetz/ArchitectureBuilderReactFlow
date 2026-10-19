@@ -2705,6 +2705,7 @@ __webpack_require__(/*! reactflow/dist/style.css */ "./node_modules/reactflow/di
 const html_to_image_1 = __webpack_require__(/*! html-to-image */ "../../node_modules/html-to-image/es/index.js");
 const Sidebar_1 = __webpack_require__(/*! ./Sidebar */ "./typescript/components/ArchitectureBuilder/Sidebar.tsx");
 const ArchitectureNode_1 = __webpack_require__(/*! ./ArchitectureNode */ "./typescript/components/ArchitectureBuilder/ArchitectureNode.tsx");
+const NodeView_1 = __webpack_require__(/*! ./NodeView */ "./typescript/components/ArchitectureBuilder/NodeView.tsx");
 const ContainerNode_1 = __webpack_require__(/*! ./ContainerNode */ "./typescript/components/ArchitectureBuilder/ContainerNode.tsx");
 const NoteLabelNode_1 = __webpack_require__(/*! ./NoteLabelNode */ "./typescript/components/ArchitectureBuilder/NoteLabelNode.tsx");
 const CustomEdge_1 = __webpack_require__(/*! ./CustomEdge */ "./typescript/components/ArchitectureBuilder/CustomEdge.tsx");
@@ -2770,6 +2771,7 @@ const mapIgnitionToReactFlowNodes = (ignitionNodes, paletteMap, handleGearClick,
         else if (isTextNode)
             type = nodeData.paletteId;
         const isUnlocked = ((_a = nodeData.configs) === null || _a === void 0 ? void 0 : _a.unlocked) === true;
+        const isViewNode = !isContainer && !isTextNode && !!(palette === null || palette === void 0 ? void 0 : palette.viewPath);
         return {
             id, type, selected: false,
             position: { x: nodeData.x || 0, y: nodeData.y || 0 },
@@ -2791,17 +2793,17 @@ const mapIgnitionToReactFlowNodes = (ignitionNodes, paletteMap, handleGearClick,
                 actionIcons: nodeData.actionIcons,
                 isEditable,
                 unlockMovement: isUnlocked,
-                enableResize: isContainer || isTextNode,
+                enableResize: isContainer || isTextNode || isViewNode,
                 onGearClick: handleGearClick, onTextChange: handleTextChange,
-                onResizeEnd: (isContainer || isTextNode) ? handleResizeEnd : undefined,
+                onResizeEnd: (isContainer || isTextNode || isViewNode) ? handleResizeEnd : undefined,
                 onActionIconClick: handleActionIconClick,
             },
         };
     });
 };
 const isInsideContainer = (item, container) => {
-    const iw = item.paletteId === 'container' ? (item.width || 300) : 150;
-    const ih = item.paletteId === 'container' ? (item.height || 300) : 150;
+    const iw = item.width || (item.paletteId === 'container' ? 300 : 150);
+    const ih = item.height || (item.paletteId === 'container' ? 300 : 150);
     const cw = container.width || 300, ch = container.height || 300;
     if (iw >= cw || ih >= ch)
         return false;
@@ -3438,23 +3440,24 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
             React.createElement("div", { className: "arch-theme-wrapper" },
                 isEnabled && React.createElement(Sidebar_1.Sidebar, { paletteItems: paletteItems, isOpen: isSidebarOpen, toggleSidebar: () => setIsSidebarOpen(!isSidebarOpen), onDragStartItem: (item) => { draggedItemRef.current = item; }, onItemClick: handlePaletteItemClick }),
                 React.createElement("div", Object.assign({ role: "main", "aria-label": "Architecture Builder Canvas", style: { flexGrow: 1, height: '100%', position: 'relative', overflow: 'hidden' }, ref: reactFlowWrapper, className: isUpdatingEdge ? 'arch-moving-edge' : '' }, longPressHandlers, { onMouseMove: (e) => { lastPointerRef.current = { x: e.clientX, y: e.clientY }; } }),
-                    React.createElement(reactflow_1.ReactFlowProvider, null,
-                        React.createElement(ArchitectureFlowInner, { selectedNodeIds: selectedNodeIds }),
-                        React.createElement(reactflow_1.default, { nodes: localNodes, edges: displayEdges, nodeTypes: nodeTypes, edgeTypes: CustomEdge_1.edgeTypes, isValidConnection: isValidConnection, onInit: setReactFlowInstance, onDrop: isEnabled ? onDrop : undefined, onDragOver: isEnabled ? onDragOver : undefined, onConnect: isEnabled ? onConnect : undefined, onEdgeUpdate: isEnabled ? onEdgeUpdate : undefined, onEdgeUpdateStart: isEnabled ? onEdgeUpdateStart : undefined, onEdgeUpdateEnd: isEnabled ? onEdgeUpdateEnd : undefined, onConnectStart: isEnabled ? onConnectStart : undefined, onConnectEnd: isEnabled ? onConnectEnd : undefined, onNodeDragStart: isEnabled ? onNodeDragStart : undefined, onNodeDrag: isEnabled ? onNodeDrag : undefined, onNodeDragStop: isEnabled ? onNodeDragStop : undefined, onNodesChange: onNodesChange, onNodeClick: onNodeClick, onEdgeClick: onEdgeClick, onNodesDelete: isEnabled ? onNodesDelete : undefined, onEdgesDelete: isEnabled ? onEdgesDelete : undefined, onNodeContextMenu: isEnabled ? onNodeContextMenu : undefined, onEdgeContextMenu: isEnabled ? onEdgeContextMenu : undefined, onEdgeMouseEnter: (_evt, edge) => setHoveredEdgeId(edge.id), onEdgeMouseLeave: () => setHoveredEdgeId(null), onPaneClick: onPaneClick, onPaneContextMenu: isEnabled ? onPaneContextMenu : undefined, onMoveStart: onMoveStart, nodesDraggable: isEnabled, nodesConnectable: isEnabled, elementsSelectable: isEnabled, connectionMode: reactflow_1.ConnectionMode.Loose, snapToGrid: snapEnabled, snapGrid: snapGrid, connectionLineStyle: { stroke: '#cccccc', strokeWidth: 6, fill: 'none' }, elevateNodesOnSelect: false, minZoom: 0.05, panOnScroll: false, zoomOnScroll: true, panOnDrag: true, selectionOnDrag: false, multiSelectionKeyCode: ['Control', 'Meta', 'Shift'], selectionKeyCode: ['Shift', 'Control', 'Meta'], deleteKeyCode: ['Delete', 'Backspace'], proOptions: { hideAttribution: true } },
-                            showGrid && React.createElement(reactflow_1.Background, { gap: snapPixels }),
-                            React.createElement(reactflow_1.Controls, { showInteractive: false },
-                                isEnabled && (React.createElement(reactflow_1.ControlButton, { onClick: handleUndo, disabled: !canUndo || !canHistoryAct, title: "Undo (Ctrl+Z)", "aria-label": "Undo", style: { opacity: (canUndo && canHistoryAct) ? 1 : 0.35, cursor: (canUndo && canHistoryAct) ? 'pointer' : 'default' } },
-                                    React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: "16", height: "16", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", style: { display: 'block', color: '#555555' } },
-                                        React.createElement("path", { d: "M3 7v6h6" }),
-                                        React.createElement("path", { d: "M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" })))),
-                                isEnabled && (React.createElement(reactflow_1.ControlButton, { onClick: handleRedo, disabled: !canRedo || !canHistoryAct, title: "Redo (Ctrl+Shift+Z)", "aria-label": "Redo", style: { opacity: (canRedo && canHistoryAct) ? 1 : 0.35, cursor: (canRedo && canHistoryAct) ? 'pointer' : 'default' } },
-                                    React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: "16", height: "16", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", style: { display: 'block', color: '#555555' } },
-                                        React.createElement("path", { d: "M21 7v6h-6" }),
-                                        React.createElement("path", { d: "M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13" })))),
-                                React.createElement(reactflow_1.ControlButton, { onClick: handleScreenshot, title: "Download Full Screenshot", "aria-label": "Download Full Screenshot" },
-                                    React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: "16", height: "16", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", style: { display: 'block', color: '#555555' } },
-                                        React.createElement("path", { d: "M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" }),
-                                        React.createElement("circle", { cx: "12", cy: "13", r: "4" })))))),
+                    React.createElement(NodeView_1.ViewParentContext.Provider, { value: props.store },
+                        React.createElement(reactflow_1.ReactFlowProvider, null,
+                            React.createElement(ArchitectureFlowInner, { selectedNodeIds: selectedNodeIds }),
+                            React.createElement(reactflow_1.default, { nodes: localNodes, edges: displayEdges, nodeTypes: nodeTypes, edgeTypes: CustomEdge_1.edgeTypes, isValidConnection: isValidConnection, onInit: setReactFlowInstance, onDrop: isEnabled ? onDrop : undefined, onDragOver: isEnabled ? onDragOver : undefined, onConnect: isEnabled ? onConnect : undefined, onEdgeUpdate: isEnabled ? onEdgeUpdate : undefined, onEdgeUpdateStart: isEnabled ? onEdgeUpdateStart : undefined, onEdgeUpdateEnd: isEnabled ? onEdgeUpdateEnd : undefined, onConnectStart: isEnabled ? onConnectStart : undefined, onConnectEnd: isEnabled ? onConnectEnd : undefined, onNodeDragStart: isEnabled ? onNodeDragStart : undefined, onNodeDrag: isEnabled ? onNodeDrag : undefined, onNodeDragStop: isEnabled ? onNodeDragStop : undefined, onNodesChange: onNodesChange, onNodeClick: onNodeClick, onEdgeClick: onEdgeClick, onNodesDelete: isEnabled ? onNodesDelete : undefined, onEdgesDelete: isEnabled ? onEdgesDelete : undefined, onNodeContextMenu: isEnabled ? onNodeContextMenu : undefined, onEdgeContextMenu: isEnabled ? onEdgeContextMenu : undefined, onEdgeMouseEnter: (_evt, edge) => setHoveredEdgeId(edge.id), onEdgeMouseLeave: () => setHoveredEdgeId(null), onPaneClick: onPaneClick, onPaneContextMenu: isEnabled ? onPaneContextMenu : undefined, onMoveStart: onMoveStart, nodesDraggable: isEnabled, nodesConnectable: isEnabled, elementsSelectable: isEnabled, connectionMode: reactflow_1.ConnectionMode.Loose, snapToGrid: snapEnabled, snapGrid: snapGrid, connectionLineStyle: { stroke: '#cccccc', strokeWidth: 6, fill: 'none' }, elevateNodesOnSelect: false, minZoom: 0.05, panOnScroll: false, zoomOnScroll: true, panOnDrag: true, selectionOnDrag: false, multiSelectionKeyCode: ['Control', 'Meta', 'Shift'], selectionKeyCode: ['Shift', 'Control', 'Meta'], deleteKeyCode: ['Delete', 'Backspace'], proOptions: { hideAttribution: true } },
+                                showGrid && React.createElement(reactflow_1.Background, { gap: snapPixels }),
+                                React.createElement(reactflow_1.Controls, { showInteractive: false },
+                                    isEnabled && (React.createElement(reactflow_1.ControlButton, { onClick: handleUndo, disabled: !canUndo || !canHistoryAct, title: "Undo (Ctrl+Z)", "aria-label": "Undo", style: { opacity: (canUndo && canHistoryAct) ? 1 : 0.35, cursor: (canUndo && canHistoryAct) ? 'pointer' : 'default' } },
+                                        React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: "16", height: "16", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", style: { display: 'block', color: '#555555' } },
+                                            React.createElement("path", { d: "M3 7v6h6" }),
+                                            React.createElement("path", { d: "M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" })))),
+                                    isEnabled && (React.createElement(reactflow_1.ControlButton, { onClick: handleRedo, disabled: !canRedo || !canHistoryAct, title: "Redo (Ctrl+Shift+Z)", "aria-label": "Redo", style: { opacity: (canRedo && canHistoryAct) ? 1 : 0.35, cursor: (canRedo && canHistoryAct) ? 'pointer' : 'default' } },
+                                        React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: "16", height: "16", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", style: { display: 'block', color: '#555555' } },
+                                            React.createElement("path", { d: "M21 7v6h-6" }),
+                                            React.createElement("path", { d: "M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13" })))),
+                                    React.createElement(reactflow_1.ControlButton, { onClick: handleScreenshot, title: "Download Full Screenshot", "aria-label": "Download Full Screenshot" },
+                                        React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: "16", height: "16", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", style: { display: 'block', color: '#555555' } },
+                                            React.createElement("path", { d: "M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" }),
+                                            React.createElement("circle", { cx: "12", cy: "13", r: "4" }))))))),
                     canvasSearchOpen && (React.createElement(CanvasSearch_1.CanvasSearch, { nodes: rawNodesDict, paletteItems: paletteItems, onFlyTo: flyToNode, onClose: () => setCanvasSearchOpen(false) })),
                     styleEditorNodeId && rawNodesDict[styleEditorNodeId] && (React.createElement(StyleEditorModal_1.StyleEditorModal, { node: rawNodesDict[styleEditorNodeId], onSave: (newStyle, newLabelStyle, newTextStyle) => {
                             var _a, _b;
@@ -3558,6 +3561,8 @@ const areArchitectureNodePropsEqual = (prev, next) => {
         return false;
     if (pd.viewPath !== nd.viewPath)
         return false;
+    if (pd.enableResize !== nd.enableResize)
+        return false;
     if (!shallowEqualObjects(pd.viewParams, nd.viewParams))
         return false;
     if (pd.text !== nd.text)
@@ -3652,6 +3657,10 @@ exports.ArchitectureNode = react_1.default.memo(({ id, data, selected }) => {
     const resizerSize = Math.max(10, Math.round(16 / zoom));
     return (react_1.default.createElement("div", { style: combinedStyle, title: data.tooltip, onMouseEnter: () => setHovered(true), onMouseLeave: (e) => { if (e.buttons === 0)
             setHovered(false); } },
+        data.enableResize && (react_1.default.createElement(reactflow_1.NodeResizer, { color: "var(--callToAction)", isVisible: selected, minWidth: 100, minHeight: 100, handleStyle: { width: `${resizerSize}px`, height: `${resizerSize}px`, borderRadius: '4px', pointerEvents: 'auto' }, onResizeEnd: (e, params) => {
+                if (data.onResizeEnd)
+                    data.onResizeEnd(id, params.x, params.y, params.width, params.height);
+            } })),
         positions.map((pos, i) => (react_1.default.createElement(reactflow_1.Handle, { key: `top-${i}`, className: handleClass(`top-${i}`), type: "source", position: reactflow_1.Position.Top, id: `top-${i}`, style: Object.assign(Object.assign({}, handleStyle), { left: pos, top: '0px', transform: 'translate(-50%, -50%)' }) }))),
         positions.map((pos, i) => (react_1.default.createElement(reactflow_1.Handle, { key: `right-${i}`, className: handleClass(`right-${i}`), type: "source", position: reactflow_1.Position.Right, id: `right-${i}`, style: Object.assign(Object.assign({}, handleStyle), { top: pos, left: '100%', transform: 'translate(-50%, -50%)' }) }))),
         positions.map((pos, i) => (react_1.default.createElement(reactflow_1.Handle, { key: `bottom-${i}`, className: handleClass(`bottom-${i}`), type: "source", position: reactflow_1.Position.Bottom, id: `bottom-${i}`, style: Object.assign(Object.assign({}, handleStyle), { left: pos, top: '100%', transform: 'translate(-50%, -50%)' }) }))),
@@ -3670,7 +3679,7 @@ exports.ArchitectureNode = react_1.default.memo(({ id, data, selected }) => {
                 width: '100%', minHeight: 0, zIndex: 1, backgroundColor: imageBg || undefined,
                 filter: data.inactive ? 'grayscale(100%) blur(2px)' : undefined
             } }, NodeView_1.isViewPath(data.viewPath)
-            ? react_1.default.createElement(NodeView_1.NodeView, { nodeId: id, viewPath: data.viewPath, params: data.viewParams })
+            ? react_1.default.createElement(NodeView_1.NodeView, { nodeId: id, viewPath: data.viewPath, params: data.viewParams, fallback: react_1.default.createElement(NodeImage, { src: data.image }) })
             : react_1.default.createElement(NodeImage, { src: data.image }))),
         !data.image && NodeView_1.isViewPath(data.viewPath) && (react_1.default.createElement("div", { style: { flex: 1, width: '100%', minHeight: 0, zIndex: 1, filter: data.inactive ? 'grayscale(100%) blur(2px)' : undefined } },
             react_1.default.createElement(NodeView_1.NodeView, { nodeId: id, viewPath: data.viewPath, params: data.viewParams }))),
@@ -4699,8 +4708,8 @@ const getHandlePixelPos = (nodeId, handleId, nodes, handleCount) => {
         return null;
     const pos = (idx + 0.5) / handleCount;
     const isContainer = node.paletteId === 'container';
-    const nw = isContainer ? (node.width || 300) : 150;
-    const nh = isContainer ? (node.height || 300) : 150;
+    const nw = node.width || (isContainer ? 300 : 150);
+    const nh = node.height || (isContainer ? 300 : 150);
     switch (side) {
         case 'top': return { x: node.x + pos * nw, y: node.y, position: 'top' };
         case 'bottom': return { x: node.x + pos * nw, y: node.y + nh, position: 'bottom' };
@@ -4842,25 +4851,39 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.NodeView = exports.isViewPath = void 0;
+exports.NodeView = exports.VIEW_MIN_ZOOM = exports.ViewParentContext = exports.isViewPath = void 0;
 const react_1 = __importDefault(__webpack_require__(/*! react */ "react"));
+// @ts-ignore
+const reactflow_1 = __webpack_require__(/*! reactflow */ "./node_modules/reactflow/dist/umd/index.js");
 const perspective_client_1 = __webpack_require__(/*! @inductiveautomation/perspective-client */ "@inductiveautomation/perspective-client");
 // A viewPath is a project-relative Perspective view resource path (e.g. "Exchange/Widgets/PumpCard").
 // It is never rendered as markup; reject anything that looks like a URL scheme or HTML.
 const isViewPath = (value) => typeof value === 'string' && value.trim().length > 0 && !/[<>:\\]/.test(value);
 exports.isViewPath = isViewPath;
+/**
+ * The Architecture Builder's own ComponentStore. Passed to embedded views as `parent` so Perspective can
+ * detect a view that (directly or indirectly) embeds itself.
+ */
+exports.ViewParentContext = react_1.default.createContext(undefined);
+// Below this zoom level a view is not worth its DOM cost and is too small to read, so the node shows its
+// image (or an empty box) instead. The view mounts again as soon as the user zooms back in.
+exports.VIEW_MIN_ZOOM = 0.35;
 let mountCounter = 0;
 /**
  * Renders a live Perspective view inside a node. The view is a child of the page, so it gets its own
  * property tree, bindings and params like any embedded view.
  */
-exports.NodeView = react_1.default.memo(({ nodeId, viewPath, params }) => {
+exports.NodeView = react_1.default.memo(({ nodeId, viewPath, params, fallback }) => {
     const client = react_1.default.useContext(perspective_client_1.ClientStoreProviderContext);
+    const parent = react_1.default.useContext(exports.ViewParentContext);
+    const { zoom } = reactflow_1.useViewport();
     const mountPath = react_1.default.useMemo(() => `ab-node-${nodeId}-${++mountCounter}`, [nodeId]);
     if (!client)
         return null;
+    if (zoom < exports.VIEW_MIN_ZOOM)
+        return react_1.default.createElement(react_1.default.Fragment, null, fallback !== null && fallback !== void 0 ? fallback : null);
     return (react_1.default.createElement("div", { className: "nodrag nopan", style: { position: 'relative', width: '100%', height: '100%', overflow: 'hidden', pointerEvents: 'none' } },
-        react_1.default.createElement(perspective_client_1.View, { store: client, resourcePath: viewPath.trim(), mountPath: mountPath, params: params })));
+        react_1.default.createElement(perspective_client_1.View, { store: client, resourcePath: viewPath.trim(), mountPath: mountPath, parent: parent, params: params })));
 });
 
 
@@ -5555,8 +5578,8 @@ const getNodesInside = (containerId, allNodes) => {
         const node = allNodes[id];
         if (!node)
             return;
-        const nw = node.paletteId === 'container' ? (node.width || 300) : 150;
-        const nh = node.paletteId === 'container' ? (node.height || 300) : 150;
+        const nw = node.width || (node.paletteId === 'container' ? 300 : 150);
+        const nh = node.height || (node.paletteId === 'container' ? 300 : 150);
         if (nw >= cWidth || nh >= cHeight)
             return;
         if (node.x >= cx1 && node.y >= cy1 && node.x + nw <= cx2 && node.y + nh <= cy2)

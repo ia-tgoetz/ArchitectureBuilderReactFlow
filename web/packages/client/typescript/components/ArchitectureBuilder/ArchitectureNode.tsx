@@ -17,6 +17,7 @@ export interface ArchitectureNodeData {
     image: string;
     viewPath?: string;
     viewParams?: any;
+    enableResize?: boolean;
     text?: string;
     tooltip?: string;
     configs?: any;
@@ -73,6 +74,7 @@ const areArchitectureNodePropsEqual = (
     if (pd.label !== nd.label) return false;
     if (pd.image !== nd.image) return false;
     if (pd.viewPath !== nd.viewPath) return false;
+    if (pd.enableResize !== nd.enableResize) return false;
     if (!shallowEqualObjects(pd.viewParams, nd.viewParams)) return false;
     if (pd.text !== nd.text) return false;
     if (pd.tooltip !== nd.tooltip) return false;
@@ -181,6 +183,18 @@ export const ArchitectureNode = React.memo(({ id, data, selected }: NodeProps<Ar
 
     return (
         <div style={combinedStyle} title={data.tooltip} onMouseEnter={() => setHovered(true)} onMouseLeave={(e) => { if (e.buttons === 0) setHovered(false); }}>
+            {data.enableResize && (
+                <NodeResizer
+                    color="var(--callToAction)"
+                    isVisible={selected}
+                    minWidth={100}
+                    minHeight={100}
+                    handleStyle={{ width: `${resizerSize}px`, height: `${resizerSize}px`, borderRadius: '4px', pointerEvents: 'auto' }}
+                    onResizeEnd={(e: any, params: any) => {
+                        if (data.onResizeEnd) data.onResizeEnd(id, params.x, params.y, params.width, params.height);
+                    }}
+                />
+            )}
 
             {positions.map((pos, i) => (
                 <Handle key={`top-${i}`} className={handleClass(`top-${i}`)} type="source" position={Position.Top} id={`top-${i}`} style={{ ...handleStyle, left: pos, top: '0px', transform: 'translate(-50%, -50%)' }} />
@@ -234,7 +248,7 @@ export const ArchitectureNode = React.memo(({ id, data, selected }: NodeProps<Ar
                     }}
                 >
                     {isViewPath(data.viewPath)
-                        ? <NodeView nodeId={id} viewPath={data.viewPath} params={data.viewParams} />
+                        ? <NodeView nodeId={id} viewPath={data.viewPath} params={data.viewParams} fallback={<NodeImage src={data.image} />} />
                         : <NodeImage src={data.image} />}
                 </div>
             )}
