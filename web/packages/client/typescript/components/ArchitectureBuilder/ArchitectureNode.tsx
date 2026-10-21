@@ -1,9 +1,10 @@
 import React from 'react';
 // @ts-ignore
-import { Handle, Position, NodeProps, useViewport, NodeResizer, useStore } from 'reactflow';
+import { Handle, Position, NodeProps, NodeResizer, useStore } from 'reactflow';
 import { IconRenderer } from '@inductiveautomation/perspective-client';
 import { extractSvgMarkup, toSafeDataUri, nextSvgScopeId } from './svgSanitize';
 import { NodeView, isViewPath } from './NodeView';
+import { useHandleHitSize, useResizerSize } from './zoomSelectors';
 
 export interface ActionIconData {
     icon: string;
@@ -114,7 +115,8 @@ const NodeImage = React.memo(({ src }: { src: string }) => {
 });
 
 export const ArchitectureNode = React.memo(({ id, data, selected }: NodeProps<ArchitectureNodeData>) => {
-    const { zoom } = useViewport();
+    const hitSize = useHandleHitSize();
+    const resizerSize = useResizerSize();
     const [hovered, setHovered] = React.useState(false);
     const showHandles = !data.globalHideHandles && !data.hideHandles && data.isEditable !== false;
     const hasHighlightedHandles = !!(data.highlightedHandles && data.highlightedHandles.size > 0);
@@ -148,9 +150,7 @@ export const ArchitectureNode = React.memo(({ id, data, selected }: NodeProps<Ar
         boxShadow: selected ? '0 0 0 2px rgba(0, 123, 255, 0.25)' : (restStyle.boxShadow || '0 2px 4px rgba(0,0,0,0.1)')
     };
 
-    // Enhanced hit area: generous size that remains consistent in screen pixels for usability.
-    // Targeting ~24px at 1.0 zoom, scaling up to ~22px as we zoom out.
-    const hitSize = Math.min(22, Math.max(16, Math.round(24 / zoom)));
+    // hitSize (from useHandleHitSize): generous hit area that stays consistent in screen pixels for usability.
 
     // Handles are always mounted so React Flow's store always has registered positions.
     // This prevents the intermittent missing connection line (handle mounts just as a
@@ -177,9 +177,6 @@ export const ArchitectureNode = React.memo(({ id, data, selected }: NodeProps<Ar
         if (!showHandles) return 'arch-node-handle arch-node-handle--suppressed';
         return data.highlightedHandles?.has(id) ? 'arch-node-handle arch-node-handle--connected' : 'arch-node-handle';
     };
-
-    // Calculate dynamic resizer handle size based on zoom
-    const resizerSize = Math.max(10, Math.round(16 / zoom));
 
     return (
         <div style={combinedStyle} title={data.tooltip} onMouseEnter={() => setHovered(true)} onMouseLeave={(e) => { if (e.buttons === 0) setHovered(false); }}>

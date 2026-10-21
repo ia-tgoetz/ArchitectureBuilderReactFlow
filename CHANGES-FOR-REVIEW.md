@@ -208,6 +208,27 @@ added in item 5 changing memo behavior. A profile of one pan or drag at 300+ nod
 (for example 91 s at 500 nodes) and look inflated, so they are not used for conclusions. Single run per milestone. These tests use ordinary
 palette nodes; they do not exercise live-view nodes, which cost more per node (see item 5).
 
+### Follow-up: stop nodes subscribing to the viewport (2026-10-21)
+
+**Change:** `ArchitectureNode`, `ContainerNode`, `NoteLabelNode` and `NodeView` called `useViewport()`, which re-renders every node on every pan
+and zoom frame (this was already in the baseline). New `zoomSelectors.ts` provides `useHandleHitSize`, `useResizerSize` and `useZoomAtLeast`,
+which select only the derived number or boolean from the store, so a node re-renders only when its value changes. The formulas are unchanged.
+Checked by hand: handle `--hit-size` is 22px at zoom 0.07 and 16px at zoom 2, as before.
+
+**Result with the fix (500 nodes):** pan frame p95 97 ms (was 177 ms on `237e66f`, 128 ms on baseline), pan p50 30 ms (was 32 and 23). At 200 nodes
+pan p95 48 ms and worst event delay 128 ms (was 78 and 200 ms). At 100 nodes pan p95 28 ms (was 41 ms). Zoom frames, node-drag frames and the
+300/500-node worst event delay did not improve (500 nodes: 456 ms event delay, zoom p95 319 ms), so something else dominates those.
+
+**Profile at 500 nodes (CDP CPU profile and trace):** JavaScript is a small share. In the drag profile about 1,157 of 2,500 ms was native
+"(program)" time and JS self time was a few ms. In the zoom profile 2,991 of 5,755 ms was native. The trace shows where:
+- **Zoom:** one style recalculation covered 38,003 elements and one layout pass dirtied 29,469 objects (about 1 s style, 0.3 s layout, 0.8 s hit testing).
+  Zoom changes the per-handle `--hit-size` at thresholds, which restyles every handle.
+- **Pan:** hit testing cost about 2.4 s over 110 hit tests (about 22 ms each), plus style recalculation touching up to 42,523 elements.
+- **Drag:** cheap in the trace (about 0.4 s of tasks).
+The page has about 14,000 DOM elements at 500 nodes (28 per node), so the browser, not React, is the limit. The baseline-vs-current regression was
+not traced, and with JS this small it may partly be run-to-run or environmental difference (builds were not interleaved). Not yet tried: `contain`
+on nodes, fewer handle elements, `onlyRenderVisibleElements`, and `pointer-events: none` on handles that are not interactive.
+
 **Housekeeping:** `build/*.modl` and `build/buildResult.json` are tracked in git, so they show as modified after every build and block
 `git checkout` unless forced. The `build/` copy currently matches the `237e66f` build.
 

@@ -1,7 +1,6 @@
 import React from 'react';
-// @ts-ignore
-import { useViewport } from 'reactflow';
 import { View, ClientStoreProviderContext } from '@inductiveautomation/perspective-client';
+import { useZoomAtLeast } from './zoomSelectors';
 
 // A viewPath is a project-relative Perspective view resource path (e.g. "Exchange/Widgets/PumpCard").
 // It is never rendered as markup; reject anything that looks like a URL scheme or HTML.
@@ -27,10 +26,10 @@ let mountCounter = 0;
 export const NodeView = React.memo(({ nodeId, viewPath, params, fallback }: { nodeId: string; viewPath: string; params?: any; fallback?: React.ReactNode }) => {
     const client = React.useContext(ClientStoreProviderContext);
     const parent = React.useContext(ViewParentContext);
-    const { zoom } = useViewport();
+    const zoomedIn = useZoomAtLeast(VIEW_MIN_ZOOM);
     const mountPath = React.useMemo(() => `ab-node-${nodeId}-${++mountCounter}`, [nodeId]);
     // No client store (for example in a host that does not provide one): show the image instead of nothing.
-    if (!client || zoom < VIEW_MIN_ZOOM) return <>{fallback ?? null}</>;
+    if (!client || !zoomedIn) return <>{fallback ?? null}</>;
     return (
         <div className="nodrag nopan" style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', pointerEvents: 'none' }}>
             <View
