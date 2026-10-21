@@ -1,12 +1,14 @@
 # Architecture Builder module: changes for review
 
-Covers the work done in Claude Code sessions on 2026-10-15 through 2026-10-19.
-The folder is not a git repository, so there is no diff to point at. This document is written from the edits made.
+Covers the work done in Claude Code sessions on 2026-10-15 through 2026-10-21.
+Items 1 to 4 predate the git repo. From item 5 on the work is committed, so `git diff 7d4bcc5` shows everything after item 4
+(`7d4bcc5` = baseline with items 1 to 4; `154ea07`, `ce341c1`, `32fc67f` = item 5; `237e66f` = item 6).
 Paths are relative to `web/packages/client/typescript/components/ArchitectureBuilder/` unless noted.
 
-Status: all four items below were built with `gradlew clean build` (JDK 17). Items 2, 3 and 4 were verified in a browser against
+Status: all six items were built with `gradlew clean build` (JDK 17). Items 2 to 6 were verified in a browser against
 the test gateway (port 8089); you have confirmed item 2 on your gateway. Item 1 was confirmed by you on 2026-10-15; the later rework of
-its dialog is in item 3. Item 4 has not been tried on your gateway yet.
+its dialog is in item 3. Items 4, 5 and 6 have not been tried on your gateway yet. Item 7 (load test) found the current build is
+roughly 30 to 50% slower than the baseline on pan, zoom and drag with 100+ plain nodes; the cause is not yet identified.
 
 ---
 
@@ -161,6 +163,53 @@ Work is in git: `7d4bcc5` is the baseline before this item; roll back with `git 
 
 **Tested** on the test gateway (port 8089): menu opens at the drop point with compatible items; filter narrows the list; picking an item adds the node and edge; one `Ctrl+Z` removes both, `Ctrl+Y` restores both; Escape and an outside click close it without adding anything; dropping on another node and moving an existing edge's end to empty canvas open no menu; the menu stays inside the canvas near the bottom-right corner.
 **Not tested:** touch devices, an unlocked container as the drop area, view nodes as the source, the real gateway.
+
+---
+
+## 7. Load test: did items 4 to 6 degrade performance? (2026-10-21)
+
+**Method:** an A/B on the test gateway (port 8089), same machine and same session, so results do not depend on last week's numbers.
+Both builds were produced from git: baseline = `7d4bcc5` (before viewPath, quick-add, nodeFactory), current = `237e66f`.
+For each node count (0/100/200/300/500, plain palette nodes inserted with the test view's "Add 100 Nodes" button) a Playwright script
+pans, zooms and drags a node, and records: worst event delay (Event Timing, an INP-like figure), `requestAnimationFrame` frame time
+(p50/p95/max) during each gesture, long tasks, DOM element count and `usedJSHeapSize`. The script is `.playwright-mcp/measure.js`.
+This is a lighter substitute for `/performance-scaling-monitor` (no heap snapshots, no traces), so it is not comparable to StressTest_16.
+
+**Baseline (`7d4bcc5`) results:**
+
+| Nodes | Worst event delay | Pan frame p95 | Zoom frame p95 | Node-drag worst frame | DOM elements | JS heap |
+|---|---|---|---|---|---|---|
+| 0 | 16 ms | 16.6 ms | 9 ms | n/a | 296 | 32 MB |
+| 100 | 64 ms | 26.6 ms | 35 ms | 59 ms | 3,107 | 48 MB |
+| 200 | 152 ms | 52.6 ms | 77 ms | 143 ms | 5,871 | 64 MB |
+| 300 | 200 ms | 70 ms | 116 ms | 185 ms | 8,656 | 218 MB |
+| 500 | 280 ms | 128 ms | 204 ms | 274 ms | 14,231 | 193 MB |
+
+**Current build (`237e66f`) results** (change vs baseline in parentheses):
+
+| Nodes | Worst event delay | Pan frame p95 | Zoom frame p95 | Node-drag worst frame | DOM elements | JS heap |
+|---|---|---|---|---|---|---|
+| 0 | 16 ms (same) | 16.8 ms (same) | 16.4 ms (+7) | n/a | 296 (same) | 35 MB |
+| 100 | 112 ms (+75%) | 41 ms (+54%) | 62 ms (+76%) | 100 ms (+69%) | 3,123 (+16) | 49 MB |
+| 200 | 200 ms (+32%) | 78 ms (+48%) | 111 ms (+44%) | 184 ms (+29%) | 5,903 (+32) | 127 MB |
+| 300 | 192 ms (-4%) | 107 ms (+53%) | 165 ms (+42%) | 185 ms (same) | 8,696 (+40) | 155 MB |
+| 500 | 416 ms (+49%) | 177 ms (+38%) | 266 ms (+30%) | 400 ms (+46%) | 14,303 (+72) | 193 MB |
+| 500 (repeat) | 432 ms | 173 ms | 301 ms | 422 ms | 14,303 | 112 MB |
+
+**Reading the results:** with plain nodes, the current build is slower than the baseline at every count from 100 up, typically by 30 to 50%
+on pan, zoom, and drag frame times (the 300-node event delay and drag are the exceptions). The 500-node repeat matched the first run, so
+the slowdown is repeatable. Only the current build was repeated; the baseline was a single run, so its own run-to-run spread is unknown.
+Memory and DOM size are essentially unchanged (DOM grows by about 0.14 elements per node), so the cost is in render/update work, not
+in what is on the page. The cause has not been identified. Untested suspects: the multi-select state added in item 4 (`selectedNodeIds`,
+selection diffing in `ArchitectureFlowInner`, `onNodesChange` mirroring), the new `ViewParentContext` provider, and the per-node data fields
+added in item 5 changing memo behavior. A profile of one pan or drag at 300+ nodes would pin it down.
+
+**Caveats:** heap was read without forcing GC, so it is noisy (218 MB at 300 nodes vs 193 MB at 500). Long-task totals were very large
+(for example 91 s at 500 nodes) and look inflated, so they are not used for conclusions. Single run per milestone. These tests use ordinary
+palette nodes; they do not exercise live-view nodes, which cost more per node (see item 5).
+
+**Housekeeping:** `build/*.modl` and `build/buildResult.json` are tracked in git, so they show as modified after every build and block
+`git checkout` unless forced. The `build/` copy currently matches the `237e66f` build.
 
 ---
 
