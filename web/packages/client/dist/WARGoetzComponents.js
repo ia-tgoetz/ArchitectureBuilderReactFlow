@@ -3526,6 +3526,7 @@ const reactflow_1 = __webpack_require__(/*! reactflow */ "./node_modules/reactfl
 const perspective_client_1 = __webpack_require__(/*! @inductiveautomation/perspective-client */ "@inductiveautomation/perspective-client");
 const svgSanitize_1 = __webpack_require__(/*! ./svgSanitize */ "./typescript/components/ArchitectureBuilder/svgSanitize.ts");
 const NodeView_1 = __webpack_require__(/*! ./NodeView */ "./typescript/components/ArchitectureBuilder/NodeView.tsx");
+const zoomSelectors_1 = __webpack_require__(/*! ./zoomSelectors */ "./typescript/components/ArchitectureBuilder/zoomSelectors.ts");
 const TEXT_PALETTE_IDS = new Set(['Note', 'Label']);
 // ─── Memoization helpers ──────────────────────────────────────────────────────
 const shallowEqualObjects = (a, b) => {
@@ -3627,7 +3628,8 @@ const NodeImage = react_1.default.memo(({ src }) => {
 });
 exports.ArchitectureNode = react_1.default.memo(({ id, data, selected }) => {
     var _a, _b, _c, _d;
-    const { zoom } = reactflow_1.useViewport();
+    const hitSize = zoomSelectors_1.useHandleHitSize();
+    const resizerSize = zoomSelectors_1.useResizerSize();
     const [hovered, setHovered] = react_1.default.useState(false);
     const showHandles = !data.globalHideHandles && !data.hideHandles && data.isEditable !== false;
     const hasHighlightedHandles = !!(data.highlightedHandles && data.highlightedHandles.size > 0);
@@ -3640,9 +3642,7 @@ exports.ArchitectureNode = react_1.default.memo(({ id, data, selected }) => {
     const finalGearColor = ((_c = data.labelStyle) === null || _c === void 0 ? void 0 : _c.fill) || finalLabelColor;
     const _e = data.style || {}, { backgroundColor: imageBg } = _e, restStyle = __rest(_e, ["backgroundColor"]);
     const combinedStyle = Object.assign(Object.assign({ padding: '0px', borderRadius: '8px', backgroundColor: 'var(--neutral-10)', border: '1px solid var(--neutral-50)', color: 'var(--neutral-90)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', boxSizing: 'border-box', position: 'relative' }, restStyle), { boxShadow: selected ? '0 0 0 2px rgba(0, 123, 255, 0.25)' : (restStyle.boxShadow || '0 2px 4px rgba(0,0,0,0.1)') });
-    // Enhanced hit area: generous size that remains consistent in screen pixels for usability.
-    // Targeting ~24px at 1.0 zoom, scaling up to ~22px as we zoom out.
-    const hitSize = Math.min(22, Math.max(16, Math.round(24 / zoom)));
+    // hitSize (from useHandleHitSize): generous hit area that stays consistent in screen pixels for usability.
     // Handles are always mounted so React Flow's store always has registered positions.
     // This prevents the intermittent missing connection line (handle mounts just as a
     // drag starts, before its useEffect registration fires) and keeps edges anchored
@@ -3666,8 +3666,6 @@ exports.ArchitectureNode = react_1.default.memo(({ id, data, selected }) => {
             return 'arch-node-handle arch-node-handle--suppressed';
         return ((_a = data.highlightedHandles) === null || _a === void 0 ? void 0 : _a.has(id)) ? 'arch-node-handle arch-node-handle--connected' : 'arch-node-handle';
     };
-    // Calculate dynamic resizer handle size based on zoom
-    const resizerSize = Math.max(10, Math.round(16 / zoom));
     return (react_1.default.createElement("div", { style: combinedStyle, title: data.tooltip, onMouseEnter: () => setHovered(true), onMouseLeave: (e) => { if (e.buttons === 0)
             setHovered(false); } },
         data.enableResize && (react_1.default.createElement(reactflow_1.NodeResizer, { color: "var(--callToAction)", isVisible: selected, minWidth: 100, minHeight: 100, handleStyle: { width: `${resizerSize}px`, height: `${resizerSize}px`, borderRadius: '4px', pointerEvents: 'auto' }, onResizeEnd: (e, params) => {
@@ -3954,6 +3952,7 @@ exports.ContainerNode = void 0;
 const react_1 = __importDefault(__webpack_require__(/*! react */ "react"));
 // @ts-ignore
 const reactflow_1 = __webpack_require__(/*! reactflow */ "./node_modules/reactflow/dist/umd/index.js");
+const zoomSelectors_1 = __webpack_require__(/*! ./zoomSelectors */ "./typescript/components/ArchitectureBuilder/zoomSelectors.ts");
 const shallowEqualObjects = (a, b) => {
     if (a === b)
         return true;
@@ -3992,7 +3991,7 @@ const areContainerNodePropsEqual = (prev, next) => {
 };
 exports.ContainerNode = react_1.default.memo(({ id, data, selected }) => {
     var _a, _b, _c;
-    const { zoom } = reactflow_1.useViewport();
+    const resizerSize = zoomSelectors_1.useResizerSize();
     const finalLabelBg = ((_a = data.labelStyle) === null || _a === void 0 ? void 0 : _a.backgroundColor) || 'var(--neutral-30)';
     const finalLabelColor = ((_b = data.labelStyle) === null || _b === void 0 ? void 0 : _b.color) || 'var(--neutral-90)';
     const finalGearColor = ((_c = data.labelStyle) === null || _c === void 0 ? void 0 : _c.fill) || finalLabelColor;
@@ -4009,8 +4008,6 @@ exports.ContainerNode = react_1.default.memo(({ id, data, selected }) => {
     const combinedStyle = Object.assign(Object.assign({ width: '100%', height: '100%', backgroundColor: s.backgroundColor || s.fill || 'rgba(128, 128, 128, 0.2)', borderRadius: '8px', position: 'relative', boxSizing: 'border-box' }, restStyle), { border: `${borderWidth} ${borderStyle} ${borderColor}`, 
         // Selection is signalled via the outline only — never toggle the border shorthand.
         outline: (selected && !data.enableResize) ? '2px solid var(--callToAction)' : 'none', outlineOffset: '2px' });
-    // Calculate dynamic resizer handle size based on zoom.
-    const resizerSize = Math.max(10, Math.round(16 / zoom));
     return (react_1.default.createElement(react_1.default.Fragment, null,
         react_1.default.createElement(reactflow_1.NodeResizer, { color: "var(--callToAction)", isVisible: selected && data.enableResize === true, minWidth: 150, minHeight: 150, 
             // Resize handles MUST remain interactive even if the shell is 'none'
@@ -4867,9 +4864,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.NodeView = exports.VIEW_MIN_ZOOM = exports.ViewParentContext = exports.isViewPath = void 0;
 const react_1 = __importDefault(__webpack_require__(/*! react */ "react"));
-// @ts-ignore
-const reactflow_1 = __webpack_require__(/*! reactflow */ "./node_modules/reactflow/dist/umd/index.js");
 const perspective_client_1 = __webpack_require__(/*! @inductiveautomation/perspective-client */ "@inductiveautomation/perspective-client");
+const zoomSelectors_1 = __webpack_require__(/*! ./zoomSelectors */ "./typescript/components/ArchitectureBuilder/zoomSelectors.ts");
 // A viewPath is a project-relative Perspective view resource path (e.g. "Exchange/Widgets/PumpCard").
 // It is never rendered as markup; reject anything that looks like a URL scheme or HTML.
 const isViewPath = (value) => typeof value === 'string' && value.trim().length > 0 && !/[<>:\\]/.test(value);
@@ -4890,10 +4886,10 @@ let mountCounter = 0;
 exports.NodeView = react_1.default.memo(({ nodeId, viewPath, params, fallback }) => {
     const client = react_1.default.useContext(perspective_client_1.ClientStoreProviderContext);
     const parent = react_1.default.useContext(exports.ViewParentContext);
-    const { zoom } = reactflow_1.useViewport();
+    const zoomedIn = zoomSelectors_1.useZoomAtLeast(exports.VIEW_MIN_ZOOM);
     const mountPath = react_1.default.useMemo(() => `ab-node-${nodeId}-${++mountCounter}`, [nodeId]);
     // No client store (for example in a host that does not provide one): show the image instead of nothing.
-    if (!client || zoom < exports.VIEW_MIN_ZOOM)
+    if (!client || !zoomedIn)
         return react_1.default.createElement(react_1.default.Fragment, null, fallback !== null && fallback !== void 0 ? fallback : null);
     return (react_1.default.createElement("div", { className: "nodrag nopan", style: { position: 'relative', width: '100%', height: '100%', overflow: 'hidden', pointerEvents: 'none' } },
         react_1.default.createElement(perspective_client_1.View, { store: client, resourcePath: viewPath.trim(), mountPath: mountPath, parent: parent, params: params })));
@@ -4918,9 +4914,10 @@ exports.NoteLabelNode = void 0;
 const react_1 = __importDefault(__webpack_require__(/*! react */ "react"));
 // @ts-ignore
 const reactflow_1 = __webpack_require__(/*! reactflow */ "./node_modules/reactflow/dist/umd/index.js");
+const zoomSelectors_1 = __webpack_require__(/*! ./zoomSelectors */ "./typescript/components/ArchitectureBuilder/zoomSelectors.ts");
 exports.NoteLabelNode = react_1.default.memo(({ id, data, selected }) => {
     var _a, _b, _c, _d, _e;
-    const { zoom } = reactflow_1.useViewport();
+    const resizerSize = zoomSelectors_1.useResizerSize();
     const [isEditing, setIsEditing] = react_1.default.useState(false);
     const [text, setText] = react_1.default.useState(data.text || data.label || '');
     const [isOverflowing, setIsOverflowing] = react_1.default.useState(false);
@@ -4972,8 +4969,6 @@ exports.NoteLabelNode = react_1.default.memo(({ id, data, selected }) => {
     const isNote = data.paletteId === 'Note';
     const nodeStyle = Object.assign({ padding: '10px', border: selected ? '2px solid var(--callToAction)' : (((_a = data.style) === null || _a === void 0 ? void 0 : _a.border) || '1px solid var(--neutral-40)'), borderRadius: ((_b = data.style) === null || _b === void 0 ? void 0 : _b.borderRadius) || '4px', backgroundColor: ((_c = data.style) === null || _c === void 0 ? void 0 : _c.backgroundColor) || 'var(--neutral-00)', minWidth: '60px', minHeight: '30px', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: isEditing ? 'text' : 'grab', pointerEvents: 'auto', overflow: 'hidden', boxSizing: 'border-box', position: 'relative' }, data.style);
     const textStyle = Object.assign({ color: ((_d = data.textStyle) === null || _d === void 0 ? void 0 : _d.color) || 'var(--neutral-90)', fontSize: ((_e = data.textStyle) === null || _e === void 0 ? void 0 : _e.fontSize) || '14px', textAlign: 'center', width: '100%', wordBreak: 'break-word', whiteSpace: 'pre-wrap', userSelect: isEditing ? 'text' : 'none' }, data.textStyle);
-    // Calculate dynamic resizer handle size based on zoom (matching ContainerNode logic)
-    const resizerSize = Math.max(10, Math.round(16 / zoom));
     return (react_1.default.createElement("div", { onDoubleClick: handleDoubleClick, style: nodeStyle, className: isEditing ? 'nodrag' : '' },
         react_1.default.createElement(reactflow_1.Handle, { type: "source", position: reactflow_1.Position.Top, style: { display: 'none', pointerEvents: 'none' } }),
         react_1.default.createElement(reactflow_1.Handle, { type: "target", position: reactflow_1.Position.Top, style: { display: 'none', pointerEvents: 'none' } }),
@@ -7225,7 +7220,11 @@ const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, c
             const nextEdges = Object.assign({}, rawEdgesDict);
             const edge = nextEdges[edgeId];
             if (edge) {
-                nextEdges[edgeId] = Object.assign(Object.assign({}, edge), { labelText, showLabel: true });
+                var isLabelVisible = true;
+                if (labelText === "") {
+                    isLabelVisible = false;
+                }
+                nextEdges[edgeId] = Object.assign(Object.assign({}, edge), { labelText, showLabel: isLabelVisible });
                 store.props.write('edges', nextEdges);
                 if (enableOnClickEvents && (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)) {
                     componentEvents.fireComponentEvent('onEdgePropertyChanged', {
@@ -7388,6 +7387,34 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.generateShortId = void 0;
 const generateShortId = () => 'I' + Math.random().toString(16).substring(2, 10);
 exports.generateShortId = generateShortId;
+
+
+/***/ }),
+
+/***/ "./typescript/components/ArchitectureBuilder/zoomSelectors.ts":
+/*!********************************************************************!*\
+  !*** ./typescript/components/ArchitectureBuilder/zoomSelectors.ts ***!
+  \********************************************************************/
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.useZoomAtLeast = exports.useResizerSize = exports.useHandleHitSize = void 0;
+// @ts-ignore
+const reactflow_1 = __webpack_require__(/*! reactflow */ "./node_modules/reactflow/dist/umd/index.js");
+// Nodes only need values derived from the zoom level, not the raw viewport. `useViewport()` subscribes a
+// component to x, y and zoom, so every node re-rendered on every pan and zoom frame. These selectors return
+// a number or boolean, so a node re-renders only when its derived value actually changes.
+/** Connection handle hit area in screen px: about 24px at zoom 1, between 16 and 22. */
+const useHandleHitSize = () => reactflow_1.useStore((s) => Math.min(22, Math.max(16, Math.round(24 / s.transform[2]))));
+exports.useHandleHitSize = useHandleHitSize;
+/** Resizer handle size in screen px: 16px at zoom 1, never below 10. */
+const useResizerSize = () => reactflow_1.useStore((s) => Math.max(10, Math.round(16 / s.transform[2])));
+exports.useResizerSize = useResizerSize;
+/** True once the canvas is zoomed in to at least `minZoom`. */
+const useZoomAtLeast = (minZoom) => reactflow_1.useStore((s) => s.transform[2] >= minZoom);
+exports.useZoomAtLeast = useZoomAtLeast;
 
 
 /***/ }),

@@ -402,7 +402,13 @@ export const useEdgeHandlers = ({
             const nextEdges = { ...rawEdgesDict };
             const edge = nextEdges[edgeId];
             if (edge) {
-                nextEdges[edgeId] = { ...edge, labelText, showLabel: true };
+
+                var isLabelVisible = true;
+                if (labelText === "") {
+                    isLabelVisible = false;
+                }
+
+                nextEdges[edgeId] = { ...edge, labelText, showLabel: isLabelVisible };
                 store.props.write('edges', nextEdges);
                 if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
                     componentEvents.fireComponentEvent('onEdgePropertyChanged', {
