@@ -1,4 +1,8 @@
 import * as React from 'react';
+<<<<<<< HEAD
+=======
+import * as ReactDOM from 'react-dom';
+>>>>>>> 126df9ac1a1e6c164e6b55e1ef9f643789e6330b
 // @ts-ignore
 import { BaseEdge, getBezierPath, getStraightPath, EdgeLabelRenderer, useReactFlow } from 'reactflow';
 import { buildPolylinePath, computeAutoWaypoints } from './EdgeUtils';
@@ -45,6 +49,12 @@ export const CustomEdge = React.memo(({
     const [liveWaypoints, setLiveWaypoints] = React.useState<Waypoint[] | null>(null);
     const dragState = React.useRef<DragState | null>(null);
 
+<<<<<<< HEAD
+=======
+    const [isEditing, setIsEditing] = React.useState(false);
+    const [editingText, setEditingText] = React.useState(label);
+
+>>>>>>> 126df9ac1a1e6c164e6b55e1ef9f643789e6330b
     const isStepType = data?.lineType === 'step' || data?.lineType === 'smoothstep' || !data?.lineType;
     const isHorizSrc = sourcePosition === 'right' || sourcePosition === 'left';
     const isHorizTgt = targetPosition === 'right' || targetPosition === 'left';
@@ -181,12 +191,43 @@ export const CustomEdge = React.memo(({
 
     // ─── Label editing ───────────────────────────────────────────────────
 
+<<<<<<< HEAD
     // The edit dialog is owned by ArchitectureBuilder (see EdgeLabelDialog) so it
     // is not lost if this edge remounts; the edge only asks for it to open.
     const handleLabelDoubleClick = () => {
         data?.onRequestEdit?.();
     };
 
+=======
+    const handleLabelDoubleClick = () => {
+        setIsEditing(true);
+        setEditingText(label);
+    };
+
+
+    const handleSave = () => {
+        if (editingText !== label && data?.onLabelChange) {
+            data.onLabelChange(editingText);
+        }
+        setIsEditing(false);
+    };
+
+    const handleLabelInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (e.key === 'Enter' && e.ctrlKey) {
+            e.preventDefault();
+            handleSave();
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            setIsEditing(false);
+        }
+    };
+
+    const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        setEditingText(e.target.value);
+    };
+
+
+>>>>>>> 126df9ac1a1e6c164e6b55e1ef9f643789e6330b
     // ─── Render ───────────────────────────────────────────────────────────
 
     const segHandlePts = React.useMemo<Waypoint[]>(
@@ -289,6 +330,89 @@ export const CustomEdge = React.memo(({
                     </div>
                 </EdgeLabelRenderer>
             )}
+<<<<<<< HEAD
+=======
+            {isEditing && ReactDOM.createPortal(
+                (
+                    <div
+                        className="nodrag nopan"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            position: 'fixed',
+                            top: 0, left: 0, right: 0, bottom: 0,
+                            backgroundColor: 'rgba(0, 0, 0, 0.45)',
+                            zIndex: 9999,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            pointerEvents: 'auto',
+                        }}
+                    >
+                        <div style={{
+                            backgroundColor: 'var(--neutral-10)',
+                            borderRadius: '8px',
+                            padding: '16px',
+                            border: '1px solid var(--neutral-40)',
+                            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.35)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '10px',
+                            minWidth: '220px',
+                        }}>
+                            <div style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--neutral-70)' }}>
+                                Edit Label
+                            </div>
+                            <textarea
+                                value={editingText}
+                                onChange={handleTextareaChange}
+                                onKeyDown={handleLabelInputKeyDown}
+                                autoFocus
+                                rows={3}
+                                style={{
+                                    backgroundColor: 'var(--neutral-20)',
+                                    padding: '6px 8px',
+                                    borderRadius: '4px',
+                                    border: '1px solid var(--neutral-40)',
+                                    fontSize: '12px',
+                                    color: 'var(--neutral-90)',
+                                    outline: 'none',
+                                    resize: 'vertical',
+                                    fontFamily: 'inherit',
+                                    pointerEvents: 'auto',
+                                }}
+                            />
+                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                <button
+                                    onClick={() => setIsEditing(false)}
+                                    style={{
+                                        padding: '4px 14px', borderRadius: '4px',
+                                        border: '1px solid var(--neutral-40)',
+                                        backgroundColor: 'var(--neutral-20)',
+                                        color: 'var(--neutral-90)',
+                                        fontSize: '12px', cursor: 'pointer',
+                                    }}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleSave}
+                                    style={{
+                                        padding: '4px 14px', borderRadius: '4px',
+                                        border: 'none',
+                                        backgroundColor: 'var(--callToAction)',
+                                        color: 'white',
+                                        fontSize: '12px', fontWeight: 'bold', cursor: 'pointer',
+                                    }}
+                                >
+                                    Confirm
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                ),
+                document.body
+            )}
+>>>>>>> 126df9ac1a1e6c164e6b55e1ef9f643789e6330b
             {canEdit && segHandlePts.length >= 4 && (
                 <EdgeLabelRenderer>
                     {segHandlePts.slice(0, -1).map((pt, i) => {

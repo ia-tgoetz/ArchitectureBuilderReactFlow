@@ -2705,7 +2705,6 @@ __webpack_require__(/*! reactflow/dist/style.css */ "./node_modules/reactflow/di
 const html_to_image_1 = __webpack_require__(/*! html-to-image */ "../../node_modules/html-to-image/es/index.js");
 const Sidebar_1 = __webpack_require__(/*! ./Sidebar */ "./typescript/components/ArchitectureBuilder/Sidebar.tsx");
 const ArchitectureNode_1 = __webpack_require__(/*! ./ArchitectureNode */ "./typescript/components/ArchitectureBuilder/ArchitectureNode.tsx");
-const NodeView_1 = __webpack_require__(/*! ./NodeView */ "./typescript/components/ArchitectureBuilder/NodeView.tsx");
 const ContainerNode_1 = __webpack_require__(/*! ./ContainerNode */ "./typescript/components/ArchitectureBuilder/ContainerNode.tsx");
 const NoteLabelNode_1 = __webpack_require__(/*! ./NoteLabelNode */ "./typescript/components/ArchitectureBuilder/NoteLabelNode.tsx");
 const CustomEdge_1 = __webpack_require__(/*! ./CustomEdge */ "./typescript/components/ArchitectureBuilder/CustomEdge.tsx");
@@ -2714,31 +2713,28 @@ const useArchitectureFlowHandlers_1 = __webpack_require__(/*! ./useArchitectureF
 const useCanvasHistory_1 = __webpack_require__(/*! ./useCanvasHistory */ "./typescript/components/ArchitectureBuilder/useCanvasHistory.ts");
 const ComponentErrorBoundary_1 = __webpack_require__(/*! ../common/ComponentErrorBoundary */ "./typescript/components/common/ComponentErrorBoundary.tsx");
 const constants_1 = __webpack_require__(/*! ./constants */ "./typescript/components/ArchitectureBuilder/constants.ts");
-const QuickAddMenu_1 = __webpack_require__(/*! ./QuickAddMenu */ "./typescript/components/ArchitectureBuilder/QuickAddMenu.tsx");
 const StyleEditorModal_1 = __webpack_require__(/*! ./StyleEditorModal */ "./typescript/components/ArchitectureBuilder/StyleEditorModal.tsx");
-const EdgeLabelDialog_1 = __webpack_require__(/*! ./EdgeLabelDialog */ "./typescript/components/ArchitectureBuilder/EdgeLabelDialog.tsx");
 const ContextMenu_1 = __webpack_require__(/*! ./ContextMenu */ "./typescript/components/ArchitectureBuilder/ContextMenu.tsx");
 const useLongPress_1 = __webpack_require__(/*! ./useLongPress */ "./typescript/components/ArchitectureBuilder/useLongPress.ts");
 const CanvasSearch_1 = __webpack_require__(/*! ./CanvasSearch */ "./typescript/components/ArchitectureBuilder/CanvasSearch.tsx");
 // ─── Node types registration ──────────────────────────────────────────────────
 const nodeTypes = { architecture: ArchitectureNode_1.ArchitectureNode, container: ContainerNode_1.ContainerNode, Note: NoteLabelNode_1.NoteLabelNode, Label: NoteLabelNode_1.NoteLabelNode };
-const ArchitectureFlowInner = ({ selectedNodeIds }) => {
+const ArchitectureFlowInner = ({ selectedId }) => {
     const { setNodes } = reactflow_1.useReactFlow();
-    const prevSelectedRef = React.useRef(new Set());
+    const prevSelectedIdRef = React.useRef(null);
     React.useEffect(() => {
-        const prev = prevSelectedRef.current;
-        const next = new Set(selectedNodeIds);
-        prevSelectedRef.current = next;
-        if (prev.size === next.size && selectedNodeIds.every(id => prev.has(id)))
+        const prev = prevSelectedIdRef.current;
+        prevSelectedIdRef.current = selectedId;
+        if (prev === selectedId)
             return;
         setNodes(nds => nds.map(n => {
-            const shouldBeSelected = next.has(n.id);
-            const wasSelected = prev.has(n.id);
-            if (shouldBeSelected === wasSelected)
+            const shouldBeSelected = n.id === selectedId;
+            const wasSelected = n.id === prev;
+            if (!shouldBeSelected && !wasSelected)
                 return n;
             return Object.assign(Object.assign({}, n), { selected: shouldBeSelected });
         }));
-    }, [selectedNodeIds, setNodes]);
+    }, [selectedId, setNodes]);
     return null;
 };
 const EMPTY_HANDLE_SET = new Set();
@@ -2772,7 +2768,6 @@ const mapIgnitionToReactFlowNodes = (ignitionNodes, paletteMap, handleGearClick,
         else if (isTextNode)
             type = nodeData.paletteId;
         const isUnlocked = ((_a = nodeData.configs) === null || _a === void 0 ? void 0 : _a.unlocked) === true;
-        const isViewNode = !isContainer && !isTextNode && !!(palette === null || palette === void 0 ? void 0 : palette.viewPath);
         return {
             id, type, selected: false,
             position: { x: nodeData.x || 0, y: nodeData.y || 0 },
@@ -2784,9 +2779,7 @@ const mapIgnitionToReactFlowNodes = (ignitionNodes, paletteMap, handleGearClick,
             },
             dragHandle: (isContainer && !isUnlocked) ? '.custom-drag-handle' : undefined,
             data: {
-                label: nodeData.label || 'Unknown', image: paletteImage || nodeData.image || '',
-                viewPath: (palette === null || palette === void 0 ? void 0 : palette.viewPath) || undefined, viewParams: (palette === null || palette === void 0 ? void 0 : palette.viewParams) ? extractDeep(palette.viewParams) : undefined,
-                text: nodeData.text || '', tooltip: nodeData.tooltip || '', configs: nodeData.configs || {},
+                label: nodeData.label || 'Unknown', image: paletteImage || nodeData.image || '', text: nodeData.text || '', tooltip: nodeData.tooltip || '', configs: nodeData.configs || {},
                 style: nodeData.style || {}, labelStyle: nodeData.labelStyle || {}, textStyle: nodeData.textStyle || {},
                 paletteId: nodeData.paletteId || 'unknown', inactive: nodeData.inactive || false,
                 hideHandles: nodeData.hideHandles, globalHideHandles, handleCount: globalHandleCount,
@@ -2794,17 +2787,17 @@ const mapIgnitionToReactFlowNodes = (ignitionNodes, paletteMap, handleGearClick,
                 actionIcons: nodeData.actionIcons,
                 isEditable,
                 unlockMovement: isUnlocked,
-                enableResize: isContainer || isTextNode || isViewNode,
+                enableResize: isContainer || isTextNode,
                 onGearClick: handleGearClick, onTextChange: handleTextChange,
-                onResizeEnd: (isContainer || isTextNode || isViewNode) ? handleResizeEnd : undefined,
+                onResizeEnd: (isContainer || isTextNode) ? handleResizeEnd : undefined,
                 onActionIconClick: handleActionIconClick,
             },
         };
     });
 };
 const isInsideContainer = (item, container) => {
-    const iw = item.width || (item.paletteId === 'container' ? 300 : 150);
-    const ih = item.height || (item.paletteId === 'container' ? 300 : 150);
+    const iw = item.paletteId === 'container' ? (item.width || 300) : 150;
+    const ih = item.paletteId === 'container' ? (item.height || 300) : 150;
     const cw = container.width || 300, ch = container.height || 300;
     if (iw >= cw || ih >= ch)
         return false;
@@ -2863,7 +2856,7 @@ const computeHierarchyData = (nodesDict, edgesDict) => {
     return { nodeEnrichments, rootHierarchy };
 };
 exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
-    var _a, _b, _c, _d, _e, _f;
+    var _a, _b, _c, _d;
     const reactFlowWrapper = React.useRef(null);
     const wrapperBoundsRef = React.useRef({ top: 0, left: 0 });
     const clipboardRef = React.useRef(null);
@@ -2872,16 +2865,9 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
     const [reactFlowInstance, setReactFlowInstance] = React.useState(null);
     const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
     const [styleEditorNodeId, setStyleEditorNodeId] = React.useState(null);
-    // Edge whose label editor was requested via right-click → Config; cleared once the edge opens it.
-    const [editingEdgeId, setEditingEdgeId] = React.useState(null);
     const [contextMenu, setContextMenu] = React.useState(null);
-    const [quickAdd, setQuickAdd] = React.useState(null);
     const [activeSubMenu, setActiveSubMenu] = React.useState(null);
-    // selectedId: the single selected node or edge. selectedNodeIds: every selected node (Ctrl-click / box select).
-    // selectedId mirrors selectedNodeIds when exactly one node is selected, and is null for 2+.
-    const [selectedId, setSelectedIdRaw] = React.useState(null);
-    const [selectedNodeIds, setSelectedNodeIds] = React.useState([]);
-    const lastPointerRef = React.useRef(null);
+    const [selectedId, setSelectedId] = React.useState(null);
     const [canvasSearchOpen, setCanvasSearchOpen] = React.useState(false);
     const [localNodes, setLocalNodes] = React.useState([]);
     const [localEdges, setLocalEdges] = React.useState([]);
@@ -3009,37 +2995,8 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
         }
         writeWithoutHistory('refreshHierarchy', false);
     }, [props.props.refreshHierarchy, props.store, writeWithoutHistory]);
-    // ─── Selection state ───────────────────────────────────────────────────
-    // Refs are updated synchronously by the setters so several selection updates in
-    // one event (React Flow's select changes, then onNodeClick) see each other.
-    const selectedIdRef = React.useRef(null);
-    const selectedNodeIdsRef = React.useRef([]);
-    const rawEdgesForSelectionRef = React.useRef(rawEdgesDict);
-    rawEdgesForSelectionRef.current = rawEdgesDict;
-    // Select exactly these nodes (Ctrl-click, box select, paste).
-    const setSelectedNodes = React.useCallback((ids) => {
-        const prev = selectedNodeIdsRef.current;
-        if (ids.length === prev.length && ids.every((id, i) => id === prev[i]))
-            return;
-        const single = ids.length === 1 ? ids[0] : null;
-        selectedNodeIdsRef.current = ids;
-        selectedIdRef.current = single;
-        setSelectedNodeIds(ids);
-        setSelectedIdRaw(single);
-    }, []);
-    // Select one node or edge, or clear (null). Drop-in for the previous plain useState setter.
-    const setSelectedId = React.useCallback((value) => {
-        var _a;
-        const next = typeof value === 'function' ? value(selectedIdRef.current) : value;
-        selectedIdRef.current = next;
-        setSelectedIdRaw(next);
-        // A just-created node is not in rawNodesDict yet, so anything that is not an edge counts as a node.
-        const ids = next && !((_a = rawEdgesForSelectionRef.current) === null || _a === void 0 ? void 0 : _a[next]) ? [next] : [];
-        selectedNodeIdsRef.current = ids;
-        setSelectedNodeIds(ids);
-    }, []);
     // ─── Handlers hook ─────────────────────────────────────────────────────
-    const { isUpdatingEdge, isDraggingNode, updatingEdgeRef, rawNodesDictRef, rawEdgesDictRef, closeContextMenu, getValidIntersection, isValidConnection, handleWaypointsChange, handleLabelChange, onConnect, onEdgeUpdate, onEdgeUpdateStart, onEdgeUpdateEnd, onConnectStart, onConnectEnd, onEdgesDelete, deleteEdgeWithEvent, onEdgeContextMenu, onEdgeClick, handleLineTypeChange, handleConnectionTypeChange, handleAnimationChange, handleSetConnectionDefault, handleSetDefaultForType, handleClearConnectionDefault, handleGearClick, handlePaletteItemClick, handleResizeEnd, handleTextChange, handleActionIconClick, onNodesChange, onNodeDragStart, onNodeDrag, onNodeDragStop, onNodesDelete, onNodeContextMenu, onNodeClick, executeCopy, executePaste, onDragOver, onDrop, addNodeFromEdgeDrop, onMoveStart, onPaneClick, onPaneContextMenu, handleNodeSwap, handleContextMenuAction, } = useArchitectureFlowHandlers_1.useArchitectureFlowHandlers({
+    const { isUpdatingEdge, isDraggingNode, updatingEdgeRef, rawNodesDictRef, rawEdgesDictRef, closeContextMenu, getValidIntersection, isValidConnection, handleWaypointsChange, handleLabelChange, onConnect, onEdgeUpdate, onEdgeUpdateStart, onEdgeUpdateEnd, onConnectStart, onConnectEnd, onEdgesDelete, deleteEdgeWithEvent, onEdgeContextMenu, onEdgeClick, handleLineTypeChange, handleConnectionTypeChange, handleAnimationChange, handleSetConnectionDefault, handleSetDefaultForType, handleClearConnectionDefault, handleGearClick, handlePaletteItemClick, handleResizeEnd, handleTextChange, handleActionIconClick, onNodesChange, onNodeDragStart, onNodeDrag, onNodeDragStop, onNodesDelete, onNodeContextMenu, onNodeClick, executeCopy, executePaste, onDragOver, onDrop, onMoveStart, onPaneClick, onPaneContextMenu, handleNodeSwap, handleContextMenuAction, } = useArchitectureFlowHandlers_1.useArchitectureFlowHandlers({
         store: historyStore,
         componentEvents: props.componentEvents,
         rawNodesDict,
@@ -3057,28 +3014,15 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
         enableOnClickEvents: rawConfig.enableOnClickEvents !== false,
         selectedId,
         setSelectedId,
-        selectedNodeIdsRef,
-        setSelectedNodes,
         setLocalNodes,
         setLocalEdges,
         contextMenu,
         setContextMenu,
         setActiveSubMenu,
         setStyleEditorNodeId,
-        setEditingEdgeId,
         clipboardRef,
         draggedItemRef,
-        setQuickAdd,
     });
-    // Palette items the edge-drop menu offers: anything that shares a connection type with the source node.
-    const quickAddItems = React.useMemo(() => {
-        var _a;
-        if (!quickAdd)
-            return [];
-        const sourceTypes = ((_a = rawNodesDict === null || rawNodesDict === void 0 ? void 0 : rawNodesDict[quickAdd.sourceId]) === null || _a === void 0 ? void 0 : _a.supportedConnections) || [];
-        return (paletteItems || []).filter((item) => item.id !== 'container' && !constants_1.TEXT_NODE_PALETTE_IDS.has(item.id) &&
-            (item.supportedConnections || []).some((c) => sourceTypes.includes(c)));
-    }, [quickAdd, rawNodesDict, paletteItems]);
     // ─── Derived flow data ─────────────────────────────────────────────────
     // Stable fingerprint of connection topology only — excludes waypoints, animation, labels.
     // Recomputes only when a connection endpoint changes, not on every waypoint drag.
@@ -3111,17 +3055,12 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
     }, [edgeTopologyJson]);
     const paletteMap = React.useMemo(() => new Map(paletteItems.map((p) => [p.id, p])), [paletteItems]);
     const flowNodes = React.useMemo(() => mapIgnitionToReactFlowNodes(rawNodesDict, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled, handleActionIconClick), [rawNodesDict, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled, handleActionIconClick]);
-    const flowEdges = React.useMemo(() => EdgeUtils_1.mapIgnitionToReactFlowEdges(rawEdgesDict, rawNodesDict, connectionTypes, selectedId, handleWaypointsChange, handleLabelChange, snapEnabled, snapPixels, globalEdgeWidth, setEditingEdgeId), [rawEdgesDict, rawNodesDict, connectionTypes, selectedId, handleWaypointsChange, handleLabelChange, snapEnabled, snapPixels, globalEdgeWidth]);
-    // Selection is read from the ref and is deliberately NOT a dependency: rebuilding every node on each selection
-    // change (e.g. continuously while box-selecting) hands React Flow fresh nodes with no measured width/height,
-    // and it treats zero-size nodes as inside any selection box, selecting everything. Selection changes are applied
-    // to the existing nodes by onNodesChange and ArchitectureFlowInner, which keep their measured size.
+    const flowEdges = React.useMemo(() => EdgeUtils_1.mapIgnitionToReactFlowEdges(rawEdgesDict, rawNodesDict, connectionTypes, selectedId, handleWaypointsChange, handleLabelChange, snapEnabled, snapPixels, globalEdgeWidth), [rawEdgesDict, rawNodesDict, connectionTypes, selectedId, handleWaypointsChange, handleLabelChange, snapEnabled, snapPixels, globalEdgeWidth]);
     React.useEffect(() => {
         if (!isDraggingNode) {
-            const selected = new Set(selectedNodeIdsRef.current);
-            setLocalNodes(flowNodes.map((n) => (Object.assign(Object.assign({}, n), { selected: selected.has(n.id) }))));
+            setLocalNodes(flowNodes.map((n) => (Object.assign(Object.assign({}, n), { selected: n.id === selectedId }))));
         }
-    }, [flowNodes, isDraggingNode]);
+    }, [flowNodes, isDraggingNode, selectedId]);
     // Tracks which history epoch the localEdges mirror was built for. The
     // render immediately after an undo pairs fresh flowEdges with the previous
     // localEdges (the resync effect only runs post-commit), which would show one
@@ -3230,32 +3169,27 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
                     return;
                 }
             }
-            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
-                const ids = selectedNodeIdsRef.current.filter(id => rawNodesDictRef.current[id]);
-                if (ids.length > 0)
-                    executeCopy(ids);
+            if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+                if (selectedId && rawNodesDictRef.current[selectedId])
+                    executeCopy(selectedId);
             }
             if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId && rawEdgesDictRef.current[selectedId]) {
                 e.preventDefault();
                 deleteEdgeWithEvent(selectedId);
             }
-            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
-                if (clipboardRef.current && ((_a = props.store) === null || _a === void 0 ? void 0 : _a.props) && reactFlowInstance && reactFlowWrapper.current) {
-                    // Paste centered on the mouse; fall back to the canvas center if the mouse is not over it.
-                    const rect = reactFlowWrapper.current.getBoundingClientRect();
-                    const p = lastPointerRef.current;
-                    const overCanvas = p && p.x >= rect.left && p.x <= rect.right && p.y >= rect.top && p.y <= rect.bottom;
-                    const flowPos = reactFlowInstance.screenToFlowPosition({
-                        x: overCanvas ? p.x : rect.left + rect.width / 2,
-                        y: overCanvas ? p.y : rect.top + rect.height / 2,
-                    });
-                    executePaste(flowPos.x, flowPos.y);
+            if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+                const clipboard = clipboardRef.current;
+                if (clipboard && ((_a = props.store) === null || _a === void 0 ? void 0 : _a.props)) {
+                    const targetNode = clipboard.type === 'single' ? clipboard.node : Object.values(clipboard.nodes)[0];
+                    const dropX = targetNode.x + (snapEnabled ? snapPixels * 2 : 30);
+                    const dropY = targetNode.y + (snapEnabled ? snapPixels * 2 : 30);
+                    executePaste(dropX, dropY);
                 }
             }
         };
         document.addEventListener('keydown', handleKeyDown);
         return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [isEnabled, selectedId, props.store, reactFlowInstance, executeCopy, executePaste, closeContextMenu, deleteEdgeWithEvent, rawEdgesDictRef, handleUndo, handleRedo]);
+    }, [isEnabled, selectedId, snapEnabled, snapPixels, props.store, executeCopy, executePaste, closeContextMenu, deleteEdgeWithEvent, rawEdgesDictRef, handleUndo, handleRedo]);
     const flyToNode = React.useCallback((nodeId, x, y, w, h) => {
         if (reactFlowInstance) {
             reactFlowInstance.fitBounds({ x, y, width: w, height: h }, { padding: 0.5, duration: 600 });
@@ -3444,32 +3378,28 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
                 .arch-moving-edge   .arch-node-handle.connecting:not(.valid):hover { cursor: not-allowed !important; }
                 .arch-creating-edge .arch-node-handle.connecting:not(.valid):hover::after,
                 .arch-moving-edge   .arch-node-handle.connecting:not(.valid):hover::after { background: #ef4444 !important; border-color: #dc2626 !important; }
-                /* Keep the group selection outline visible but let clicks/drags reach the nodes under it,
-                   so individual nodes can still be ctrl-clicked, right-clicked and dragged (drags move all selected). */
-                .react-flow__nodesselection-rect { pointer-events: none !important; }
                 .react-flow__attribution a { min-height: 24px; min-width: 24px; display: inline-flex; align-items: center; padding: 0 6px; }
                 `),
             React.createElement("div", { className: "arch-theme-wrapper" },
                 isEnabled && React.createElement(Sidebar_1.Sidebar, { paletteItems: paletteItems, isOpen: isSidebarOpen, toggleSidebar: () => setIsSidebarOpen(!isSidebarOpen), onDragStartItem: (item) => { draggedItemRef.current = item; }, onItemClick: handlePaletteItemClick }),
-                React.createElement("div", Object.assign({ role: "main", "aria-label": "Architecture Builder Canvas", style: { flexGrow: 1, height: '100%', position: 'relative', overflow: 'hidden' }, ref: reactFlowWrapper, className: isUpdatingEdge ? 'arch-moving-edge' : '' }, longPressHandlers, { onMouseMove: (e) => { lastPointerRef.current = { x: e.clientX, y: e.clientY }; } }),
-                    React.createElement(NodeView_1.ViewParentContext.Provider, { value: props.store },
-                        React.createElement(reactflow_1.ReactFlowProvider, null,
-                            React.createElement(ArchitectureFlowInner, { selectedNodeIds: selectedNodeIds }),
-                            React.createElement(reactflow_1.default, { nodes: localNodes, edges: displayEdges, nodeTypes: nodeTypes, edgeTypes: CustomEdge_1.edgeTypes, isValidConnection: isValidConnection, onInit: setReactFlowInstance, onDrop: isEnabled ? onDrop : undefined, onDragOver: isEnabled ? onDragOver : undefined, onConnect: isEnabled ? onConnect : undefined, onEdgeUpdate: isEnabled ? onEdgeUpdate : undefined, onEdgeUpdateStart: isEnabled ? onEdgeUpdateStart : undefined, onEdgeUpdateEnd: isEnabled ? onEdgeUpdateEnd : undefined, onConnectStart: isEnabled ? onConnectStart : undefined, onConnectEnd: isEnabled ? onConnectEnd : undefined, onNodeDragStart: isEnabled ? onNodeDragStart : undefined, onNodeDrag: isEnabled ? onNodeDrag : undefined, onNodeDragStop: isEnabled ? onNodeDragStop : undefined, onNodesChange: onNodesChange, onNodeClick: onNodeClick, onEdgeClick: onEdgeClick, onNodesDelete: isEnabled ? onNodesDelete : undefined, onEdgesDelete: isEnabled ? onEdgesDelete : undefined, onNodeContextMenu: isEnabled ? onNodeContextMenu : undefined, onEdgeContextMenu: isEnabled ? onEdgeContextMenu : undefined, onEdgeMouseEnter: (_evt, edge) => setHoveredEdgeId(edge.id), onEdgeMouseLeave: () => setHoveredEdgeId(null), onPaneClick: onPaneClick, onPaneContextMenu: isEnabled ? onPaneContextMenu : undefined, onMoveStart: onMoveStart, nodesDraggable: isEnabled, nodesConnectable: isEnabled, elementsSelectable: isEnabled, connectionMode: reactflow_1.ConnectionMode.Loose, snapToGrid: snapEnabled, snapGrid: snapGrid, connectionLineStyle: { stroke: '#cccccc', strokeWidth: 6, fill: 'none' }, elevateNodesOnSelect: false, minZoom: 0.05, panOnScroll: false, zoomOnScroll: true, panOnDrag: true, selectionOnDrag: false, multiSelectionKeyCode: ['Control', 'Meta', 'Shift'], selectionKeyCode: ['Shift', 'Control', 'Meta'], deleteKeyCode: ['Delete', 'Backspace'], proOptions: { hideAttribution: true } },
-                                showGrid && React.createElement(reactflow_1.Background, { gap: snapPixels }),
-                                React.createElement(reactflow_1.Controls, { showInteractive: false },
-                                    isEnabled && (React.createElement(reactflow_1.ControlButton, { onClick: handleUndo, disabled: !canUndo || !canHistoryAct, title: "Undo (Ctrl+Z)", "aria-label": "Undo", style: { opacity: (canUndo && canHistoryAct) ? 1 : 0.35, cursor: (canUndo && canHistoryAct) ? 'pointer' : 'default' } },
-                                        React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: "16", height: "16", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", style: { display: 'block', color: '#555555' } },
-                                            React.createElement("path", { d: "M3 7v6h6" }),
-                                            React.createElement("path", { d: "M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" })))),
-                                    isEnabled && (React.createElement(reactflow_1.ControlButton, { onClick: handleRedo, disabled: !canRedo || !canHistoryAct, title: "Redo (Ctrl+Shift+Z)", "aria-label": "Redo", style: { opacity: (canRedo && canHistoryAct) ? 1 : 0.35, cursor: (canRedo && canHistoryAct) ? 'pointer' : 'default' } },
-                                        React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: "16", height: "16", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", style: { display: 'block', color: '#555555' } },
-                                            React.createElement("path", { d: "M21 7v6h-6" }),
-                                            React.createElement("path", { d: "M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13" })))),
-                                    React.createElement(reactflow_1.ControlButton, { onClick: handleScreenshot, title: "Download Full Screenshot", "aria-label": "Download Full Screenshot" },
-                                        React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: "16", height: "16", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", style: { display: 'block', color: '#555555' } },
-                                            React.createElement("path", { d: "M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" }),
-                                            React.createElement("circle", { cx: "12", cy: "13", r: "4" }))))))),
+                React.createElement("div", Object.assign({ role: "main", "aria-label": "Architecture Builder Canvas", style: { flexGrow: 1, height: '100%', position: 'relative', overflow: 'hidden' }, ref: reactFlowWrapper, className: isUpdatingEdge ? 'arch-moving-edge' : '' }, longPressHandlers),
+                    React.createElement(reactflow_1.ReactFlowProvider, null,
+                        React.createElement(ArchitectureFlowInner, { selectedId: selectedId }),
+                        React.createElement(reactflow_1.default, { nodes: localNodes, edges: displayEdges, nodeTypes: nodeTypes, edgeTypes: CustomEdge_1.edgeTypes, isValidConnection: isValidConnection, onInit: setReactFlowInstance, onDrop: isEnabled ? onDrop : undefined, onDragOver: isEnabled ? onDragOver : undefined, onConnect: isEnabled ? onConnect : undefined, onEdgeUpdate: isEnabled ? onEdgeUpdate : undefined, onEdgeUpdateStart: isEnabled ? onEdgeUpdateStart : undefined, onEdgeUpdateEnd: isEnabled ? onEdgeUpdateEnd : undefined, onConnectStart: isEnabled ? onConnectStart : undefined, onConnectEnd: isEnabled ? onConnectEnd : undefined, onNodeDragStart: isEnabled ? onNodeDragStart : undefined, onNodeDrag: isEnabled ? onNodeDrag : undefined, onNodeDragStop: isEnabled ? onNodeDragStop : undefined, onNodesChange: onNodesChange, onNodeClick: onNodeClick, onEdgeClick: onEdgeClick, onNodesDelete: isEnabled ? onNodesDelete : undefined, onEdgesDelete: isEnabled ? onEdgesDelete : undefined, onNodeContextMenu: isEnabled ? onNodeContextMenu : undefined, onEdgeContextMenu: isEnabled ? onEdgeContextMenu : undefined, onEdgeMouseEnter: (_evt, edge) => setHoveredEdgeId(edge.id), onEdgeMouseLeave: () => setHoveredEdgeId(null), onPaneClick: onPaneClick, onPaneContextMenu: isEnabled ? onPaneContextMenu : undefined, onMoveStart: onMoveStart, nodesDraggable: isEnabled, nodesConnectable: isEnabled, elementsSelectable: isEnabled, connectionMode: reactflow_1.ConnectionMode.Loose, snapToGrid: snapEnabled, snapGrid: snapGrid, connectionLineStyle: { stroke: '#cccccc', strokeWidth: 6, fill: 'none' }, elevateNodesOnSelect: false, minZoom: 0.05, panOnScroll: false, zoomOnScroll: true, panOnDrag: true, selectionOnDrag: false, deleteKeyCode: ['Delete', 'Backspace'], proOptions: { hideAttribution: true } },
+                            showGrid && React.createElement(reactflow_1.Background, { gap: snapPixels }),
+                            React.createElement(reactflow_1.Controls, { showInteractive: false },
+                                isEnabled && (React.createElement(reactflow_1.ControlButton, { onClick: handleUndo, disabled: !canUndo || !canHistoryAct, title: "Undo (Ctrl+Z)", "aria-label": "Undo", style: { opacity: (canUndo && canHistoryAct) ? 1 : 0.35, cursor: (canUndo && canHistoryAct) ? 'pointer' : 'default' } },
+                                    React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: "16", height: "16", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", style: { display: 'block', color: '#555555' } },
+                                        React.createElement("path", { d: "M3 7v6h6" }),
+                                        React.createElement("path", { d: "M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" })))),
+                                isEnabled && (React.createElement(reactflow_1.ControlButton, { onClick: handleRedo, disabled: !canRedo || !canHistoryAct, title: "Redo (Ctrl+Shift+Z)", "aria-label": "Redo", style: { opacity: (canRedo && canHistoryAct) ? 1 : 0.35, cursor: (canRedo && canHistoryAct) ? 'pointer' : 'default' } },
+                                    React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: "16", height: "16", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", style: { display: 'block', color: '#555555' } },
+                                        React.createElement("path", { d: "M21 7v6h-6" }),
+                                        React.createElement("path", { d: "M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13" })))),
+                                React.createElement(reactflow_1.ControlButton, { onClick: handleScreenshot, title: "Download Full Screenshot", "aria-label": "Download Full Screenshot" },
+                                    React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: "16", height: "16", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", style: { display: 'block', color: '#555555' } },
+                                        React.createElement("path", { d: "M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" }),
+                                        React.createElement("circle", { cx: "12", cy: "13", r: "4" })))))),
                     canvasSearchOpen && (React.createElement(CanvasSearch_1.CanvasSearch, { nodes: rawNodesDict, paletteItems: paletteItems, onFlyTo: flyToNode, onClose: () => setCanvasSearchOpen(false) })),
                     styleEditorNodeId && rawNodesDict[styleEditorNodeId] && (React.createElement(StyleEditorModal_1.StyleEditorModal, { node: rawNodesDict[styleEditorNodeId], onSave: (newStyle, newLabelStyle, newTextStyle) => {
                             var _a, _b;
@@ -3482,14 +3412,6 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
                             }
                             setStyleEditorNodeId(null);
                         }, onCancel: () => setStyleEditorNodeId(null) })),
-                    editingEdgeId && rawEdgesDict[editingEdgeId] && (React.createElement(EdgeLabelDialog_1.EdgeLabelDialog, { key: editingEdgeId, initialText: (_f = (_e = flowEdges.find((e) => e.id === editingEdgeId)) === null || _e === void 0 ? void 0 : _e.label) !== null && _f !== void 0 ? _f : '', onSave: (text) => {
-                            var _a, _b;
-                            const current = (_b = (_a = flowEdges.find((e) => e.id === editingEdgeId)) === null || _a === void 0 ? void 0 : _a.label) !== null && _b !== void 0 ? _b : '';
-                            if (text !== current)
-                                handleLabelChange(editingEdgeId, text);
-                            setEditingEdgeId(null);
-                        }, onCancel: () => setEditingEdgeId(null) })),
-                    quickAdd && quickAddItems.length > 0 && (React.createElement(QuickAddMenu_1.QuickAddMenu, { quickAdd: quickAdd, items: quickAddItems, wrapperRef: reactFlowWrapper, onSelect: (item) => addNodeFromEdgeDrop(item, quickAdd), onClose: closeContextMenu })),
                     contextMenu && (React.createElement(ContextMenu_1.ContextMenu, { contextMenu: contextMenu, activeSubMenu: activeSubMenu, setActiveSubMenu: setActiveSubMenu, rawNodesDict: rawNodesDict, rawEdgesDict: rawEdgesDict, paletteItems: paletteItems, connectionTypes: connectionTypes, clipboardRef: clipboardRef, wrapperRef: reactFlowWrapper, getValidIntersection: getValidIntersection, handleContextMenuAction: handleContextMenuAction, handleNodeSwap: handleNodeSwap, handleLineTypeChange: handleLineTypeChange, handleConnectionTypeChange: handleConnectionTypeChange, handleAnimationChange: handleAnimationChange, handleSetConnectionDefault: handleSetConnectionDefault, handleSetDefaultForType: handleSetDefaultForType, handleClearConnectionDefault: handleClearConnectionDefault, nodeTypeConnectionDefaults: nodeTypeConnectionDefaults })))))));
 });
 
@@ -3525,8 +3447,6 @@ const react_1 = __importDefault(__webpack_require__(/*! react */ "react"));
 const reactflow_1 = __webpack_require__(/*! reactflow */ "./node_modules/reactflow/dist/umd/index.js");
 const perspective_client_1 = __webpack_require__(/*! @inductiveautomation/perspective-client */ "@inductiveautomation/perspective-client");
 const svgSanitize_1 = __webpack_require__(/*! ./svgSanitize */ "./typescript/components/ArchitectureBuilder/svgSanitize.ts");
-const NodeView_1 = __webpack_require__(/*! ./NodeView */ "./typescript/components/ArchitectureBuilder/NodeView.tsx");
-const zoomSelectors_1 = __webpack_require__(/*! ./zoomSelectors */ "./typescript/components/ArchitectureBuilder/zoomSelectors.ts");
 const TEXT_PALETTE_IDS = new Set(['Note', 'Label']);
 // ─── Memoization helpers ──────────────────────────────────────────────────────
 const shallowEqualObjects = (a, b) => {
@@ -3572,12 +3492,6 @@ const areArchitectureNodePropsEqual = (prev, next) => {
     if (pd.label !== nd.label)
         return false;
     if (pd.image !== nd.image)
-        return false;
-    if (pd.viewPath !== nd.viewPath)
-        return false;
-    if (pd.enableResize !== nd.enableResize)
-        return false;
-    if (!shallowEqualObjects(pd.viewParams, nd.viewParams))
         return false;
     if (pd.text !== nd.text)
         return false;
@@ -3628,8 +3542,7 @@ const NodeImage = react_1.default.memo(({ src }) => {
 });
 exports.ArchitectureNode = react_1.default.memo(({ id, data, selected }) => {
     var _a, _b, _c, _d;
-    const hitSize = zoomSelectors_1.useHandleHitSize();
-    const resizerSize = zoomSelectors_1.useResizerSize();
+    const { zoom } = reactflow_1.useViewport();
     const [hovered, setHovered] = react_1.default.useState(false);
     const showHandles = !data.globalHideHandles && !data.hideHandles && data.isEditable !== false;
     const hasHighlightedHandles = !!(data.highlightedHandles && data.highlightedHandles.size > 0);
@@ -3642,7 +3555,9 @@ exports.ArchitectureNode = react_1.default.memo(({ id, data, selected }) => {
     const finalGearColor = ((_c = data.labelStyle) === null || _c === void 0 ? void 0 : _c.fill) || finalLabelColor;
     const _e = data.style || {}, { backgroundColor: imageBg } = _e, restStyle = __rest(_e, ["backgroundColor"]);
     const combinedStyle = Object.assign(Object.assign({ padding: '0px', borderRadius: '8px', backgroundColor: 'var(--neutral-10)', border: '1px solid var(--neutral-50)', color: 'var(--neutral-90)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', boxSizing: 'border-box', position: 'relative' }, restStyle), { boxShadow: selected ? '0 0 0 2px rgba(0, 123, 255, 0.25)' : (restStyle.boxShadow || '0 2px 4px rgba(0,0,0,0.1)') });
-    // hitSize (from useHandleHitSize): generous hit area that stays consistent in screen pixels for usability.
+    // Enhanced hit area: generous size that remains consistent in screen pixels for usability.
+    // Targeting ~24px at 1.0 zoom, scaling up to ~22px as we zoom out.
+    const hitSize = Math.min(22, Math.max(16, Math.round(24 / zoom)));
     // Handles are always mounted so React Flow's store always has registered positions.
     // This prevents the intermittent missing connection line (handle mounts just as a
     // drag starts, before its useEffect registration fires) and keeps edges anchored
@@ -3666,12 +3581,10 @@ exports.ArchitectureNode = react_1.default.memo(({ id, data, selected }) => {
             return 'arch-node-handle arch-node-handle--suppressed';
         return ((_a = data.highlightedHandles) === null || _a === void 0 ? void 0 : _a.has(id)) ? 'arch-node-handle arch-node-handle--connected' : 'arch-node-handle';
     };
+    // Calculate dynamic resizer handle size based on zoom
+    const resizerSize = Math.max(10, Math.round(16 / zoom));
     return (react_1.default.createElement("div", { style: combinedStyle, title: data.tooltip, onMouseEnter: () => setHovered(true), onMouseLeave: (e) => { if (e.buttons === 0)
             setHovered(false); } },
-        data.enableResize && (react_1.default.createElement(reactflow_1.NodeResizer, { color: "var(--callToAction)", isVisible: selected, minWidth: 100, minHeight: 100, handleStyle: { width: `${resizerSize}px`, height: `${resizerSize}px`, borderRadius: '4px', pointerEvents: 'auto' }, onResizeEnd: (e, params) => {
-                if (data.onResizeEnd)
-                    data.onResizeEnd(id, params.x, params.y, params.width, params.height);
-            } })),
         positions.map((pos, i) => (react_1.default.createElement(reactflow_1.Handle, { key: `top-${i}`, className: handleClass(`top-${i}`), type: "source", position: reactflow_1.Position.Top, id: `top-${i}`, style: Object.assign(Object.assign({}, handleStyle), { left: pos, top: '0px', transform: 'translate(-50%, -50%)' }) }))),
         positions.map((pos, i) => (react_1.default.createElement(reactflow_1.Handle, { key: `right-${i}`, className: handleClass(`right-${i}`), type: "source", position: reactflow_1.Position.Right, id: `right-${i}`, style: Object.assign(Object.assign({}, handleStyle), { top: pos, left: '100%', transform: 'translate(-50%, -50%)' }) }))),
         positions.map((pos, i) => (react_1.default.createElement(reactflow_1.Handle, { key: `bottom-${i}`, className: handleClass(`bottom-${i}`), type: "source", position: reactflow_1.Position.Bottom, id: `bottom-${i}`, style: Object.assign(Object.assign({}, handleStyle), { left: pos, top: '100%', transform: 'translate(-50%, -50%)' }) }))),
@@ -3689,11 +3602,8 @@ exports.ArchitectureNode = react_1.default.memo(({ id, data, selected }) => {
                 flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
                 width: '100%', minHeight: 0, zIndex: 1, backgroundColor: imageBg || undefined,
                 filter: data.inactive ? 'grayscale(100%) blur(2px)' : undefined
-            } }, NodeView_1.isViewPath(data.viewPath)
-            ? react_1.default.createElement(NodeView_1.NodeView, { nodeId: id, viewPath: data.viewPath, params: data.viewParams, fallback: react_1.default.createElement(NodeImage, { src: data.image }) })
-            : react_1.default.createElement(NodeImage, { src: data.image }))),
-        !data.image && NodeView_1.isViewPath(data.viewPath) && (react_1.default.createElement("div", { style: { flex: 1, width: '100%', minHeight: 0, zIndex: 1, filter: data.inactive ? 'grayscale(100%) blur(2px)' : undefined } },
-            react_1.default.createElement(NodeView_1.NodeView, { nodeId: id, viewPath: data.viewPath, params: data.viewParams }))),
+            } },
+            react_1.default.createElement(NodeImage, { src: data.image }))),
         data.actionIcons && data.actionIcons.length > 0 && (react_1.default.createElement("div", { style: { position: 'absolute', right: 4, bottom: 4, display: 'flex', flexDirection: 'row', gap: 4, zIndex: 10 } }, data.actionIcons.map((ai) => {
             const enabled = ai.enabled !== false;
             return (react_1.default.createElement("div", { key: ai.name, style: {
@@ -3952,7 +3862,6 @@ exports.ContainerNode = void 0;
 const react_1 = __importDefault(__webpack_require__(/*! react */ "react"));
 // @ts-ignore
 const reactflow_1 = __webpack_require__(/*! reactflow */ "./node_modules/reactflow/dist/umd/index.js");
-const zoomSelectors_1 = __webpack_require__(/*! ./zoomSelectors */ "./typescript/components/ArchitectureBuilder/zoomSelectors.ts");
 const shallowEqualObjects = (a, b) => {
     if (a === b)
         return true;
@@ -3991,7 +3900,7 @@ const areContainerNodePropsEqual = (prev, next) => {
 };
 exports.ContainerNode = react_1.default.memo(({ id, data, selected }) => {
     var _a, _b, _c;
-    const resizerSize = zoomSelectors_1.useResizerSize();
+    const { zoom } = reactflow_1.useViewport();
     const finalLabelBg = ((_a = data.labelStyle) === null || _a === void 0 ? void 0 : _a.backgroundColor) || 'var(--neutral-30)';
     const finalLabelColor = ((_b = data.labelStyle) === null || _b === void 0 ? void 0 : _b.color) || 'var(--neutral-90)';
     const finalGearColor = ((_c = data.labelStyle) === null || _c === void 0 ? void 0 : _c.fill) || finalLabelColor;
@@ -4008,6 +3917,8 @@ exports.ContainerNode = react_1.default.memo(({ id, data, selected }) => {
     const combinedStyle = Object.assign(Object.assign({ width: '100%', height: '100%', backgroundColor: s.backgroundColor || s.fill || 'rgba(128, 128, 128, 0.2)', borderRadius: '8px', position: 'relative', boxSizing: 'border-box' }, restStyle), { border: `${borderWidth} ${borderStyle} ${borderColor}`, 
         // Selection is signalled via the outline only — never toggle the border shorthand.
         outline: (selected && !data.enableResize) ? '2px solid var(--callToAction)' : 'none', outlineOffset: '2px' });
+    // Calculate dynamic resizer handle size based on zoom.
+    const resizerSize = Math.max(10, Math.round(16 / zoom));
     return (react_1.default.createElement(react_1.default.Fragment, null,
         react_1.default.createElement(reactflow_1.NodeResizer, { color: "var(--callToAction)", isVisible: selected && data.enableResize === true, minWidth: 150, minHeight: 150, 
             // Resize handles MUST remain interactive even if the shell is 'none'
@@ -4079,7 +3990,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ContextMenu = exports.SwapIcon = void 0;
+exports.ContextMenu = void 0;
 const React = __importStar(__webpack_require__(/*! react */ "react"));
 const svgSanitize_1 = __webpack_require__(/*! ./svgSanitize */ "./typescript/components/ArchitectureBuilder/svgSanitize.ts");
 const constants_1 = __webpack_require__(/*! ./constants */ "./typescript/components/ArchitectureBuilder/constants.ts");
@@ -4098,7 +4009,6 @@ const SwapIcon = ({ image, label }) => {
     const dataUri = svgSanitize_1.toSafeDataUri(image);
     return dataUri ? React.createElement("img", { src: dataUri, alt: label, style: { width: '100%', height: '100%', objectFit: 'contain' } }) : null;
 };
-exports.SwapIcon = SwapIcon;
 exports.ContextMenu = React.memo(({ contextMenu, activeSubMenu, setActiveSubMenu, rawNodesDict, rawEdgesDict, paletteItems, connectionTypes, clipboardRef, wrapperRef, getValidIntersection, handleContextMenuAction, handleNodeSwap, handleLineTypeChange, handleConnectionTypeChange, handleAnimationChange, handleSetConnectionDefault, handleSetDefaultForType, handleClearConnectionDefault, nodeTypeConnectionDefaults, }) => {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q;
     const containerRef = React.useRef(null);
@@ -4257,7 +4167,7 @@ exports.ContextMenu = React.memo(({ contextMenu, activeSubMenu, setActiveSubMenu
                         React.createElement("span", null, "\u25B6")),
                     activeSubMenu === 'swapNode' && (React.createElement("div", { ref: (el) => { if (el)
                             flyoutRefs.current['swapNode'] = el; }, style: Object.assign(Object.assign(Object.assign({}, getFlyoutStyle('swapNode')), FLYOUT_PANEL_STYLE), { minWidth: '150px' }) }, validSwapItems.map((targetItem) => (React.createElement("div", { key: targetItem.id, style: { padding: '5px 8px', cursor: 'pointer', color: 'var(--neutral-90)', display: 'flex', alignItems: 'center' }, onClick: () => handleNodeSwap(targetItem.id) },
-                        React.createElement("div", { style: { width: '16px', height: '16px', marginRight: '6px', display: 'flex', alignItems: 'center' } }, targetItem.image && React.createElement(exports.SwapIcon, { image: targetItem.image, label: targetItem.label })),
+                        React.createElement("div", { style: { width: '16px', height: '16px', marginRight: '6px', display: 'flex', alignItems: 'center' } }, targetItem.image && React.createElement(SwapIcon, { image: targetItem.image, label: targetItem.label })),
                         React.createElement("span", null, targetItem.label)))))))))),
             contextMenu.type === 'edge' && (React.createElement(React.Fragment, null,
                 React.createElement("div", { style: MENU_ITEM_STYLE, onMouseEnter: () => setActiveSubMenu(null), onClick: () => handleContextMenuAction('reverseEdge') }, "\uD83D\uDD04 Reverse Direction"),
@@ -4381,6 +4291,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.edgeTypes = exports.CustomEdge = void 0;
 const React = __importStar(__webpack_require__(/*! react */ "react"));
+const ReactDOM = __importStar(__webpack_require__(/*! react-dom */ "react-dom"));
 // @ts-ignore
 const reactflow_1 = __webpack_require__(/*! reactflow */ "./node_modules/reactflow/dist/umd/index.js");
 const EdgeUtils_1 = __webpack_require__(/*! ./EdgeUtils */ "./typescript/components/ArchitectureBuilder/EdgeUtils.ts");
@@ -4403,6 +4314,8 @@ exports.CustomEdge = React.memo(({ sourceX, sourceY, targetX, targetY, sourcePos
     // null = at rest (derive from props); non-null = user is actively dragging.
     const [liveWaypoints, setLiveWaypoints] = React.useState(null);
     const dragState = React.useRef(null);
+    const [isEditing, setIsEditing] = React.useState(false);
+    const [editingText, setEditingText] = React.useState(label);
     const isStepType = (data === null || data === void 0 ? void 0 : data.lineType) === 'step' || (data === null || data === void 0 ? void 0 : data.lineType) === 'smoothstep' || !(data === null || data === void 0 ? void 0 : data.lineType);
     const isHorizSrc = sourcePosition === 'right' || sourcePosition === 'left';
     const isHorizTgt = targetPosition === 'right' || targetPosition === 'left';
@@ -4519,11 +4432,28 @@ exports.CustomEdge = React.memo(({ sourceX, sourceY, targetX, targetY, sourcePos
         setLiveWaypoints(null);
     };
     // ─── Label editing ───────────────────────────────────────────────────
-    // The edit dialog is owned by ArchitectureBuilder (see EdgeLabelDialog) so it
-    // is not lost if this edge remounts; the edge only asks for it to open.
     const handleLabelDoubleClick = () => {
-        var _a;
-        (_a = data === null || data === void 0 ? void 0 : data.onRequestEdit) === null || _a === void 0 ? void 0 : _a.call(data);
+        setIsEditing(true);
+        setEditingText(label);
+    };
+    const handleSave = () => {
+        if (editingText !== label && (data === null || data === void 0 ? void 0 : data.onLabelChange)) {
+            data.onLabelChange(editingText);
+        }
+        setIsEditing(false);
+    };
+    const handleLabelInputKeyDown = (e) => {
+        if (e.key === 'Enter' && e.ctrlKey) {
+            e.preventDefault();
+            handleSave();
+        }
+        else if (e.key === 'Escape') {
+            e.preventDefault();
+            setIsEditing(false);
+        }
+    };
+    const handleTextareaChange = (e) => {
+        setEditingText(e.target.value);
     };
     // ─── Render ───────────────────────────────────────────────────────────
     const segHandlePts = React.useMemo(() => [{ x: sx, y: sy }, ...pinnedWaypoints, { x: tx, y: ty }], [pinnedWaypoints, sx, sy, tx, ty]);
@@ -4562,6 +4492,55 @@ exports.CustomEdge = React.memo(({ sourceX, sourceY, targetX, targetY, sourcePos
                     zIndex: (zIndex !== null && zIndex !== void 0 ? zIndex : 5000) + 50,
                     cursor: 'pointer', whiteSpace: 'pre-wrap', textAlign: 'center',
                 }, className: "nodrag nopan" }, label))),
+        isEditing && ReactDOM.createPortal((React.createElement("div", { className: "nodrag nopan", onClick: (e) => e.stopPropagation(), style: {
+                position: 'fixed',
+                top: 0, left: 0, right: 0, bottom: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.45)',
+                zIndex: 9999,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                pointerEvents: 'auto',
+            } },
+            React.createElement("div", { style: {
+                    backgroundColor: 'var(--neutral-10)',
+                    borderRadius: '8px',
+                    padding: '16px',
+                    border: '1px solid var(--neutral-40)',
+                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.35)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                    minWidth: '220px',
+                } },
+                React.createElement("div", { style: { fontSize: '12px', fontWeight: 'bold', color: 'var(--neutral-70)' } }, "Edit Label"),
+                React.createElement("textarea", { value: editingText, onChange: handleTextareaChange, onKeyDown: handleLabelInputKeyDown, autoFocus: true, rows: 3, style: {
+                        backgroundColor: 'var(--neutral-20)',
+                        padding: '6px 8px',
+                        borderRadius: '4px',
+                        border: '1px solid var(--neutral-40)',
+                        fontSize: '12px',
+                        color: 'var(--neutral-90)',
+                        outline: 'none',
+                        resize: 'vertical',
+                        fontFamily: 'inherit',
+                        pointerEvents: 'auto',
+                    } }),
+                React.createElement("div", { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' } },
+                    React.createElement("button", { onClick: () => setIsEditing(false), style: {
+                            padding: '4px 14px', borderRadius: '4px',
+                            border: '1px solid var(--neutral-40)',
+                            backgroundColor: 'var(--neutral-20)',
+                            color: 'var(--neutral-90)',
+                            fontSize: '12px', cursor: 'pointer',
+                        } }, "Cancel"),
+                    React.createElement("button", { onClick: handleSave, style: {
+                            padding: '4px 14px', borderRadius: '4px',
+                            border: 'none',
+                            backgroundColor: 'var(--callToAction)',
+                            color: 'white',
+                            fontSize: '12px', fontWeight: 'bold', cursor: 'pointer',
+                        } }, "Confirm"))))), document.body),
         canEdit && segHandlePts.length >= 4 && (React.createElement(reactflow_1.EdgeLabelRenderer, null, segHandlePts.slice(0, -1).map((pt, i) => {
             const next = segHandlePts[i + 1];
             if (i === 0 || i === segHandlePts.length - 2)
@@ -4594,106 +4573,6 @@ exports.edgeTypes = { custom: exports.CustomEdge };
 
 /***/ }),
 
-/***/ "./typescript/components/ArchitectureBuilder/EdgeLabelDialog.tsx":
-/*!***********************************************************************!*\
-  !*** ./typescript/components/ArchitectureBuilder/EdgeLabelDialog.tsx ***!
-  \***********************************************************************/
-/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
-
-"use strict";
-
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.EdgeLabelDialog = void 0;
-const React = __importStar(__webpack_require__(/*! react */ "react"));
-const ReactDOM = __importStar(__webpack_require__(/*! react-dom */ "react-dom"));
-// Rendered by ArchitectureBuilder (not by CustomEdge) so it survives edge remounts,
-// e.g. when React Flow re-creates an edge after a hover/z-index change.
-const EdgeLabelDialog = ({ initialText, onSave, onCancel }) => {
-    const [text, setText] = React.useState(initialText);
-    const handleKeyDown = (e) => {
-        if (e.key === 'Enter' && e.ctrlKey) {
-            e.preventDefault();
-            onSave(text);
-        }
-        else if (e.key === 'Escape') {
-            e.preventDefault();
-            onCancel();
-        }
-    };
-    return ReactDOM.createPortal((React.createElement("div", { className: "nodrag nopan", onClick: (e) => e.stopPropagation(), style: {
-            position: 'fixed',
-            top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.45)',
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            pointerEvents: 'auto',
-        } },
-        React.createElement("div", { style: {
-                backgroundColor: 'var(--neutral-10)',
-                borderRadius: '8px',
-                padding: '16px',
-                border: '1px solid var(--neutral-40)',
-                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.35)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '10px',
-                minWidth: '220px',
-            } },
-            React.createElement("div", { style: { fontSize: '12px', fontWeight: 'bold', color: 'var(--neutral-70)' } }, "Edit Label"),
-            React.createElement("textarea", { value: text, onChange: (e) => setText(e.target.value), onKeyDown: handleKeyDown, autoFocus: true, rows: 3, style: {
-                    backgroundColor: 'var(--neutral-20)',
-                    padding: '6px 8px',
-                    borderRadius: '4px',
-                    border: '1px solid var(--neutral-40)',
-                    fontSize: '12px',
-                    color: 'var(--neutral-90)',
-                    outline: 'none',
-                    resize: 'vertical',
-                    fontFamily: 'inherit',
-                    pointerEvents: 'auto',
-                } }),
-            React.createElement("div", { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' } },
-                React.createElement("button", { onClick: onCancel, style: {
-                        padding: '4px 14px', borderRadius: '4px',
-                        border: '1px solid var(--neutral-40)',
-                        backgroundColor: 'var(--neutral-20)',
-                        color: 'var(--neutral-90)',
-                        fontSize: '12px', cursor: 'pointer',
-                    } }, "Cancel"),
-                React.createElement("button", { onClick: () => onSave(text), style: {
-                        padding: '4px 14px', borderRadius: '4px',
-                        border: 'none',
-                        backgroundColor: 'var(--callToAction)',
-                        color: 'white',
-                        fontSize: '12px', fontWeight: 'bold', cursor: 'pointer',
-                    } }, "Confirm"))))), document.body);
-};
-exports.EdgeLabelDialog = EdgeLabelDialog;
-
-
-/***/ }),
-
 /***/ "./typescript/components/ArchitectureBuilder/EdgeUtils.ts":
 /*!****************************************************************!*\
   !*** ./typescript/components/ArchitectureBuilder/EdgeUtils.ts ***!
@@ -4719,8 +4598,8 @@ const getHandlePixelPos = (nodeId, handleId, nodes, handleCount) => {
         return null;
     const pos = (idx + 0.5) / handleCount;
     const isContainer = node.paletteId === 'container';
-    const nw = node.width || (isContainer ? 300 : 150);
-    const nh = node.height || (isContainer ? 300 : 150);
+    const nw = isContainer ? (node.width || 300) : 150;
+    const nh = isContainer ? (node.height || 300) : 150;
     switch (side) {
         case 'top': return { x: node.x + pos * nw, y: node.y, position: 'top' };
         case 'bottom': return { x: node.x + pos * nw, y: node.y + nh, position: 'bottom' };
@@ -4800,7 +4679,7 @@ const computeAutoWaypoints = (sx, sy, sp, tx, ty, tp) => {
     return [{ x: sx, y: ey }, { x: midX, y: ey }, { x: midX, y: fy }, { x: tx, y: fy }];
 };
 exports.computeAutoWaypoints = computeAutoWaypoints;
-const mapIgnitionToReactFlowEdges = (ignitionEdges, ignitionNodes, connectionTypes, selectedId, onWaypointsChange, onLabelChange, snapEnabled, snapPixels, globalEdgeWidth, onRequestEdit) => {
+const mapIgnitionToReactFlowEdges = (ignitionEdges, ignitionNodes, connectionTypes, selectedId, onWaypointsChange, onLabelChange, snapEnabled, snapPixels, globalEdgeWidth) => {
     const baseWidth = globalEdgeWidth !== null && globalEdgeWidth !== void 0 ? globalEdgeWidth : 6;
     if (!ignitionEdges)
         return [];
@@ -4835,7 +4714,6 @@ const mapIgnitionToReactFlowEdges = (ignitionEdges, ignitionNodes, connectionTyp
                 snapEnabled: snapEnabled !== null && snapEnabled !== void 0 ? snapEnabled : true,
                 snapPixels: snapPixels !== null && snapPixels !== void 0 ? snapPixels : 15,
                 dashed: edgeData.dashed === true,
-                onRequestEdit: onRequestEdit ? () => onRequestEdit(id) : undefined,
                 onWaypointsChange: onWaypointsChange
                     ? (wps) => onWaypointsChange(id, wps)
                     : undefined,
@@ -4846,54 +4724,6 @@ const mapIgnitionToReactFlowEdges = (ignitionEdges, ignitionNodes, connectionTyp
     });
 };
 exports.mapIgnitionToReactFlowEdges = mapIgnitionToReactFlowEdges;
-
-
-/***/ }),
-
-/***/ "./typescript/components/ArchitectureBuilder/NodeView.tsx":
-/*!****************************************************************!*\
-  !*** ./typescript/components/ArchitectureBuilder/NodeView.tsx ***!
-  \****************************************************************/
-/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
-
-"use strict";
-
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.NodeView = exports.VIEW_MIN_ZOOM = exports.ViewParentContext = exports.isViewPath = void 0;
-const react_1 = __importDefault(__webpack_require__(/*! react */ "react"));
-const perspective_client_1 = __webpack_require__(/*! @inductiveautomation/perspective-client */ "@inductiveautomation/perspective-client");
-const zoomSelectors_1 = __webpack_require__(/*! ./zoomSelectors */ "./typescript/components/ArchitectureBuilder/zoomSelectors.ts");
-// A viewPath is a project-relative Perspective view resource path (e.g. "Exchange/Widgets/PumpCard").
-// It is never rendered as markup; reject anything that looks like a URL scheme or HTML.
-const isViewPath = (value) => typeof value === 'string' && value.trim().length > 0 && !/[<>:\\]/.test(value);
-exports.isViewPath = isViewPath;
-/**
- * The Architecture Builder's own ComponentStore. Passed to embedded views as `parent` so Perspective can
- * detect a view that (directly or indirectly) embeds itself.
- */
-exports.ViewParentContext = react_1.default.createContext(undefined);
-// Below this zoom level a view is not worth its DOM cost and is too small to read, so the node shows its
-// image (or an empty box) instead. The view mounts again as soon as the user zooms back in.
-exports.VIEW_MIN_ZOOM = 0.35;
-let mountCounter = 0;
-/**
- * Renders a live Perspective view inside a node. The view is a child of the page, so it gets its own
- * property tree, bindings and params like any embedded view.
- */
-exports.NodeView = react_1.default.memo(({ nodeId, viewPath, params, fallback }) => {
-    const client = react_1.default.useContext(perspective_client_1.ClientStoreProviderContext);
-    const parent = react_1.default.useContext(exports.ViewParentContext);
-    const zoomedIn = zoomSelectors_1.useZoomAtLeast(exports.VIEW_MIN_ZOOM);
-    const mountPath = react_1.default.useMemo(() => `ab-node-${nodeId}-${++mountCounter}`, [nodeId]);
-    // No client store (for example in a host that does not provide one): show the image instead of nothing.
-    if (!client || !zoomedIn)
-        return react_1.default.createElement(react_1.default.Fragment, null, fallback !== null && fallback !== void 0 ? fallback : null);
-    return (react_1.default.createElement("div", { className: "nodrag nopan", style: { position: 'relative', width: '100%', height: '100%', overflow: 'hidden', pointerEvents: 'none' } },
-        react_1.default.createElement(perspective_client_1.View, { store: client, resourcePath: viewPath.trim(), mountPath: mountPath, parent: parent, params: params })));
-});
 
 
 /***/ }),
@@ -4914,10 +4744,9 @@ exports.NoteLabelNode = void 0;
 const react_1 = __importDefault(__webpack_require__(/*! react */ "react"));
 // @ts-ignore
 const reactflow_1 = __webpack_require__(/*! reactflow */ "./node_modules/reactflow/dist/umd/index.js");
-const zoomSelectors_1 = __webpack_require__(/*! ./zoomSelectors */ "./typescript/components/ArchitectureBuilder/zoomSelectors.ts");
 exports.NoteLabelNode = react_1.default.memo(({ id, data, selected }) => {
     var _a, _b, _c, _d, _e;
-    const resizerSize = zoomSelectors_1.useResizerSize();
+    const { zoom } = reactflow_1.useViewport();
     const [isEditing, setIsEditing] = react_1.default.useState(false);
     const [text, setText] = react_1.default.useState(data.text || data.label || '');
     const [isOverflowing, setIsOverflowing] = react_1.default.useState(false);
@@ -4969,6 +4798,8 @@ exports.NoteLabelNode = react_1.default.memo(({ id, data, selected }) => {
     const isNote = data.paletteId === 'Note';
     const nodeStyle = Object.assign({ padding: '10px', border: selected ? '2px solid var(--callToAction)' : (((_a = data.style) === null || _a === void 0 ? void 0 : _a.border) || '1px solid var(--neutral-40)'), borderRadius: ((_b = data.style) === null || _b === void 0 ? void 0 : _b.borderRadius) || '4px', backgroundColor: ((_c = data.style) === null || _c === void 0 ? void 0 : _c.backgroundColor) || 'var(--neutral-00)', minWidth: '60px', minHeight: '30px', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: isEditing ? 'text' : 'grab', pointerEvents: 'auto', overflow: 'hidden', boxSizing: 'border-box', position: 'relative' }, data.style);
     const textStyle = Object.assign({ color: ((_d = data.textStyle) === null || _d === void 0 ? void 0 : _d.color) || 'var(--neutral-90)', fontSize: ((_e = data.textStyle) === null || _e === void 0 ? void 0 : _e.fontSize) || '14px', textAlign: 'center', width: '100%', wordBreak: 'break-word', whiteSpace: 'pre-wrap', userSelect: isEditing ? 'text' : 'none' }, data.textStyle);
+    // Calculate dynamic resizer handle size based on zoom (matching ContainerNode logic)
+    const resizerSize = Math.max(10, Math.round(16 / zoom));
     return (react_1.default.createElement("div", { onDoubleClick: handleDoubleClick, style: nodeStyle, className: isEditing ? 'nodrag' : '' },
         react_1.default.createElement(reactflow_1.Handle, { type: "source", position: reactflow_1.Position.Top, style: { display: 'none', pointerEvents: 'none' } }),
         react_1.default.createElement(reactflow_1.Handle, { type: "target", position: reactflow_1.Position.Top, style: { display: 'none', pointerEvents: 'none' } }),
@@ -5013,113 +4844,6 @@ exports.NoteLabelNode = react_1.default.memo(({ id, data, selected }) => {
                 zIndex: 5
             } }, "\u26A0\uFE0F"))));
 });
-
-
-/***/ }),
-
-/***/ "./typescript/components/ArchitectureBuilder/QuickAddMenu.tsx":
-/*!********************************************************************!*\
-  !*** ./typescript/components/ArchitectureBuilder/QuickAddMenu.tsx ***!
-  \********************************************************************/
-/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
-
-"use strict";
-
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.QuickAddMenu = void 0;
-const React = __importStar(__webpack_require__(/*! react */ "react"));
-const ContextMenu_1 = __webpack_require__(/*! ./ContextMenu */ "./typescript/components/ArchitectureBuilder/ContextMenu.tsx");
-const CONTAINER_STYLE = {
-    position: 'absolute', zIndex: 10, backgroundColor: 'var(--neutral-20)', border: '1px solid var(--neutral-50)',
-    borderRadius: '4px', boxShadow: '0 4px 6px rgba(0,0,0,0.3)', padding: '4px', width: '220px', fontSize: '12px',
-};
-/**
- * Menu shown when an edge is dragged out of a node and dropped on empty canvas. Behaves like the
- * right-click menu: opens at the pointer, clamps inside the canvas, closes on Escape or an outside click.
- */
-const QuickAddMenu = ({ quickAdd, items, wrapperRef, onSelect, onClose }) => {
-    const containerRef = React.useRef(null);
-    const [filter, setFilter] = React.useState('');
-    const [adjustment, setAdjustment] = React.useState({ dx: 0, dy: 0 });
-    // Keep the menu inside the canvas (wrapper-local coordinates, same as the context menu).
-    React.useLayoutEffect(() => {
-        if (!containerRef.current || !wrapperRef.current)
-            return;
-        const menuW = containerRef.current.offsetWidth;
-        const menuH = containerRef.current.offsetHeight;
-        const wrapW = wrapperRef.current.clientWidth;
-        const wrapH = wrapperRef.current.clientHeight;
-        let dx = 0, dy = 0;
-        if (quickAdd.left + menuW > wrapW - 8)
-            dx = wrapW - 8 - (quickAdd.left + menuW);
-        if (quickAdd.top + menuH > wrapH - 8)
-            dy = wrapH - 8 - (quickAdd.top + menuH);
-        if (quickAdd.left + dx < 8)
-            dx = 8 - quickAdd.left;
-        if (quickAdd.top + dy < 8)
-            dy = 8 - quickAdd.top;
-        setAdjustment({ dx, dy });
-    }, [quickAdd.top, quickAdd.left, items.length]);
-    // Close on an outside press.
-    React.useEffect(() => {
-        const onPointerDown = (e) => {
-            if (containerRef.current && !containerRef.current.contains(e.target))
-                onClose();
-        };
-        document.addEventListener('pointerdown', onPointerDown, true);
-        return () => document.removeEventListener('pointerdown', onPointerDown, true);
-    }, [onClose]);
-    const groups = React.useMemo(() => {
-        const needle = filter.trim().toLowerCase();
-        const byCategory = new Map();
-        items.forEach(item => {
-            if (needle && !String(item.label || '').toLowerCase().includes(needle))
-                return;
-            const category = item.category || 'Other';
-            if (!byCategory.has(category))
-                byCategory.set(category, []);
-            byCategory.get(category).push(item);
-        });
-        return Array.from(byCategory.entries());
-    }, [items, filter]);
-    return (React.createElement("div", { ref: containerRef, role: "menu", "aria-label": "Add node", style: Object.assign(Object.assign({}, CONTAINER_STYLE), { top: quickAdd.top + adjustment.dy, left: quickAdd.left + adjustment.dx }), onContextMenu: (e) => e.preventDefault() },
-        React.createElement("input", { autoFocus: true, value: filter, onChange: (e) => setFilter(e.target.value), onKeyDown: (e) => {
-                if (e.key === 'Escape') {
-                    e.stopPropagation();
-                    onClose();
-                }
-                else if (e.key === 'Enter' && groups.length > 0) {
-                    onSelect(groups[0][1][0]);
-                }
-            }, placeholder: "Add node...", style: { width: '100%', boxSizing: 'border-box', marginBottom: '4px', padding: '4px 6px', fontSize: '12px', backgroundColor: 'var(--neutral-10)', color: 'var(--neutral-90)', border: '1px solid var(--neutral-50)', borderRadius: '3px' } }),
-        React.createElement("div", { style: { maxHeight: '280px', overflowY: 'auto' } },
-            groups.length === 0 && React.createElement("div", { style: { padding: '5px 8px', color: 'var(--neutral-60)' } }, "No matching nodes"),
-            groups.map(([category, categoryItems]) => (React.createElement("div", { key: category },
-                React.createElement("div", { style: { padding: '4px 8px 2px', color: 'var(--neutral-60)', fontSize: '11px', fontWeight: 'bold' } }, category),
-                categoryItems.map(item => (React.createElement("div", { key: item.id, role: "menuitem", className: "arch-quickadd-item", style: { padding: '4px 8px', cursor: 'pointer', color: 'var(--neutral-90)', display: 'flex', alignItems: 'center', gap: '8px' }, onMouseEnter: (e) => { e.currentTarget.style.backgroundColor = 'var(--neutral-30)'; }, onMouseLeave: (e) => { e.currentTarget.style.backgroundColor = 'transparent'; }, onClick: () => onSelect(item) },
-                    React.createElement("div", { style: { width: '20px', height: '20px', flexShrink: 0 } }, item.image ? React.createElement(ContextMenu_1.SwapIcon, { image: item.image, label: item.label }) : null),
-                    React.createElement("span", { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, item.label))))))))));
-};
-exports.QuickAddMenu = QuickAddMenu;
 
 
 /***/ }),
@@ -5237,7 +4961,9 @@ const Sidebar = ({ paletteItems, isOpen, toggleSidebar, onDragStartItem, onItemC
                 Object.keys(groupedItems).length > 0 && (react_1.default.createElement("div", { onClick: toggleAllCategories, style: { cursor: 'pointer', fontSize: '12px', color: 'var(--neutral-70)', marginBottom: '10px', textAlign: 'right', userSelect: 'none' } }, anyExpanded ? 'Collapse All' : 'Expand All')),
                 containerItems.length > 0 && (react_1.default.createElement("div", { style: { marginBottom: '20px', paddingBottom: '15px', borderBottom: '1px solid var(--neutral-40)' } }, containerItems.map((item) => {
                     const _a = item.style || {}, { classes: _c, backgroundColor: imageBg } = _a, itemStyle = __rest(_a, ["classes", "backgroundColor"]);
-                    const _b = item.labelStyle || {}, { classes: _lc } = _b, labelStyle = __rest(_b, ["classes"]);
+                    // fontSize is intentionally dropped: the palette label is always 14px,
+                    // while labelStyle.fontSize still applies to the node on the canvas.
+                    const _b = item.labelStyle || {}, { classes: _lc, fontSize: _lfs } = _b, labelStyle = __rest(_b, ["classes", "fontSize"]);
                     return (react_1.default.createElement("div", { key: item.id, draggable: true, onDragStart: (e) => onDragStart(e, item), onClick: () => onItemClick(item), style: Object.assign({ border: '1px dashed var(--neutral-50)', backgroundColor: 'var(--neutral-30)', padding: '10px', marginBottom: '8px', cursor: 'grab', display: 'flex', alignItems: 'center', borderRadius: '4px', fontWeight: 'bold' }, itemStyle) },
                         react_1.default.createElement("div", { style: { width: '20px', height: '20px', marginRight: '10px', backgroundColor: imageBg || undefined } },
                             react_1.default.createElement(PaletteThumb, { src: item.image, label: item.label })),
@@ -5251,7 +4977,7 @@ const Sidebar = ({ paletteItems, isOpen, toggleSidebar, onDragStartItem, onItemC
                             react_1.default.createElement("span", { style: { fontSize: '12px' } }, isCollapsed ? '▶' : '▼')),
                         !isCollapsed && (react_1.default.createElement("div", { style: { paddingLeft: '5px' } }, items.map((item) => {
                             const _a = item.style || {}, { classes: _c, backgroundColor: imageBg } = _a, itemStyle = __rest(_a, ["classes", "backgroundColor"]);
-                            const _b = item.labelStyle || {}, { classes: _lc } = _b, labelStyle = __rest(_b, ["classes"]);
+                            const _b = item.labelStyle || {}, { classes: _lc, fontSize: _lfs } = _b, labelStyle = __rest(_b, ["classes", "fontSize"]);
                             return (react_1.default.createElement("div", { key: item.id, draggable: true, onDragStart: (e) => onDragStart(e, item), onClick: () => onItemClick(item), style: Object.assign({ border: '1px solid var(--neutral-40)', backgroundColor: 'var(--neutral-10)', padding: '8px', marginBottom: '8px', cursor: 'grab', display: 'flex', alignItems: 'center', borderRadius: '4px' }, itemStyle) },
                                 react_1.default.createElement("div", { style: { width: '20px', height: '20px', marginRight: '10px', backgroundColor: imageBg || undefined } },
                                     react_1.default.createElement(PaletteThumb, { src: item.image, label: item.label })),
@@ -5458,49 +5184,6 @@ exports.STANDARD_PALETTE = [
 
 /***/ }),
 
-/***/ "./typescript/components/ArchitectureBuilder/nodeFactory.ts":
-/*!******************************************************************!*\
-  !*** ./typescript/components/ArchitectureBuilder/nodeFactory.ts ***!
-  \******************************************************************/
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.createPaletteNodeData = void 0;
-/**
- * Builds the persisted node dict for a new node created from a palette item (drag-drop, or an edge dropped
- * on empty canvas). The image is not stored; it is resolved from the palette at render time.
- */
-const createPaletteNodeData = (paletteItem, x, y) => {
-    const data = {
-        paletteId: paletteItem.id,
-        typeId: paletteItem.typeId,
-        label: paletteItem.label,
-        tooltip: paletteItem.tooltip,
-        x,
-        y,
-        hideHandles: paletteItem.hideHandles === true,
-        style: JSON.parse(JSON.stringify(paletteItem.style || { classes: '' })),
-        labelStyle: JSON.parse(JSON.stringify(paletteItem.labelStyle || { classes: '' })),
-        configs: JSON.parse(JSON.stringify(paletteItem.defaultConfigs || {})),
-        supportedConnections: paletteItem.supportedConnections || [],
-        useOverrideImage: paletteItem.useOverrideImage || false,
-        inactive: paletteItem.inactive || false,
-        actionIcons: JSON.parse(JSON.stringify(paletteItem.actionIcons || [])),
-    };
-    if (paletteItem.id === 'container') {
-        data.width = 300;
-        data.height = 300;
-        data.zIndex = -500;
-    }
-    return data;
-};
-exports.createPaletteNodeData = createPaletteNodeData;
-
-
-/***/ }),
-
 /***/ "./typescript/components/ArchitectureBuilder/svgSanitize.ts":
 /*!******************************************************************!*\
   !*** ./typescript/components/ArchitectureBuilder/svgSanitize.ts ***!
@@ -5513,7 +5196,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.toSafeDataUri = exports.isImageUrl = exports.extractSvgMarkup = exports.sanitizeSvg = exports.nextSvgScopeId = void 0;
+exports.toSafeDataUri = exports.extractSvgMarkup = exports.sanitizeSvg = exports.nextSvgScopeId = void 0;
 const dompurify_1 = __importDefault(__webpack_require__(/*! dompurify */ "../../node_modules/dompurify/dist/purify.cjs.js"));
 /**
  * Tightly-scoped DOMPurify config for user-supplied SVG icons.
@@ -5634,33 +5317,16 @@ function extractSvgMarkup(value, scopeId) {
 }
 exports.extractSvgMarkup = extractSvgMarkup;
 /**
- * True for an image path/URL (e.g. "/system/images/foo.svg", "images/foo.png",
- * "https://host/foo.svg"). False for data URIs, raw markup, and any other URL scheme
- * (javascript:, vbscript:, file:, ...). Such values are only ever used as <img src>,
- * which never executes script, even for SVG.
- */
-function isImageUrl(value) {
-    const v = value.trim();
-    if (!v || v.startsWith('<') || v.startsWith('data:'))
-        return false;
-    const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(v);
-    return !scheme || /^https?$/i.test(scheme[1]);
-}
-exports.isImageUrl = isImageUrl;
-/**
- * Return a safe URI for use in <img src> or as a drag-ghost source.
- * Raw SVG markup is sanitized before encoding. Non-SVG data URIs and image paths/URLs pass through.
+ * Return a safe data URI for use in <img src> or as a drag-ghost source.
+ * Raw SVG markup is sanitized before encoding. Non-SVG data URIs pass through.
  * Returns null for unrecognised or empty values.
  *
- * Used for data/URL images and drag ghost images.
- * For inline SVG markup, prefer extractSvgMarkup() + dangerouslySetInnerHTML.
+ * Use this only where a URL is required (drag ghost images).
+ * For normal rendering, prefer extractSvgMarkup() + dangerouslySetInnerHTML.
  */
 function toSafeDataUri(value) {
     if (!value)
         return null;
-    // Image path or http(s) URL: the browser fetches and caches it.
-    if (isImageUrl(value))
-        return value.trim();
     // Non-SVG data URIs (PNG, JPEG, GIF …) carry no executable markup.
     if (value.startsWith('data:'))
         return value;
@@ -5719,7 +5385,6 @@ exports.useArchitectureFlowHandlers = void 0;
 const React = __importStar(__webpack_require__(/*! react */ "react"));
 // @ts-ignore
 const reactflow_1 = __webpack_require__(/*! reactflow */ "./node_modules/reactflow/dist/umd/index.js");
-const nodeFactory_1 = __webpack_require__(/*! ./nodeFactory */ "./typescript/components/ArchitectureBuilder/nodeFactory.ts");
 const useEdgeHandlers_1 = __webpack_require__(/*! ./useEdgeHandlers */ "./typescript/components/ArchitectureBuilder/useEdgeHandlers.ts");
 const utils_1 = __webpack_require__(/*! ./utils */ "./typescript/components/ArchitectureBuilder/utils.ts");
 const getNodesInside = (containerId, allNodes) => {
@@ -5737,8 +5402,8 @@ const getNodesInside = (containerId, allNodes) => {
         const node = allNodes[id];
         if (!node)
             return;
-        const nw = node.width || (node.paletteId === 'container' ? 300 : 150);
-        const nh = node.height || (node.paletteId === 'container' ? 300 : 150);
+        const nw = node.paletteId === 'container' ? (node.width || 300) : 150;
+        const nh = node.paletteId === 'container' ? (node.height || 300) : 150;
         if (nw >= cWidth || nh >= cHeight)
             return;
         if (node.x >= cx1 && node.y >= cy1 && node.x + nw <= cx2 && node.y + nh <= cy2)
@@ -5746,7 +5411,7 @@ const getNodesInside = (containerId, allNodes) => {
     });
     return inside;
 };
-const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, connectionTypes, nodeTypeConnectionDefaults, globalHandleCount, paletteItems, snapEnabled, snapPixels, reactFlowInstance, reactFlowWrapper, wrapperBoundsRef, isEnabled, enableOnClickEvents, selectedId, setSelectedId, selectedNodeIdsRef, setSelectedNodes, setLocalNodes, setLocalEdges, contextMenu, setContextMenu, setActiveSubMenu, setStyleEditorNodeId, setEditingEdgeId, clipboardRef, draggedItemRef, setQuickAdd, }) => {
+const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, connectionTypes, nodeTypeConnectionDefaults, globalHandleCount, paletteItems, snapEnabled, snapPixels, reactFlowInstance, reactFlowWrapper, wrapperBoundsRef, isEnabled, enableOnClickEvents, selectedId, setSelectedId, setLocalNodes, setLocalEdges, contextMenu, setContextMenu, setActiveSubMenu, setStyleEditorNodeId, clipboardRef, draggedItemRef, }) => {
     const [isDraggingNode, setIsDraggingNode] = React.useState(false);
     const dragStartPos = React.useRef(null);
     // Stable refs so callbacks that only READ rawNodesDict/rawEdgesDict at call-time
@@ -5758,8 +5423,7 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
     const closeContextMenu = React.useCallback(() => {
         setContextMenu(null);
         setActiveSubMenu(null);
-        setQuickAdd(null);
-    }, [setContextMenu, setActiveSubMenu, setQuickAdd]);
+    }, [setContextMenu, setActiveSubMenu]);
     // ─── Edge handlers (delegated) ────────────────────────────────────────────
     const edgeHandlers = useEdgeHandlers_1.useEdgeHandlers({
         store,
@@ -5778,10 +5442,7 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
         wrapperBoundsRef,
         closeContextMenu,
         enableOnClickEvents,
-        setQuickAdd,
-        handleCount: globalHandleCount,
     });
-    const { createEdgeToNewNode, quickAddOpenedAtRef } = edgeHandlers;
     // ─── Node handlers ────────────────────────────────────────────────────────
     const handleGearClick = React.useCallback((id) => {
         setSelectedId(id);
@@ -5834,41 +5495,21 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
     }, [store, componentEvents]);
     const onNodesChange = React.useCallback((changes) => {
         setLocalNodes((nds) => reactflow_1.applyNodeChanges(changes, nds));
-        // React Flow reports Ctrl/Shift-click toggles and box selections as 'select' changes.
-        // Mirror them into our selection state (which is what drives each node's `selected`).
-        const selectChanges = changes.filter((c) => c.type === 'select');
-        if (selectChanges.length === 0)
-            return;
-        const next = new Set(selectedNodeIdsRef.current);
-        selectChanges.forEach((c) => { if (c.selected)
-            next.add(c.id);
-        else
-            next.delete(c.id); });
-        setSelectedNodes(Array.from(next));
-    }, [setLocalNodes, setSelectedNodes, selectedNodeIdsRef]);
-    // `draggedNodes` is every node React Flow is moving (all selected nodes when dragging a selected one).
-    // Besides those, linked containers carry the nodes inside them, and edges with pinned waypoints
-    // (inside a moving container, or between two moving nodes) carry those waypoints.
-    const onNodeDragStart = React.useCallback((event, node, draggedNodes) => {
+    }, [setLocalNodes]);
+    const onNodeDragStart = React.useCallback((event, node) => {
+        var _a;
         closeContextMenu();
         setIsDraggingNode(true);
-        const dragged = draggedNodes && draggedNodes.length > 0 ? draggedNodes : [node];
-        const nodePositions = {};
-        const edgeWaypoints = {};
-        const movingIds = new Set(dragged.map(n => n.id));
-        dragged.forEach(d => {
-            var _a;
-            const rawNode = rawNodesDict[d.id];
-            if ((rawNode === null || rawNode === void 0 ? void 0 : rawNode.paletteId) !== 'container' || ((_a = rawNode === null || rawNode === void 0 ? void 0 : rawNode.configs) === null || _a === void 0 ? void 0 : _a.unlinked))
-                return;
+        const rawNode = rawNodesDict[node.id];
+        if ((rawNode === null || rawNode === void 0 ? void 0 : rawNode.paletteId) === 'container' && !((_a = rawNode === null || rawNode === void 0 ? void 0 : rawNode.configs) === null || _a === void 0 ? void 0 : _a.unlinked)) {
+            const cWidth = rawNode.width || 300;
+            const cHeight = rawNode.height || 300;
             const cx1 = rawNode.x, cy1 = rawNode.y;
-            const cx2 = cx1 + (rawNode.width || 300), cy2 = cy1 + (rawNode.height || 300);
-            getNodesInside(d.id, rawNodesDict).forEach(id => {
-                movingIds.add(id);
-                // Nodes React Flow already moves (selected) keep their own drag; only carry the rest.
-                if (!dragged.some(n => n.id === id))
-                    nodePositions[id] = { x: rawNodesDict[id].x, y: rawNodesDict[id].y };
-            });
+            const cx2 = cx1 + cWidth, cy2 = cy1 + cHeight;
+            const insideIds = getNodesInside(node.id, rawNodesDict);
+            const nodePositions = {};
+            insideIds.forEach(id => { nodePositions[id] = { x: rawNodesDict[id].x, y: rawNodesDict[id].y }; });
+            const edgeWaypoints = {};
             Object.entries(rawEdgesDict).forEach(([edgeId, edgeVal]) => {
                 if (!edgeVal || !Array.isArray(edgeVal.waypoints) || edgeVal.waypoints.length === 0)
                     return;
@@ -5876,22 +5517,16 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
                 if (anyInside)
                     edgeWaypoints[edgeId] = edgeVal.waypoints;
             });
-        });
-        // Edges between two moving nodes keep their shape: carry their pinned waypoints too.
-        if (movingIds.size > 1) {
-            Object.entries(rawEdgesDict).forEach(([edgeId, edgeVal]) => {
-                if (!edgeVal || edgeWaypoints[edgeId] || !Array.isArray(edgeVal.waypoints) || edgeVal.waypoints.length === 0)
-                    return;
-                if (movingIds.has(edgeVal.source) && movingIds.has(edgeVal.target))
-                    edgeWaypoints[edgeId] = edgeVal.waypoints;
-            });
+            dragStartPos.current = { nodes: nodePositions, edges: edgeWaypoints };
         }
-        const hasWork = Object.keys(nodePositions).length > 0 || Object.keys(edgeWaypoints).length > 0;
-        dragStartPos.current = hasWork ? { nodes: nodePositions, edges: edgeWaypoints } : null;
+        else {
+            dragStartPos.current = null;
+        }
     }, [rawNodesDict, rawEdgesDict]);
     const onNodeDrag = React.useCallback((event, node) => {
+        var _a;
         const currentDrag = dragStartPos.current;
-        if (currentDrag && currentDrag.nodes && rawNodesDict[node.id]) {
+        if (currentDrag && currentDrag.nodes && ((_a = rawNodesDict[node.id]) === null || _a === void 0 ? void 0 : _a.paletteId) === 'container') {
             const dx = node.position.x - rawNodesDict[node.id].x;
             const dy = node.position.y - rawNodesDict[node.id].y;
             setLocalNodes(nds => nds.map(n => {
@@ -5913,26 +5548,19 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
             }));
         }
     }, [rawNodesDict, setLocalNodes, setLocalEdges]);
-    const onNodeDragStop = React.useCallback((event, node, draggedNodes) => {
+    const onNodeDragStop = React.useCallback((event, node) => {
         try {
             if (store === null || store === void 0 ? void 0 : store.props) {
                 const nextNodes = Object.assign({}, rawNodesDict);
-                if (!nextNodes[node.id]) {
-                    setTimeout(() => setIsDraggingNode(false), 250);
+                if (!nextNodes[node.id])
                     return;
-                }
+                const isContainer = nextNodes[node.id].paletteId === 'container';
                 const dx = Math.round(node.position.x) - nextNodes[node.id].x;
                 const dy = Math.round(node.position.y) - nextNodes[node.id].y;
-                // Persist every node React Flow moved (all selected nodes), not just the one grabbed.
-                const dragged = draggedNodes && draggedNodes.length > 0 ? draggedNodes : [node];
-                dragged.forEach(d => {
-                    if (!nextNodes[d.id])
-                        return;
-                    nextNodes[d.id] = Object.assign(Object.assign({}, nextNodes[d.id]), { x: Math.round(d.position.x), y: Math.round(d.position.y) });
-                });
+                nextNodes[node.id] = Object.assign(Object.assign({}, nextNodes[node.id]), { x: Math.round(node.position.x), y: Math.round(node.position.y) });
                 const nextEdges = Object.assign({}, rawEdgesDict);
                 let edgesChanged = false;
-                if (dragStartPos.current && (dx !== 0 || dy !== 0)) {
+                if (isContainer && dragStartPos.current && (dx !== 0 || dy !== 0)) {
                     Object.keys(dragStartPos.current.nodes).forEach(childId => {
                         if (nextNodes[childId]) {
                             nextNodes[childId] = Object.assign(Object.assign({}, nextNodes[childId]), { x: dragStartPos.current.nodes[childId].x + dx, y: dragStartPos.current.nodes[childId].y + dy });
@@ -5990,6 +5618,8 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
                     }
                 });
                 delete nextNodes[n.id];
+                if (n.id === selectedId)
+                    setSelectedId(null);
                 if (enableOnClickEvents && (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)) {
                     componentEvents.fireComponentEvent('onNodeDeleted', { deletedNodeUuid: n.id, connectedNodeUuids, affectedNodes: connectedNodeUuids });
                 }
@@ -5997,60 +5627,48 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
             store.props.write('nodes', nextNodes);
             if (edgesChanged)
                 store.props.write('edges', nextEdges);
-            const deletedIds = new Set(deleted.map(n => n.id));
-            setSelectedNodes(selectedNodeIdsRef.current.filter(id => !deletedIds.has(id)));
         }
         catch (error) {
             console.error("Error in onNodesDelete:", error);
         }
-    }, [store, rawNodesDict, rawEdgesDict, setSelectedNodes, selectedNodeIdsRef, componentEvents, enableOnClickEvents]);
+    }, [store, rawNodesDict, rawEdgesDict, selectedId, setSelectedId, componentEvents, enableOnClickEvents]);
     const onNodeContextMenu = React.useCallback((event, node) => {
         var _a;
         event.preventDefault();
-        // Right-clicking a node that is part of a multi-selection keeps the selection (so Copy applies to all of it).
-        if (!selectedNodeIdsRef.current.includes(node.id))
-            setSelectedId(node.id);
+        setSelectedId(node.id);
         const bounds = wrapperBoundsRef.current;
         const isContainer = ((_a = rawNodesDict[node.id]) === null || _a === void 0 ? void 0 : _a.paletteId) === 'container';
         setContextMenu({ id: node.id, top: event.clientY - bounds.top, left: event.clientX - bounds.left, type: 'node', isContainer, clientX: event.clientX, clientY: event.clientY });
         setActiveSubMenu(null);
-    }, [rawNodesDict, wrapperBoundsRef, setSelectedId, selectedNodeIdsRef, setContextMenu, setActiveSubMenu]);
+    }, [rawNodesDict, wrapperBoundsRef, setSelectedId, setContextMenu, setActiveSubMenu]);
     const onNodeClick = React.useCallback((event, node) => {
         closeContextMenu();
-        // Ctrl/Cmd/Shift-click toggles membership; React Flow's select change (see onNodesChange) already applied it.
-        const isMultiClick = (event === null || event === void 0 ? void 0 : event.ctrlKey) || (event === null || event === void 0 ? void 0 : event.metaKey) || (event === null || event === void 0 ? void 0 : event.shiftKey);
-        if (!isMultiClick)
-            setSelectedId(node.id);
+        setSelectedId(node.id);
         const rawNode = rawNodesDict[node.id];
         if (componentEvents)
             componentEvents.fireComponentEvent('onNodeClick', { id: node.id, paletteId: rawNode === null || rawNode === void 0 ? void 0 : rawNode.paletteId, typeId: rawNode === null || rawNode === void 0 ? void 0 : rawNode.typeId, type: 'node' });
     }, [componentEvents, rawNodesDict, setSelectedId, closeContextMenu]);
     // ─── Clipboard ────────────────────────────────────────────────────────────
-    // Copies every node in `ids`, everything inside any copied container, and the edges between copied nodes.
-    const executeCopy = React.useCallback((ids) => {
-        const copiedNodes = {};
-        ids.forEach(id => {
-            const node = rawNodesDict[id];
-            if (!node)
-                return;
-            copiedNodes[id] = node;
-            if (node.paletteId === 'container') {
-                getNodesInside(id, rawNodesDict).forEach(childId => { copiedNodes[childId] = rawNodesDict[childId]; });
-            }
-        });
-        if (Object.keys(copiedNodes).length === 0)
-            return;
-        const copiedEdges = {};
-        Object.keys(rawEdgesDict).forEach(edgeId => {
-            const edge = rawEdgesDict[edgeId];
-            if (edge && copiedNodes[edge.source] && copiedNodes[edge.target])
-                copiedEdges[edgeId] = edge;
-        });
-        clipboardRef.current = { type: 'group', nodes: copiedNodes, edges: copiedEdges };
+    const executeCopy = React.useCallback((id) => {
+        var _a;
+        const isContainer = ((_a = rawNodesDict[id]) === null || _a === void 0 ? void 0 : _a.paletteId) === 'container';
+        if (isContainer) {
+            const insideIds = getNodesInside(id, rawNodesDict);
+            const copiedNodes = { [id]: rawNodesDict[id] };
+            insideIds.forEach(childId => { copiedNodes[childId] = rawNodesDict[childId]; });
+            const copiedEdges = {};
+            Object.keys(rawEdgesDict).forEach(edgeId => {
+                const edge = rawEdgesDict[edgeId];
+                if (copiedNodes[edge.source] && copiedNodes[edge.target])
+                    copiedEdges[edgeId] = edge;
+            });
+            clipboardRef.current = { type: 'group', nodes: copiedNodes, edges: copiedEdges };
+        }
+        else {
+            clipboardRef.current = { type: 'single', node: rawNodesDict[id] };
+        }
     }, [rawNodesDict, rawEdgesDict, clipboardRef]);
-    // Pastes the clipboard centered on (anchorX, anchorY), a flow-space point such as the mouse position.
-    // The group keeps its internal layout; its top-left is snapped to the grid when snapping is on.
-    const executePaste = React.useCallback((anchorX, anchorY) => {
+    const executePaste = React.useCallback((dropX, dropY) => {
         try {
             const clipboard = clipboardRef.current;
             if (!clipboard || !(store === null || store === void 0 ? void 0 : store.props))
@@ -6058,38 +5676,34 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
             const nextNodes = Object.assign({}, rawNodesDict);
             const nextEdges = Object.assign({}, rawEdgesDict);
             const createdNodes = [];
-            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-            Object.values(clipboard.nodes).forEach((n) => {
-                const isContainer = n.paletteId === 'container';
-                minX = Math.min(minX, n.x);
-                minY = Math.min(minY, n.y);
-                maxX = Math.max(maxX, n.x + (n.width || (isContainer ? 300 : 150)));
-                maxY = Math.max(maxY, n.y + (n.height || (isContainer ? 300 : 150)));
-            });
-            let targetX = anchorX - (maxX - minX) / 2;
-            let targetY = anchorY - (maxY - minY) / 2;
-            if (snapEnabled) {
-                targetX = Math.round(targetX / snapPixels) * snapPixels;
-                targetY = Math.round(targetY / snapPixels) * snapPixels;
+            if (clipboard.type === 'single') {
+                const newNodeId = utils_1.generateShortId();
+                nextNodes[newNodeId] = JSON.parse(JSON.stringify(Object.assign(Object.assign({}, clipboard.node), { x: dropX, y: dropY })));
+                setSelectedId(newNodeId);
+                createdNodes.push({ nodeUuid: newNodeId, typeId: clipboard.node.typeId, paletteId: clipboard.node.paletteId });
             }
-            const dx = Math.round(targetX - minX), dy = Math.round(targetY - minY);
-            const idMap = {};
-            Object.keys(clipboard.nodes).forEach(oldId => {
-                const newId = utils_1.generateShortId();
-                idMap[oldId] = newId;
-                const oldNode = clipboard.nodes[oldId];
-                nextNodes[newId] = JSON.parse(JSON.stringify(Object.assign(Object.assign({}, oldNode), { x: oldNode.x + dx, y: oldNode.y + dy })));
-                createdNodes.push({ nodeUuid: newId, typeId: oldNode.typeId, paletteId: oldNode.paletteId });
-            });
-            Object.keys(clipboard.edges).forEach(oldEdgeId => {
-                const newEdgeId = utils_1.generateShortId();
-                const oldEdge = clipboard.edges[oldEdgeId];
-                const waypoints = Array.isArray(oldEdge.waypoints) ? oldEdge.waypoints.map((wp) => ({ x: wp.x + dx, y: wp.y + dy })) : oldEdge.waypoints;
-                nextEdges[newEdgeId] = JSON.parse(JSON.stringify(Object.assign(Object.assign({}, oldEdge), { source: idMap[oldEdge.source], target: idMap[oldEdge.target], waypoints })));
-            });
+            else if (clipboard.type === 'group') {
+                let minX = Infinity, minY = Infinity;
+                Object.values(clipboard.nodes).forEach((n) => { if (n.x < minX)
+                    minX = n.x; if (n.y < minY)
+                    minY = n.y; });
+                const dx = dropX - minX, dy = dropY - minY;
+                const idMap = {};
+                Object.keys(clipboard.nodes).forEach(oldId => {
+                    const newId = utils_1.generateShortId();
+                    idMap[oldId] = newId;
+                    const oldNode = clipboard.nodes[oldId];
+                    nextNodes[newId] = JSON.parse(JSON.stringify(Object.assign(Object.assign({}, oldNode), { x: oldNode.x + dx, y: oldNode.y + dy })));
+                    createdNodes.push({ nodeUuid: newId, typeId: oldNode.typeId, paletteId: oldNode.paletteId });
+                });
+                Object.keys(clipboard.edges).forEach(oldEdgeId => {
+                    const newEdgeId = utils_1.generateShortId();
+                    const oldEdge = clipboard.edges[oldEdgeId];
+                    nextEdges[newEdgeId] = JSON.parse(JSON.stringify(Object.assign(Object.assign({}, oldEdge), { source: idMap[oldEdge.source], target: idMap[oldEdge.target] })));
+                });
+            }
             store.props.write('nodes', nextNodes);
             store.props.write('edges', nextEdges);
-            setSelectedNodes(Object.values(idMap));
             if (enableOnClickEvents && (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)) {
                 createdNodes.forEach(n => componentEvents.fireComponentEvent('onNodeCreated', Object.assign(Object.assign({}, n), { affectedNodes: [n.nodeUuid] })));
             }
@@ -6097,7 +5711,7 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
         catch (error) {
             console.error("Error in executePaste:", error);
         }
-    }, [store, rawNodesDict, rawEdgesDict, snapEnabled, snapPixels, setSelectedNodes, clipboardRef, componentEvents, enableOnClickEvents]);
+    }, [store, rawNodesDict, rawEdgesDict, setSelectedId, clipboardRef, componentEvents, enableOnClickEvents]);
     // ─── Pane handlers ────────────────────────────────────────────────────────
     const onDragOver = React.useCallback((event) => {
         event.preventDefault();
@@ -6120,9 +5734,32 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
                 dropX = Math.round(dropX / snapPixels) * snapPixels;
                 dropY = Math.round(dropY / snapPixels) * snapPixels;
             }
+            const initialConfigs = JSON.parse(JSON.stringify(paletteItem.defaultConfigs || {}));
+            const initialStyle = JSON.parse(JSON.stringify(paletteItem.style || { classes: '' }));
+            const initialLabelStyle = JSON.parse(JSON.stringify(paletteItem.labelStyle || { classes: '' }));
             if (store === null || store === void 0 ? void 0 : store.props) {
                 const newNodeId = utils_1.generateShortId();
-                const newNodeData = nodeFactory_1.createPaletteNodeData(paletteItem, dropX, dropY);
+                const newNodeData = {
+                    paletteId: paletteItem.id,
+                    typeId: paletteItem.typeId,
+                    label: paletteItem.label,
+                    tooltip: paletteItem.tooltip,
+                    x: dropX,
+                    y: dropY,
+                    hideHandles: paletteItem.hideHandles === true,
+                    style: initialStyle,
+                    labelStyle: initialLabelStyle,
+                    configs: initialConfigs,
+                    supportedConnections: paletteItem.supportedConnections || [],
+                    useOverrideImage: paletteItem.useOverrideImage || false,
+                    inactive: paletteItem.inactive || false,
+                    actionIcons: JSON.parse(JSON.stringify(paletteItem.actionIcons || [])),
+                };
+                if (paletteItem.id === 'container') {
+                    newNodeData.width = 300;
+                    newNodeData.height = 300;
+                    newNodeData.zIndex = -500;
+                }
                 const nextNodes = Object.assign({}, rawNodesDict);
                 nextNodes[newNodeId] = newNodeData;
                 store.props.write('nodes', nextNodes);
@@ -6142,53 +5779,16 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
             console.error("Error in onDrop:", error);
         }
     }, [store, rawNodesDict, snapEnabled, snapPixels, reactFlowInstance, setSelectedId, draggedItemRef, componentEvents, enableOnClickEvents]);
-    // Picks a palette item from the menu shown after an edge is dropped on empty canvas: places the node
-    // centered on the drop point (snapped like a normal drop) and connects the dragged edge to it.
-    const addNodeFromEdgeDrop = React.useCallback((paletteItem, quickAdd) => {
-        try {
-            if (!(store === null || store === void 0 ? void 0 : store.props) || !reactFlowInstance)
-                return;
-            const position = reactFlowInstance.screenToFlowPosition({ x: quickAdd.clientX, y: quickAdd.clientY });
-            let x = Math.round(position.x - 75);
-            let y = Math.round(position.y - 75);
-            if (snapEnabled) {
-                x = Math.round(x / snapPixels) * snapPixels;
-                y = Math.round(y / snapPixels) * snapPixels;
-            }
-            const newNodeId = utils_1.generateShortId();
-            const newNodeData = nodeFactory_1.createPaletteNodeData(paletteItem, x, y);
-            store.props.write('nodes', Object.assign(Object.assign({}, rawNodesDict), { [newNodeId]: newNodeData }));
-            createEdgeToNewNode(quickAdd.sourceId, quickAdd.sourceHandle, newNodeId, newNodeData);
-            setSelectedId(newNodeId);
-            if (enableOnClickEvents && (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)) {
-                componentEvents.fireComponentEvent('onNodeCreated', {
-                    nodeUuid: newNodeId,
-                    typeId: paletteItem.typeId,
-                    paletteId: paletteItem.id,
-                    affectedNodes: [newNodeId],
-                });
-            }
-        }
-        catch (error) {
-            console.error("Error in addNodeFromEdgeDrop:", error);
-        }
-        finally {
-            setQuickAdd(null);
-        }
-    }, [store, rawNodesDict, reactFlowInstance, snapEnabled, snapPixels, createEdgeToNewNode, setSelectedId, componentEvents, enableOnClickEvents, setQuickAdd]);
     const onMoveStart = React.useCallback(() => {
         closeContextMenu();
     }, [closeContextMenu]);
     const onPaneClick = React.useCallback(() => {
-        // Ignore the click the browser sends right after an edge was dropped on the pane (it would close the new menu).
-        if (performance.now() - quickAddOpenedAtRef.current < 400)
-            return;
         setSelectedId(null);
         closeContextMenu();
         if (componentEvents) {
             componentEvents.fireComponentEvent('onPaneClick', { type: 'pane' });
         }
-    }, [setSelectedId, closeContextMenu, componentEvents, quickAddOpenedAtRef]);
+    }, [setSelectedId, closeContextMenu, componentEvents]);
     const onPaneContextMenu = React.useCallback((event) => {
         event.preventDefault();
         const bounds = wrapperBoundsRef.current;
@@ -6312,15 +5912,6 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
                 closeContextMenu();
                 return;
             }
-            if (action === 'config' && isEdge) {
-                const currentEdge = rawEdgesDict[contextMenu.id];
-                if (currentEdge && (store === null || store === void 0 ? void 0 : store.props) && currentEdge.showLabel !== true) {
-                    store.props.write('edges', Object.assign(Object.assign({}, rawEdgesDict), { [contextMenu.id]: Object.assign(Object.assign({}, currentEdge), { showLabel: true }) }));
-                }
-                setEditingEdgeId(contextMenu.id);
-                closeContextMenu();
-                return;
-            }
             if (action === 'editStyle' && isNode) {
                 setStyleEditorNodeId(contextMenu.id);
                 closeContextMenu();
@@ -6359,8 +5950,7 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
                 return;
             }
             if (action === 'copy' && isNode) {
-                const selected = selectedNodeIdsRef.current;
-                executeCopy(selected.includes(contextMenu.id) ? selected : [contextMenu.id]);
+                executeCopy(contextMenu.id);
                 closeContextMenu();
                 return;
             }
@@ -6379,7 +5969,12 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
             if (action === 'paste' && (contextMenu.type === 'pane' || contextMenu.isContainer)) {
                 if (reactFlowInstance && contextMenu.clientX && contextMenu.clientY) {
                     const position = reactFlowInstance.screenToFlowPosition({ x: contextMenu.clientX, y: contextMenu.clientY });
-                    executePaste(position.x, position.y);
+                    let dropX = position.x, dropY = position.y;
+                    if (snapEnabled) {
+                        dropX = Math.round(dropX / snapPixels) * snapPixels;
+                        dropY = Math.round(dropY / snapPixels) * snapPixels;
+                    }
+                    executePaste(dropX, dropY);
                 }
                 closeContextMenu();
                 return;
@@ -6532,7 +6127,7 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
         catch (error) {
             console.error("Error in handleContextMenuAction:", error);
         }
-    }, [contextMenu, rawNodesDict, rawEdgesDict, selectedId, snapEnabled, snapPixels, reactFlowInstance, store, componentEvents, enableOnClickEvents, setStyleEditorNodeId, setEditingEdgeId, executeCopy, executePaste, closeContextMenu, setSelectedId]);
+    }, [contextMenu, rawNodesDict, rawEdgesDict, selectedId, snapEnabled, snapPixels, reactFlowInstance, store, componentEvents, enableOnClickEvents, setStyleEditorNodeId, executeCopy, executePaste, closeContextMenu, setSelectedId]);
     return Object.assign(Object.assign({ 
         // State
         isDraggingNode,
@@ -6560,7 +6155,6 @@ const useArchitectureFlowHandlers = ({ store, componentEvents, rawNodesDict, raw
         // Pane
         onDragOver,
         onDrop,
-        addNodeFromEdgeDrop,
         onMoveStart,
         onPaneClick,
         onPaneContextMenu,
@@ -6865,12 +6459,9 @@ exports.useEdgeHandlers = void 0;
 const React = __importStar(__webpack_require__(/*! react */ "react"));
 const utils_1 = __webpack_require__(/*! ./utils */ "./typescript/components/ArchitectureBuilder/utils.ts");
 const getPairKey = (typeIdA, typeIdB) => [typeIdA, typeIdB].sort().join('__');
-const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, connectionTypes, nodeTypeConnectionDefaults, selectedId, setSelectedId, contextMenu, setContextMenu, setActiveSubMenu, setLocalEdges, reactFlowWrapper, wrapperBoundsRef, closeContextMenu, enableOnClickEvents, setQuickAdd, handleCount, }) => {
+const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, connectionTypes, nodeTypeConnectionDefaults, selectedId, setSelectedId, contextMenu, setContextMenu, setActiveSubMenu, setLocalEdges, reactFlowWrapper, wrapperBoundsRef, closeContextMenu, enableOnClickEvents, }) => {
     const [isUpdatingEdge, setIsUpdatingEdge] = React.useState(false);
     const updatingEdgeRef = React.useRef(null);
-    const connectStartRef = React.useRef(null);
-    const connectMadeRef = React.useRef(false);
-    const quickAddOpenedAtRef = React.useRef(0);
     // ─── Validation ──────────────────────────────────────────────────────────
     const getValidIntersection = React.useCallback((sourceId, targetId, ignoreEdgeId) => {
         const sourceNode = rawNodesDict[sourceId];
@@ -6913,60 +6504,36 @@ const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, c
             console.error("Error in handleWaypointsChange:", error);
         }
     }, [store, rawEdgesDict, componentEvents, setLocalEdges]);
-    // Picks the connection type (saved per-pair default if still valid, else the first valid one) and writes
-    // the new edge. Shared by dragging between two existing nodes and by dropping an edge on empty canvas.
-    const writeNewEdge = React.useCallback((connectionParams, validTypes, sourceTypeId, targetTypeId) => {
-        const pairKey = sourceTypeId && targetTypeId ? getPairKey(sourceTypeId, targetTypeId) : null;
-        const preferredType = pairKey ? nodeTypeConnectionDefaults === null || nodeTypeConnectionDefaults === void 0 ? void 0 : nodeTypeConnectionDefaults[pairKey] : null;
-        const selectedType = (preferredType && validTypes.includes(preferredType)) ? preferredType : validTypes[0];
-        const typeDef = connectionTypes[selectedType] || {};
-        if (store === null || store === void 0 ? void 0 : store.props) {
-            const newEdgeId = utils_1.generateShortId();
-            store.props.write('edges', Object.assign(Object.assign({}, rawEdgesDict), { [newEdgeId]: Object.assign(Object.assign({}, connectionParams), { lineType: 'smoothstep', dashed: false, arrow: typeDef.arrow !== false, showLabel: false, labelText: '', connectionType: selectedType, waypoints: [] }) }));
-            if (enableOnClickEvents && (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)) {
-                componentEvents.fireComponentEvent('onEdgeCreated', {
-                    edgeUuid: newEdgeId,
-                    source: connectionParams.source,
-                    target: connectionParams.target,
-                    connectionType: selectedType,
-                    affectedNodes: [connectionParams.source, connectionParams.target],
-                });
-            }
-        }
-    }, [store, rawEdgesDict, connectionTypes, nodeTypeConnectionDefaults, componentEvents, enableOnClickEvents]);
     const onConnect = React.useCallback((connectionParams) => {
         var _a, _b;
-        connectMadeRef.current = true;
         try {
             const validTypes = getValidIntersection(connectionParams.source, connectionParams.target);
             if (validTypes.length === 0)
                 return;
-            writeNewEdge(connectionParams, validTypes, (_a = rawNodesDict[connectionParams.source]) === null || _a === void 0 ? void 0 : _a.typeId, (_b = rawNodesDict[connectionParams.target]) === null || _b === void 0 ? void 0 : _b.typeId);
+            const sourceTypeId = (_a = rawNodesDict[connectionParams.source]) === null || _a === void 0 ? void 0 : _a.typeId;
+            const targetTypeId = (_b = rawNodesDict[connectionParams.target]) === null || _b === void 0 ? void 0 : _b.typeId;
+            const pairKey = sourceTypeId && targetTypeId ? getPairKey(sourceTypeId, targetTypeId) : null;
+            const preferredType = pairKey ? nodeTypeConnectionDefaults === null || nodeTypeConnectionDefaults === void 0 ? void 0 : nodeTypeConnectionDefaults[pairKey] : null;
+            const selectedType = (preferredType && validTypes.includes(preferredType)) ? preferredType : validTypes[0];
+            const typeDef = connectionTypes[selectedType] || {};
+            if (store === null || store === void 0 ? void 0 : store.props) {
+                const newEdgeId = utils_1.generateShortId();
+                store.props.write('edges', Object.assign(Object.assign({}, rawEdgesDict), { [newEdgeId]: Object.assign(Object.assign({}, connectionParams), { lineType: 'smoothstep', dashed: false, arrow: typeDef.arrow !== false, showLabel: false, labelText: '', connectionType: selectedType, waypoints: [] }) }));
+                if (enableOnClickEvents && (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)) {
+                    componentEvents.fireComponentEvent('onEdgeCreated', {
+                        edgeUuid: newEdgeId,
+                        source: connectionParams.source,
+                        target: connectionParams.target,
+                        connectionType: selectedType,
+                        affectedNodes: [connectionParams.source, connectionParams.target],
+                    });
+                }
+            }
         }
         catch (error) {
             console.error("Error in onConnect:", error);
         }
-    }, [rawNodesDict, getValidIntersection, writeNewEdge]);
-    // Connects an existing node to a node that was just created (and is not in rawNodesDict yet).
-    // The new node's handle is the middle one on the side facing the source handle.
-    const createEdgeToNewNode = React.useCallback((sourceId, sourceHandle, newNodeId, newNodeData) => {
-        try {
-            const source = rawNodesDict[sourceId];
-            if (!source)
-                return;
-            const targetSupported = newNodeData.supportedConnections || [];
-            const validTypes = (source.supportedConnections || []).filter((c) => targetSupported.includes(c));
-            if (validTypes.length === 0)
-                return;
-            const opposite = { left: 'right', right: 'left', top: 'bottom', bottom: 'top' };
-            const sourceSide = (sourceHandle === null || sourceHandle === void 0 ? void 0 : sourceHandle.split('-')[0]) || 'right';
-            const targetHandle = `${opposite[sourceSide] || 'left'}-${Math.floor(handleCount / 2)}`;
-            writeNewEdge({ source: sourceId, sourceHandle, target: newNodeId, targetHandle }, validTypes, source.typeId, newNodeData.typeId);
-        }
-        catch (error) {
-            console.error("Error in createEdgeToNewNode:", error);
-        }
-    }, [rawNodesDict, writeNewEdge, handleCount]);
+    }, [store, rawEdgesDict, rawNodesDict, getValidIntersection, connectionTypes, nodeTypeConnectionDefaults, componentEvents, enableOnClickEvents]);
     const onEdgeUpdate = React.useCallback((oldEdge, newConnection) => {
         var _a, _b, _c, _d;
         try {
@@ -7016,42 +6583,14 @@ const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, c
         updatingEdgeRef.current = null;
         setIsUpdatingEdge(false);
     }, []);
-    const onConnectStart = React.useCallback((_event, params) => {
+    const onConnectStart = React.useCallback(() => {
         var _a;
         (_a = reactFlowWrapper.current) === null || _a === void 0 ? void 0 : _a.classList.add('arch-creating-edge');
-        connectStartRef.current = (params === null || params === void 0 ? void 0 : params.nodeId) ? { nodeId: params.nodeId, handleId: params.handleId || null } : null;
-        connectMadeRef.current = false;
-        setQuickAdd(null);
-    }, [reactFlowWrapper, setQuickAdd]);
-    const onConnectEnd = React.useCallback((event) => {
-        var _a, _b, _c, _d, _e;
+    }, [reactFlowWrapper]);
+    const onConnectEnd = React.useCallback(() => {
+        var _a;
         (_a = reactFlowWrapper.current) === null || _a === void 0 ? void 0 : _a.classList.remove('arch-creating-edge');
-        const start = connectStartRef.current;
-        connectStartRef.current = null;
-        // React Flow calls onConnect before onConnectEnd, so connectMadeRef is already set for a completed connection.
-        if (!start || connectMadeRef.current || updatingEdgeRef.current)
-            return;
-        const target = event === null || event === void 0 ? void 0 : event.target;
-        const onEmptyCanvas = !!((_b = target === null || target === void 0 ? void 0 : target.classList) === null || _b === void 0 ? void 0 : _b.contains('react-flow__pane')) || !!((_c = target === null || target === void 0 ? void 0 : target.closest) === null || _c === void 0 ? void 0 : _c.call(target, '.react-flow__node-container'));
-        if (!onEmptyCanvas)
-            return;
-        // Nothing to offer if the source can't connect to anything.
-        if (!(((_d = rawNodesDict[start.nodeId]) === null || _d === void 0 ? void 0 : _d.supportedConnections) || []).length)
-            return;
-        const point = ((_e = event.changedTouches) === null || _e === void 0 ? void 0 : _e[0]) || event;
-        const bounds = wrapperBoundsRef.current;
-        // The pane is an ancestor of the handle we dragged from, so the browser follows this pointer-up with a
-        // click on the pane. Remember when the menu opened so onPaneClick can ignore that click.
-        quickAddOpenedAtRef.current = performance.now();
-        setQuickAdd({
-            sourceId: start.nodeId,
-            sourceHandle: start.handleId,
-            clientX: point.clientX,
-            clientY: point.clientY,
-            top: point.clientY - bounds.top,
-            left: point.clientX - bounds.left,
-        });
-    }, [reactFlowWrapper, rawNodesDict, wrapperBoundsRef, setQuickAdd]);
+    }, [reactFlowWrapper]);
     // Shared removal logic: deletes the given edges from the store and returns
     // the ones actually removed (with source/target captured before deletion).
     const removeEdgesFromStore = React.useCallback((deleted) => {
@@ -7220,11 +6759,7 @@ const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, c
             const nextEdges = Object.assign({}, rawEdgesDict);
             const edge = nextEdges[edgeId];
             if (edge) {
-                var isLabelVisible = true;
-                if (labelText === "") {
-                    isLabelVisible = false;
-                }
-                nextEdges[edgeId] = Object.assign(Object.assign({}, edge), { labelText, showLabel: isLabelVisible });
+                nextEdges[edgeId] = Object.assign(Object.assign({}, edge), { labelText });
                 store.props.write('edges', nextEdges);
                 if (enableOnClickEvents && (componentEvents === null || componentEvents === void 0 ? void 0 : componentEvents.fireComponentEvent)) {
                     componentEvents.fireComponentEvent('onEdgePropertyChanged', {
@@ -7310,8 +6845,6 @@ const useEdgeHandlers = ({ store, componentEvents, rawNodesDict, rawEdgesDict, c
         isValidConnection,
         handleWaypointsChange,
         onConnect,
-        createEdgeToNewNode,
-        quickAddOpenedAtRef,
         onEdgeUpdate,
         onEdgeUpdateStart,
         onEdgeUpdateEnd,
@@ -7387,34 +6920,6 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.generateShortId = void 0;
 const generateShortId = () => 'I' + Math.random().toString(16).substring(2, 10);
 exports.generateShortId = generateShortId;
-
-
-/***/ }),
-
-/***/ "./typescript/components/ArchitectureBuilder/zoomSelectors.ts":
-/*!********************************************************************!*\
-  !*** ./typescript/components/ArchitectureBuilder/zoomSelectors.ts ***!
-  \********************************************************************/
-/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.useZoomAtLeast = exports.useResizerSize = exports.useHandleHitSize = void 0;
-// @ts-ignore
-const reactflow_1 = __webpack_require__(/*! reactflow */ "./node_modules/reactflow/dist/umd/index.js");
-// Nodes only need values derived from the zoom level, not the raw viewport. `useViewport()` subscribes a
-// component to x, y and zoom, so every node re-rendered on every pan and zoom frame. These selectors return
-// a number or boolean, so a node re-renders only when its derived value actually changes.
-/** Connection handle hit area in screen px: about 24px at zoom 1, between 16 and 22. */
-const useHandleHitSize = () => reactflow_1.useStore((s) => Math.min(22, Math.max(16, Math.round(24 / s.transform[2]))));
-exports.useHandleHitSize = useHandleHitSize;
-/** Resizer handle size in screen px: 16px at zoom 1, never below 10. */
-const useResizerSize = () => reactflow_1.useStore((s) => Math.max(10, Math.round(16 / s.transform[2])));
-exports.useResizerSize = useResizerSize;
-/** True once the canvas is zoomed in to at least `minZoom`. */
-const useZoomAtLeast = (minZoom) => reactflow_1.useStore((s) => s.transform[2] >= minZoom);
-exports.useZoomAtLeast = useZoomAtLeast;
 
 
 /***/ }),

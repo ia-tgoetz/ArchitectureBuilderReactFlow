@@ -11,10 +11,8 @@ services:
       - module-dev-ignition-data-config-resources:/usr/local/bin/ignition/data/config/resources
       - module-dev-ignition-projects:/usr/local/bin/ignition/data/projects
       # Mount both modules directly into your defined external-modules folder
-      - ../build/ArchitectureBuilder.unsigned.modl:/usr/local/bin/ignition/data/var/ignition/modl/ArchitectureBuilder.unsigned.modl
+      - ../build/ArchitectureBuilder.modl:/usr/local/bin/ignition/data/var/ignition/modl/ArchitectureBuilder.modl
       - ./modules/MongoDB Connector-module.modl:/usr/local/bin/ignition/data/var/ignition/modl/MongoDB Connector-module.modl
-    ports:
-      - "8089:8088"
     labels:
       - traefik.enable=true
       - traefik.hostname=${IGN_HOSTNAME:-module-dev-ignition}
@@ -24,8 +22,8 @@ services:
       IGNITION_GID: ${IGN_GID:-1004}
       ACCEPT_IGNITION_EULA: 'Y'
       #comment out username and password after intial setup
-      GATEWAY_ADMIN_USERNAME: ${IGN_USERNAME:-admin}
-      GATEWAY_ADMIN_PASSWORD: ${IGN_PASSWORD:-password}
+      # GATEWAY_ADMIN_USERNAME: ${IGN_USERNAME:-admin}
+      # GATEWAY_ADMIN_PASSWORD: ${IGN_PASSWORD:-password}
       IGNITION_EDITION: ${IGN_EDITION:-standard}
       TZ: ${IGN_TZ:-America/New_York}
       DISABLE_QUICKSTART: ${ING_SKIP_QUICKSTART:-true}
@@ -42,7 +40,13 @@ services:
       -Dignition.config.mode=${IGN_MODE:-dev}
       -Dignition.modules.install.unattended=true
       -Dignition.modules.install.trust-unknown-certificates=true
+<<<<<<< HEAD
       -Dignition.allowunsignedmodules=true
+=======
+      
+    networks:
+      - devNetwork
+>>>>>>> 126df9ac1a1e6c164e6b55e1ef9f643789e6330b
 
   pgModDev:
     image: postgres
@@ -58,7 +62,18 @@ services:
       POSTGRES_USER: ${POSTG_USER:-ignition}
       POSTGRES_PASSWORD: ${POSTG_PASSWORD:-ignition}
       TZ: ${IGN_TZ:-America/New_York}
+<<<<<<< HEAD
 
+=======
+    networks:
+      - devNetwork
+
+networks:
+  devNetwork:
+    external: true
+    name: proxy
+    driver: bridge
+>>>>>>> 126df9ac1a1e6c164e6b55e1ef9f643789e6330b
 volumes:
   module-dev-ignition-data:
   module-dev-ignition-data-config-resources:

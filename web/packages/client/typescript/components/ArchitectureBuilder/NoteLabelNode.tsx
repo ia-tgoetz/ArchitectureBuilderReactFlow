@@ -1,7 +1,11 @@
 import React from 'react';
 // @ts-ignore
+<<<<<<< HEAD
 import { NodeProps, NodeResizer, Handle, Position } from 'reactflow';
 import { useResizerSize } from './zoomSelectors';
+=======
+import { NodeProps, NodeResizer, Handle, Position, useViewport } from 'reactflow';
+>>>>>>> 126df9ac1a1e6c164e6b55e1ef9f643789e6330b
 
 export interface NoteLabelNodeData {
     label: string;
@@ -16,7 +20,11 @@ export interface NoteLabelNodeData {
 }
 
 export const NoteLabelNode = React.memo(({ id, data, selected }: NodeProps<NoteLabelNodeData>) => {
+<<<<<<< HEAD
     const resizerSize = useResizerSize();
+=======
+    const { zoom } = useViewport();
+>>>>>>> 126df9ac1a1e6c164e6b55e1ef9f643789e6330b
     const [isEditing, setIsEditing] = React.useState(false);
     const [text, setText] = React.useState(data.text || data.label || '');
     const [isOverflowing, setIsOverflowing] = React.useState(false);
@@ -105,6 +113,12 @@ export const NoteLabelNode = React.memo(({ id, data, selected }: NodeProps<NoteL
         ...data.textStyle
     };
 
+<<<<<<< HEAD
+=======
+    // Calculate dynamic resizer handle size based on zoom (matching ContainerNode logic)
+    const resizerSize = Math.max(10, Math.round(16 / zoom));
+
+>>>>>>> 126df9ac1a1e6c164e6b55e1ef9f643789e6330b
     return (
         <div onDoubleClick={handleDoubleClick} style={nodeStyle} className={isEditing ? 'nodrag' : ''}>
             {/* Hidden handles to explicitly prevent connections */}
