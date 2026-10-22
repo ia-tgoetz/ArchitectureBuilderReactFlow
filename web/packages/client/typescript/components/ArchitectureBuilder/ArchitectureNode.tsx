@@ -1,16 +1,10 @@
 import React from 'react';
 // @ts-ignore
-<<<<<<< HEAD
 import { Handle, Position, NodeProps, NodeResizer, useStore } from 'reactflow';
 import { IconRenderer } from '@inductiveautomation/perspective-client';
 import { extractSvgMarkup, toSafeDataUri, nextSvgScopeId } from './svgSanitize';
 import { NodeView, isViewPath } from './NodeView';
 import { useHandleHitSize, useResizerSize } from './zoomSelectors';
-=======
-import { Handle, Position, NodeProps, useViewport, NodeResizer, useStore } from 'reactflow';
-import { IconRenderer } from '@inductiveautomation/perspective-client';
-import { extractSvgMarkup, toSafeDataUri, nextSvgScopeId } from './svgSanitize';
->>>>>>> 126df9ac1a1e6c164e6b55e1ef9f643789e6330b
 
 export interface ActionIconData {
     icon: string;
@@ -22,12 +16,9 @@ export interface ActionIconData {
 export interface ArchitectureNodeData {
     label: string;
     image: string;
-<<<<<<< HEAD
     viewPath?: string;
     viewParams?: any;
     enableResize?: boolean;
-=======
->>>>>>> 126df9ac1a1e6c164e6b55e1ef9f643789e6330b
     text?: string;
     tooltip?: string;
     configs?: any;
@@ -83,12 +74,9 @@ const areArchitectureNodePropsEqual = (
     const pd = prev.data, nd = next.data;
     if (pd.label !== nd.label) return false;
     if (pd.image !== nd.image) return false;
-<<<<<<< HEAD
     if (pd.viewPath !== nd.viewPath) return false;
     if (pd.enableResize !== nd.enableResize) return false;
     if (!shallowEqualObjects(pd.viewParams, nd.viewParams)) return false;
-=======
->>>>>>> 126df9ac1a1e6c164e6b55e1ef9f643789e6330b
     if (pd.text !== nd.text) return false;
     if (pd.tooltip !== nd.tooltip) return false;
     if (pd.paletteId !== nd.paletteId) return false;
@@ -127,12 +115,8 @@ const NodeImage = React.memo(({ src }: { src: string }) => {
 });
 
 export const ArchitectureNode = React.memo(({ id, data, selected }: NodeProps<ArchitectureNodeData>) => {
-<<<<<<< HEAD
     const hitSize = useHandleHitSize();
     const resizerSize = useResizerSize();
-=======
-    const { zoom } = useViewport();
->>>>>>> 126df9ac1a1e6c164e6b55e1ef9f643789e6330b
     const [hovered, setHovered] = React.useState(false);
     const showHandles = !data.globalHideHandles && !data.hideHandles && data.isEditable !== false;
     const hasHighlightedHandles = !!(data.highlightedHandles && data.highlightedHandles.size > 0);
@@ -166,13 +150,7 @@ export const ArchitectureNode = React.memo(({ id, data, selected }: NodeProps<Ar
         boxShadow: selected ? '0 0 0 2px rgba(0, 123, 255, 0.25)' : (restStyle.boxShadow || '0 2px 4px rgba(0,0,0,0.1)')
     };
 
-<<<<<<< HEAD
     // hitSize (from useHandleHitSize): generous hit area that stays consistent in screen pixels for usability.
-=======
-    // Enhanced hit area: generous size that remains consistent in screen pixels for usability.
-    // Targeting ~24px at 1.0 zoom, scaling up to ~22px as we zoom out.
-    const hitSize = Math.min(22, Math.max(16, Math.round(24 / zoom)));
->>>>>>> 126df9ac1a1e6c164e6b55e1ef9f643789e6330b
 
     // Handles are always mounted so React Flow's store always has registered positions.
     // This prevents the intermittent missing connection line (handle mounts just as a
@@ -200,7 +178,6 @@ export const ArchitectureNode = React.memo(({ id, data, selected }: NodeProps<Ar
         return data.highlightedHandles?.has(id) ? 'arch-node-handle arch-node-handle--connected' : 'arch-node-handle';
     };
 
-<<<<<<< HEAD
     return (
         <div style={combinedStyle} title={data.tooltip} onMouseEnter={() => setHovered(true)} onMouseLeave={(e) => { if (e.buttons === 0) setHovered(false); }}>
             {data.enableResize && (
@@ -215,13 +192,6 @@ export const ArchitectureNode = React.memo(({ id, data, selected }: NodeProps<Ar
                     }}
                 />
             )}
-=======
-    // Calculate dynamic resizer handle size based on zoom
-    const resizerSize = Math.max(10, Math.round(16 / zoom));
-
-    return (
-        <div style={combinedStyle} title={data.tooltip} onMouseEnter={() => setHovered(true)} onMouseLeave={(e) => { if (e.buttons === 0) setHovered(false); }}>
->>>>>>> 126df9ac1a1e6c164e6b55e1ef9f643789e6330b
 
             {positions.map((pos, i) => (
                 <Handle key={`top-${i}`} className={handleClass(`top-${i}`)} type="source" position={Position.Top} id={`top-${i}`} style={{ ...handleStyle, left: pos, top: '0px', transform: 'translate(-50%, -50%)' }} />
@@ -274,7 +244,6 @@ export const ArchitectureNode = React.memo(({ id, data, selected }: NodeProps<Ar
                         filter: data.inactive ? 'grayscale(100%) blur(2px)' : undefined
                     }}
                 >
-<<<<<<< HEAD
                     {isViewPath(data.viewPath)
                         ? <NodeView nodeId={id} viewPath={data.viewPath} params={data.viewParams} fallback={<NodeImage src={data.image} />} />
                         : <NodeImage src={data.image} />}
@@ -283,9 +252,6 @@ export const ArchitectureNode = React.memo(({ id, data, selected }: NodeProps<Ar
             {!data.image && isViewPath(data.viewPath) && (
                 <div style={{ flex: 1, width: '100%', minHeight: 0, zIndex: 1, filter: data.inactive ? 'grayscale(100%) blur(2px)' : undefined }}>
                     <NodeView nodeId={id} viewPath={data.viewPath} params={data.viewParams} />
-=======
-                    <NodeImage src={data.image} />
->>>>>>> 126df9ac1a1e6c164e6b55e1ef9f643789e6330b
                 </div>
             )}
 

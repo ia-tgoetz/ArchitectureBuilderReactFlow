@@ -40,13 +40,7 @@ services:
       -Dignition.config.mode=${IGN_MODE:-dev}
       -Dignition.modules.install.unattended=true
       -Dignition.modules.install.trust-unknown-certificates=true
-<<<<<<< HEAD
       -Dignition.allowunsignedmodules=true
-=======
-      
-    networks:
-      - devNetwork
->>>>>>> 126df9ac1a1e6c164e6b55e1ef9f643789e6330b
 
   pgModDev:
     image: postgres
@@ -62,18 +56,7 @@ services:
       POSTGRES_USER: ${POSTG_USER:-ignition}
       POSTGRES_PASSWORD: ${POSTG_PASSWORD:-ignition}
       TZ: ${IGN_TZ:-America/New_York}
-<<<<<<< HEAD
 
-=======
-    networks:
-      - devNetwork
-
-networks:
-  devNetwork:
-    external: true
-    name: proxy
-    driver: bridge
->>>>>>> 126df9ac1a1e6c164e6b55e1ef9f643789e6330b
 volumes:
   module-dev-ignition-data:
   module-dev-ignition-data-config-resources:
