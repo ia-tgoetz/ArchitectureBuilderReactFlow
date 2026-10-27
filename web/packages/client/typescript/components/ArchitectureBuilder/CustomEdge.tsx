@@ -16,7 +16,15 @@ interface DragState {
     snapEnabled: boolean;
     snapPixels: number;
     onWaypointsChange: ((wps: Waypoint[]) => void) | undefined;
+    // Segment index the user grabbed vs. where it sits after stub waypoints were
+    // inserted (terminal segments); used to keep the handle element stable.
+    origSeg: number;
+    curSeg: number;
 }
+
+const STUB = 25;
+const dirOf = (pos: string) =>
+    pos === 'right' ? { x: 1, y: 0 } : pos === 'left' ? { x: -1, y: 0 } : pos === 'top' ? { x: 0, y: -1 } : { x: 0, y: 1 };
 
 export const CustomEdge = React.memo(({
     sourceX, sourceY, targetX, targetY,
@@ -142,18 +150,42 @@ export const CustomEdge = React.memo(({
         e.preventDefault();
         e.currentTarget.setPointerCapture(e.pointerId);
 
-        const startWps = pinnedWaypoints;
+        // Terminal segments touch a node handle and are pinned to its axis, so they
+        // cannot slide on their own. Insert a short stub leaving the handle (two
+        // coincident waypoints) so the segment beyond the stub can move instead.
+        let startWps = pinnedWaypoints;
+        let wp0Idx = segIdx - 1;
+        let wp1Idx = segIdx;
+        let curSeg = segIdx;
+        const lastSeg = pinnedWaypoints.length;
+        if (segIdx === 0) {
+            const first = pinnedWaypoints[0];
+            const len = Math.abs(first.x - sx) + Math.abs(first.y - sy);
+            const d = dirOf(sourcePosition), s = Math.min(STUB, len / 2);
+            const stub = { x: sx + d.x * s, y: sy + d.y * s };
+            startWps = [stub, { ...stub }, ...pinnedWaypoints];
+            wp0Idx = 1; wp1Idx = 2; curSeg = 2;
+        } else if (segIdx === lastSeg) {
+            const last = pinnedWaypoints[lastSeg - 1];
+            const len = Math.abs(last.x - tx) + Math.abs(last.y - ty);
+            const d = dirOf(targetPosition), s = Math.min(STUB, len / 2);
+            const stub = { x: tx + d.x * s, y: ty + d.y * s };
+            startWps = [...pinnedWaypoints, { ...stub }, stub];
+            wp0Idx = lastSeg - 1; wp1Idx = lastSeg;
+        }
         dragState.current = {
             startClientX: e.clientX,
             startClientY: e.clientY,
-            startCoord: isH ? startWps[segIdx - 1].y : startWps[segIdx - 1].x,
-            wp0Idx: segIdx - 1,
-            wp1Idx: segIdx,
+            startCoord: isH ? startWps[wp0Idx].y : startWps[wp0Idx].x,
+            wp0Idx,
+            wp1Idx,
             isH,
             baseWaypoints: startWps,
             snapEnabled: data?.snapEnabled ?? true,
             snapPixels: data?.snapPixels ?? 15,
             onWaypointsChange: data?.onWaypointsChange,
+            origSeg: segIdx,
+            curSeg,
         };
         setLiveWaypoints(startWps);
     };
@@ -167,7 +199,10 @@ export const CustomEdge = React.memo(({
         const ref = dragState.current;
         if (!ref) return;
         e.currentTarget.releasePointerCapture(e.pointerId);
-        ref.onWaypointsChange?.(applyDelta(ref, e.clientX, e.clientY));
+        const result = applyDelta(ref, e.clientX, e.clientY);
+        // A click without movement must not commit (it would persist the stub waypoints).
+        const moved = ref.isH ? result[ref.wp0Idx].y !== ref.startCoord : result[ref.wp0Idx].x !== ref.startCoord;
+        if (moved) ref.onWaypointsChange?.(result);
         dragState.current = null;
         setLiveWaypoints(null);
     };
@@ -189,6 +224,7 @@ export const CustomEdge = React.memo(({
 
     // ─── Render ───────────────────────────────────────────────────────────
 
+    const drag = dragState.current;
     const segHandlePts = React.useMemo<Waypoint[]>(
         () => [{ x: sx, y: sy }, ...pinnedWaypoints, { x: tx, y: ty }],
         [pinnedWaypoints, sx, sy, tx, ty]
@@ -289,11 +325,10 @@ export const CustomEdge = React.memo(({
                     </div>
                 </EdgeLabelRenderer>
             )}
-            {canEdit && segHandlePts.length >= 4 && (
+            {canEdit && segHandlePts.length >= 3 && (
                 <EdgeLabelRenderer>
                     {segHandlePts.slice(0, -1).map((pt, i) => {
                         const next = segHandlePts[i + 1];
-                        if (i === 0 || i === segHandlePts.length - 2) return null;
                         const dx = Math.abs(next.x - pt.x);
                         const dy = Math.abs(next.y - pt.y);
                         if (dx + dy < 10) return null;
@@ -302,7 +337,7 @@ export const CustomEdge = React.memo(({
                         const my = (pt.y + next.y) / 2;
                         return (
                             <div
-                                key={`seg-${i}`}
+                                key={`seg-${i === drag?.curSeg ? drag.origSeg : i === drag?.origSeg ? drag.curSeg : i}`}
                                 className="nodrag nopan"
                                 onPointerDown={(e) => handlePointerDown(e, i, isH)}
                                 onPointerMove={handlePointerMove}
