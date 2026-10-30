@@ -40,8 +40,8 @@ export const CustomEdge = React.memo(({
     const dynamicInteractionWidth = Math.max(20, Math.round(24 / zoom));
 
     // Calculate dynamic segment handle dimensions (colored pills)
-    const hWidth = Math.max(24, Math.round(36 / zoom));
-    const hHeight = Math.max(10, Math.round(14 / zoom));
+    const hWidth = Math.max(16, Math.round(24 / zoom));
+    const hHeight = Math.max(6, Math.round(8 / zoom));
 
     // terminal points (native reactflow coordinates)
     const sx = sourceX;
@@ -225,6 +225,8 @@ export const CustomEdge = React.memo(({
     // ─── Render ───────────────────────────────────────────────────────────
 
     const drag = dragState.current;
+    // A segment must span at least 2 grid dots to get a handle.
+    const minSegLen = 2 * (data?.snapPixels ?? 15);
     const segHandlePts = React.useMemo<Waypoint[]>(
         () => [{ x: sx, y: sy }, ...pinnedWaypoints, { x: tx, y: ty }],
         [pinnedWaypoints, sx, sy, tx, ty]
@@ -331,7 +333,7 @@ export const CustomEdge = React.memo(({
                         const next = segHandlePts[i + 1];
                         const dx = Math.abs(next.x - pt.x);
                         const dy = Math.abs(next.y - pt.y);
-                        if (dx + dy < 10) return null;
+                        if (dx + dy < minSegLen) return null;
                         const isH = dx > dy;
                         const mx = (pt.x + next.x) / 2;
                         const my = (pt.y + next.y) / 2;
@@ -351,12 +353,12 @@ export const CustomEdge = React.memo(({
                                     height: isH ? `${hHeight}px` : `${hWidth}px`,
                                     borderRadius: `${hHeight / 2}px`,
                                     backgroundColor: 'var(--callToAction)',
-                                    opacity: 0.85,
+                                    opacity: 0.6,
                                     cursor: isH ? 'ns-resize' : 'ew-resize',
                                     zIndex: (zIndex ?? 5000) + 100,
                                     pointerEvents: 'all',
                                     touchAction: 'none',
-                                    boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.3)',
                                 }}
                             />
                         );

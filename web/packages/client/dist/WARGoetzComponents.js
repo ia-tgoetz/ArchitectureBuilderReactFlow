@@ -4384,8 +4384,10 @@ const React = __importStar(__webpack_require__(/*! react */ "react"));
 // @ts-ignore
 const reactflow_1 = __webpack_require__(/*! reactflow */ "./node_modules/reactflow/dist/umd/index.js");
 const EdgeUtils_1 = __webpack_require__(/*! ./EdgeUtils */ "./typescript/components/ArchitectureBuilder/EdgeUtils.ts");
+const STUB = 25;
+const dirOf = (pos) => pos === 'right' ? { x: 1, y: 0 } : pos === 'left' ? { x: -1, y: 0 } : pos === 'top' ? { x: 0, y: -1 } : { x: 0, y: 1 };
 exports.CustomEdge = React.memo(({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, markerEnd, style, label, interactionWidth, zIndex, }) => {
-    var _a, _b;
+    var _a, _b, _c;
     const storedWaypoints = (_a = data === null || data === void 0 ? void 0 : data.waypoints) !== null && _a !== void 0 ? _a : [];
     const showLabel = (data === null || data === void 0 ? void 0 : data.showLabel) === true;
     const { getZoom } = reactflow_1.useReactFlow();
@@ -4393,8 +4395,8 @@ exports.CustomEdge = React.memo(({ sourceX, sourceY, targetX, targetY, sourcePos
     // Calculate dynamic interaction width (selection/drag zone)
     const dynamicInteractionWidth = Math.max(20, Math.round(24 / zoom));
     // Calculate dynamic segment handle dimensions (colored pills)
-    const hWidth = Math.max(24, Math.round(36 / zoom));
-    const hHeight = Math.max(10, Math.round(14 / zoom));
+    const hWidth = Math.max(16, Math.round(24 / zoom));
+    const hHeight = Math.max(6, Math.round(8 / zoom));
     // terminal points (native reactflow coordinates)
     const sx = sourceX;
     const sy = sourceY;
@@ -4481,18 +4483,46 @@ exports.CustomEdge = React.memo(({ sourceX, sourceY, targetX, targetY, sourcePos
         e.stopPropagation();
         e.preventDefault();
         e.currentTarget.setPointerCapture(e.pointerId);
-        const startWps = pinnedWaypoints;
+        // Terminal segments touch a node handle and are pinned to its axis, so they
+        // cannot slide on their own. Insert a short stub leaving the handle (two
+        // coincident waypoints) so the segment beyond the stub can move instead.
+        let startWps = pinnedWaypoints;
+        let wp0Idx = segIdx - 1;
+        let wp1Idx = segIdx;
+        let curSeg = segIdx;
+        const lastSeg = pinnedWaypoints.length;
+        if (segIdx === 0) {
+            const first = pinnedWaypoints[0];
+            const len = Math.abs(first.x - sx) + Math.abs(first.y - sy);
+            const d = dirOf(sourcePosition), s = Math.min(STUB, len / 2);
+            const stub = { x: sx + d.x * s, y: sy + d.y * s };
+            startWps = [stub, Object.assign({}, stub), ...pinnedWaypoints];
+            wp0Idx = 1;
+            wp1Idx = 2;
+            curSeg = 2;
+        }
+        else if (segIdx === lastSeg) {
+            const last = pinnedWaypoints[lastSeg - 1];
+            const len = Math.abs(last.x - tx) + Math.abs(last.y - ty);
+            const d = dirOf(targetPosition), s = Math.min(STUB, len / 2);
+            const stub = { x: tx + d.x * s, y: ty + d.y * s };
+            startWps = [...pinnedWaypoints, Object.assign({}, stub), stub];
+            wp0Idx = lastSeg - 1;
+            wp1Idx = lastSeg;
+        }
         dragState.current = {
             startClientX: e.clientX,
             startClientY: e.clientY,
-            startCoord: isH ? startWps[segIdx - 1].y : startWps[segIdx - 1].x,
-            wp0Idx: segIdx - 1,
-            wp1Idx: segIdx,
+            startCoord: isH ? startWps[wp0Idx].y : startWps[wp0Idx].x,
+            wp0Idx,
+            wp1Idx,
             isH,
             baseWaypoints: startWps,
             snapEnabled: (_a = data === null || data === void 0 ? void 0 : data.snapEnabled) !== null && _a !== void 0 ? _a : true,
             snapPixels: (_b = data === null || data === void 0 ? void 0 : data.snapPixels) !== null && _b !== void 0 ? _b : 15,
             onWaypointsChange: data === null || data === void 0 ? void 0 : data.onWaypointsChange,
+            origSeg: segIdx,
+            curSeg,
         };
         setLiveWaypoints(startWps);
     };
@@ -4507,7 +4537,11 @@ exports.CustomEdge = React.memo(({ sourceX, sourceY, targetX, targetY, sourcePos
         if (!ref)
             return;
         e.currentTarget.releasePointerCapture(e.pointerId);
-        (_a = ref.onWaypointsChange) === null || _a === void 0 ? void 0 : _a.call(ref, applyDelta(ref, e.clientX, e.clientY));
+        const result = applyDelta(ref, e.clientX, e.clientY);
+        // A click without movement must not commit (it would persist the stub waypoints).
+        const moved = ref.isH ? result[ref.wp0Idx].y !== ref.startCoord : result[ref.wp0Idx].x !== ref.startCoord;
+        if (moved)
+            (_a = ref.onWaypointsChange) === null || _a === void 0 ? void 0 : _a.call(ref, result);
         dragState.current = null;
         setLiveWaypoints(null);
     };
@@ -4526,9 +4560,12 @@ exports.CustomEdge = React.memo(({ sourceX, sourceY, targetX, targetY, sourcePos
         (_a = data === null || data === void 0 ? void 0 : data.onRequestEdit) === null || _a === void 0 ? void 0 : _a.call(data);
     };
     // ─── Render ───────────────────────────────────────────────────────────
+    const drag = dragState.current;
+    // A segment must span at least 2 grid dots to get a handle.
+    const minSegLen = 2 * ((_b = data === null || data === void 0 ? void 0 : data.snapPixels) !== null && _b !== void 0 ? _b : 15);
     const segHandlePts = React.useMemo(() => [{ x: sx, y: sy }, ...pinnedWaypoints, { x: tx, y: ty }], [pinnedWaypoints, sx, sy, tx, ty]);
     const isDashed = (data === null || data === void 0 ? void 0 : data.dashed) === true;
-    const animation = isDashed ? 'none' : ((_b = data === null || data === void 0 ? void 0 : data.animation) !== null && _b !== void 0 ? _b : 'none');
+    const animation = isDashed ? 'none' : ((_c = data === null || data === void 0 ? void 0 : data.animation) !== null && _c !== void 0 ? _c : 'none');
     const overlayBaseStyle = React.useMemo(() => (Object.assign(Object.assign({}, style), { fill: 'none', stroke: 'rgba(255, 255, 255, 0.95)', strokeWidth: Math.max(3, ((style === null || style === void 0 ? void 0 : style.strokeWidth) || 6) * 0.5), pointerEvents: 'none', strokeLinecap: 'round' })), [style]);
     return (React.createElement(React.Fragment, null,
         React.createElement(reactflow_1.BaseEdge, { path: edgePath, markerEnd: markerEnd, style: Object.assign(Object.assign({}, style), { fill: 'none', strokeLinecap: 'round', filter: 'drop-shadow(0px 1px 1px rgba(0,0,0,0.3))' }), interactionWidth: dynamicInteractionWidth }),
@@ -4562,30 +4599,28 @@ exports.CustomEdge = React.memo(({ sourceX, sourceY, targetX, targetY, sourcePos
                     zIndex: (zIndex !== null && zIndex !== void 0 ? zIndex : 5000) + 50,
                     cursor: 'pointer', whiteSpace: 'pre-wrap', textAlign: 'center',
                 }, className: "nodrag nopan" }, label))),
-        canEdit && segHandlePts.length >= 4 && (React.createElement(reactflow_1.EdgeLabelRenderer, null, segHandlePts.slice(0, -1).map((pt, i) => {
+        canEdit && segHandlePts.length >= 3 && (React.createElement(reactflow_1.EdgeLabelRenderer, null, segHandlePts.slice(0, -1).map((pt, i) => {
             const next = segHandlePts[i + 1];
-            if (i === 0 || i === segHandlePts.length - 2)
-                return null;
             const dx = Math.abs(next.x - pt.x);
             const dy = Math.abs(next.y - pt.y);
-            if (dx + dy < 10)
+            if (dx + dy < minSegLen)
                 return null;
             const isH = dx > dy;
             const mx = (pt.x + next.x) / 2;
             const my = (pt.y + next.y) / 2;
-            return (React.createElement("div", { key: `seg-${i}`, className: "nodrag nopan", onPointerDown: (e) => handlePointerDown(e, i, isH), onPointerMove: handlePointerMove, onPointerUp: handlePointerUp, onPointerCancel: handlePointerCancel, title: isH ? 'Drag up/down' : 'Drag left/right', style: {
+            return (React.createElement("div", { key: `seg-${i === (drag === null || drag === void 0 ? void 0 : drag.curSeg) ? drag.origSeg : i === (drag === null || drag === void 0 ? void 0 : drag.origSeg) ? drag.curSeg : i}`, className: "nodrag nopan", onPointerDown: (e) => handlePointerDown(e, i, isH), onPointerMove: handlePointerMove, onPointerUp: handlePointerUp, onPointerCancel: handlePointerCancel, title: isH ? 'Drag up/down' : 'Drag left/right', style: {
                     position: 'absolute',
                     transform: `translate(-50%, -50%) translate(${mx}px, ${my}px)`,
                     width: isH ? `${hWidth}px` : `${hHeight}px`,
                     height: isH ? `${hHeight}px` : `${hWidth}px`,
                     borderRadius: `${hHeight / 2}px`,
                     backgroundColor: 'var(--callToAction)',
-                    opacity: 0.85,
+                    opacity: 0.6,
                     cursor: isH ? 'ns-resize' : 'ew-resize',
                     zIndex: (zIndex !== null && zIndex !== void 0 ? zIndex : 5000) + 100,
                     pointerEvents: 'all',
                     touchAction: 'none',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.3)',
                 } }));
         })))));
 });
