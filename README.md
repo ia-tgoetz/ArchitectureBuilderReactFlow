@@ -5,7 +5,9 @@ The **Architecture Builder** is a specialized, interactive visualization module 
 ## 📥 Download
 [Download the latest ArchitectureBuilder.modl](https://github.com/ia-tgoetz/ArchitectureBuilderReactFlow/releases/latest/download/ArchitectureBuilder.modl)
 
-**Latest release (v1.1.4):** Sidebar palette labels now always render at 14px — `labelStyle.fontSize` applies to the node on the canvas only. Also adds an [Identifier Model](#identifier-model) section to the README and corrects the `typeId` / `paletteId` prop descriptions (`paletteId` drives swap matching; `typeId` feeds `nodeTypeConnectionDefaults`).
+**Latest release (v1.1.5):** Adds `edgeHandleColor` and `edgeHandleSize` Designer properties to customize the drag handles shown on a selected edge's segments — bind them to per-user preferences so each user can pick a color and size. Any edge segment at least two grid steps long, including the first and last segments, can now be dragged.
+
+**v1.1.4:** Sidebar palette labels now always render at 14px — `labelStyle.fontSize` applies to the node on the canvas only. Also adds an [Identifier Model](#identifier-model) section to the README and corrects the `typeId` / `paletteId` prop descriptions (`paletteId` drives swap matching; `typeId` feeds `nodeTypeConnectionDefaults`).
 
 **v1.1.3:** Adds full **Undo / Redo** to the canvas — `Ctrl+Z` / `Ctrl+Shift+Z` (or `Ctrl+Y`), plus dedicated buttons in the canvas control bar. Covers every canvas edit, undoes each action as a single step, and restores manual edge routing exactly.
 
@@ -47,6 +49,8 @@ All properties below are accessible in the Ignition Designer's **Props** panel u
 | `showGrid` | Boolean | `true` | When `false`, hides the background dot grid on the canvas. Pan and zoom remain active. |
 | `snapPixels` | Number | `15` | Grid snap resolution in pixels. |
 | `edgeWidth` | Number | `6` | Global edge stroke thickness in pixels. Selected edges render at `edgeWidth + 2`. |
+| `edgeHandleColor` | String | `""` | CSS color of the segment drag handles on a selected edge. Empty uses the theme accent (`--callToAction`) at 60% opacity; a custom color is used as-is (use `rgba()` for transparency). |
+| `edgeHandleSize` | Number | `1` | Size multiplier for the segment drag handles. Range: 0.5–4. |
 | `hideHandles` | Boolean | `false` | Hides connection handles on all nodes globally. Can be overridden per palette item. |
 | `handleCount` | Number | `3` | Number of connection handles per side of each node. Range: 1–5. Higher values increase per-node memory cost. |
 | `refreshHierarchy` | Boolean | `false` | Write-only trigger. Toggle to force a recalculation of the `hierarchy` output prop. |
@@ -280,6 +284,7 @@ The built-in search feature lets operators and designers quickly locate nodes on
 
 ### Edge Routing
 - **Manual segment drag:** Click and drag any edge segment to reposition it. Segments are axis-locked (horizontal segments move vertically; vertical segments move horizontally).
+- **Segment handles:** Selecting an edge shows a drag handle on every segment at least two grid steps (`2 × snapPixels`) long, including the first and last segments. Their color and size come from `edgeHandleColor` / `edgeHandleSize`.
 - **Snap-aware drag:** Segment drag respects the global snap grid.
 - **Persist routing:** Waypoints persist when nodes are moved after manual routing. Only the first and last segments stretch to track endpoint movement.
 - **Reset routing:** Right-click edge → **Clear Path** to return to auto-routing.
