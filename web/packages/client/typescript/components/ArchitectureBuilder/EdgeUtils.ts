@@ -16,8 +16,8 @@ export const getHandlePixelPos = (
     if (isNaN(idx)) return null;
     const pos = (idx + 0.5) / handleCount;
     const isContainer = node.paletteId === 'container';
-    const nw = isContainer ? (node.width || 300) : 150;
-    const nh = isContainer ? (node.height || 300) : 150;
+    const nw = node.width || (isContainer ? 300 : 150);
+    const nh = node.height || (isContainer ? 300 : 150);
     switch (side) {
         case 'top':    return { x: node.x + pos * nw, y: node.y,           position: 'top' };
         case 'bottom': return { x: node.x + pos * nw, y: node.y + nh,      position: 'bottom' };
@@ -106,7 +106,10 @@ export const mapIgnitionToReactFlowEdges = (
     onLabelChange?: (id: string, labelText: string) => void,
     snapEnabled?: boolean,
     snapPixels?: number,
-    globalEdgeWidth?: number
+    globalEdgeWidth?: number,
+    onRequestEdit?: (id: string) => void,
+    handleColor?: string,
+    handleSize?: number
 ) => {
     const baseWidth = globalEdgeWidth ?? 6;
     if (!ignitionEdges) return [];
@@ -148,6 +151,9 @@ export const mapIgnitionToReactFlowEdges = (
                     snapEnabled: snapEnabled ?? true,
                     snapPixels: snapPixels ?? 15,
                     dashed: edgeData.dashed === true,
+                    handleColor: handleColor || '',
+                    handleSize: handleSize ?? 1,
+                    onRequestEdit: onRequestEdit ? () => onRequestEdit(id) : undefined,
                     onWaypointsChange: onWaypointsChange
                         ? (wps: { x: number; y: number }[]) => onWaypointsChange(id, wps)
                         : undefined,

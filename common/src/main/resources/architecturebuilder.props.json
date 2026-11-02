@@ -26,11 +26,19 @@
           },
           "image": {
             "type": "string",
-            "description": "Image for this palette item. Accepts a base64 data URL (data:image/png;base64,... or data:image/svg+xml;base64,...) or any other image format."
+            "description": "Image for this palette item. Accepts an image path or URL (e.g. /system/images/MyProject/pump.svg), raw SVG markup, or a base64 data URL (data:image/png;base64,... or data:image/svg+xml;base64,...). Paths/URLs are preferred; the browser caches them."
           },
           "overrideImage": {
             "type": "string",
             "description": "Optional alternate image for this palette item. Nodes with useOverrideImage set to true will display this image instead of the primary image."
+          },
+          "viewPath": {
+            "type": "string",
+            "description": "Optional project-relative path of a Perspective view to render live inside nodes of this palette item (e.g. Exchange/Widgets/PumpCard). When set, the view is shown instead of the image."
+          },
+          "viewParams": {
+            "type": "object",
+            "description": "Optional parameters passed to the view named by viewPath."
           },
           "supportedConnections": {
             "type": "array",
@@ -1750,12 +1758,11 @@
           "type": "object",
           "properties": {
             "paletteId": {
-              "type": "string",
-              "description": "The id of the palette item this node was created from. This is the node's primary type key: it resolves the icon, style, and renderer, and drives swap matching via that item's swappableWith list. Note this is the palette item's id, not the node's own unique id (which is the key of this node in the nodes dictionary)."
+              "type": "string"
             },
             "typeId": {
               "type": "string",
-              "description": "The typeId of the palette item this node was created from. Matched against nodeTypeConnectionDefaults via the sorted 'typeIdA__typeIdB' pair key to auto-select a default connection type for new edges. Swap matching uses paletteId, not this field."
+              "description": "The typeId of the palette item this node was created from. Used for swap matching."
             },
             "label": {
               "type": "string"
@@ -1969,6 +1976,18 @@
       "type": "number",
       "description": "The global thickness of the edge lines. Selected edges render at edgeWidth + 2.",
       "default": 6
+    },
+    "edgeHandleColor": {
+      "type": "string",
+      "description": "Color of the drag handles shown on segments of a selected edge (any CSS color). Leave empty to use the theme accent color at 60% opacity; a custom color is used exactly as given, so include alpha (e.g. rgba()) if transparency is wanted.",
+      "default": ""
+    },
+    "edgeHandleSize": {
+      "type": "number",
+      "description": "Size multiplier for the edge segment drag handles. 1 is the default size; 2 doubles it.",
+      "default": 1,
+      "minimum": 0.5,
+      "maximum": 4
     },
     "hideHandles": {
       "type": "boolean",

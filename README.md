@@ -140,6 +140,8 @@ Defines the sidebar catalog. Each item controls what is draggable and how it ren
 | `category` | String | Sidebar group heading (e.g., `"Gateways"`, `"Databases"`, `"Devices/OPC"`). |
 | `image` | String | Path to the node icon image. |
 | `overrideImage` | String | Optional alternate icon (swapped in via style editor). |
+| `viewPath` | String | Optional project-relative path of a Perspective view (e.g. `Exchange/Widgets/PumpCard`) rendered live inside nodes of this item, instead of the image. Selected view nodes can be resized. |
+| `viewParams` | Object | Optional parameters passed to the `viewPath` view. |
 | `tooltip` | String | Sidebar hover tooltip. |
 | `supportedConnections` | Array | List of `connectionType` keys this node type can participate in. |
 | `swappableWith` | Array | Palette IDs that this node can be swapped to via right-click. |
@@ -260,9 +262,11 @@ The built-in search feature lets operators and designers quickly locate nodes on
 - **Place node:** Drag from sidebar palette onto the canvas.
 - **Connect nodes:** Drag from one node's handle to another.
 - **Delete:** Select and press `Delete` or `Backspace`.
-- **Copy/Paste:** `Ctrl+C` / `Ctrl+V`.
+- **Multi-select:** `Ctrl`/`Cmd`/`Shift` + click toggles a node in the selection. Hold `Shift`, `Ctrl` or `Cmd` and drag on empty canvas to box-select (nodes must be fully inside the box). Dragging any selected node moves all selected nodes.
+- **Copy/Paste:** `Ctrl+C` copies every selected node (plus everything inside selected containers and the edges between copied nodes). `Ctrl+V` pastes the group centered on the mouse position (snapped to the grid) and selects the pasted nodes. Right-click → **Paste** pastes at the click position.
 
 ### Editing
+- **Add node from an edge:** Drag an edge out of a node's handle and drop it on empty canvas (or an unlocked area) to open an "Add node" menu at the pointer. It lists palette items that share a connection type with the source node, grouped by category, with a filter box (`Enter` picks the first match). Picking one places the node centered on the drop point (snapped to the grid), connects it with the usual connection-type rules, and selects it. `Escape` or clicking elsewhere closes the menu. Undo removes the node and edge together.
 - **Label/Note text:** Double-click. `Enter` inserts a newline; `Ctrl+Enter` submits.
 - **Style editor:** Right-click node → **Edit Style** to customize background, border, label font/color.
 - **Swap type:** Right-click node → **Swap** (only shown when `swappableWith` is configured).

@@ -7,6 +7,7 @@ import 'reactflow/dist/style.css';
 import { toPng } from 'html-to-image';
 import { Sidebar, PaletteItem } from './Sidebar';
 import { ArchitectureNode } from './ArchitectureNode';
+import { ViewParentContext } from './NodeView';
 import { ContainerNode } from './ContainerNode';
 import { NoteLabelNode } from './NoteLabelNode';
 import { edgeTypes } from './CustomEdge';
@@ -15,8 +16,10 @@ import { useArchitectureFlowHandlers } from './useArchitectureFlowHandlers';
 import { useCanvasHistory } from './useCanvasHistory';
 import { ComponentErrorBoundary } from '../common/ComponentErrorBoundary';
 import { TEXT_NODE_PALETTE_IDS } from './constants';
-import { ContextMenuState } from './types';
+import { ContextMenuState, QuickAddState } from './types';
+import { QuickAddMenu } from './QuickAddMenu';
 import { StyleEditorModal } from './StyleEditorModal';
+import { EdgeLabelDialog } from './EdgeLabelDialog';
 import { ContextMenu } from './ContextMenu';
 import { useLongPress } from './useLongPress';
 import { CanvasSearch } from './CanvasSearch';
@@ -26,27 +29,28 @@ import { CanvasSearch } from './CanvasSearch';
 const nodeTypes = { architecture: ArchitectureNode, container: ContainerNode, Note: NoteLabelNode, Label: NoteLabelNode };
 
 // ─── Selection sync (must live inside ReactFlowProvider) ──────────────────────
-// Surgically flips `selected` on only the 2 affected nodes when selectedId changes,
+// Surgically flips `selected` on only the nodes whose selection changed,
 // avoiding a full flowNodes reconstruction for every click.
 
-interface ArchitectureFlowInnerProps { selectedId: string | null; }
+interface ArchitectureFlowInnerProps { selectedNodeIds: string[]; }
 
-const ArchitectureFlowInner: React.FC<ArchitectureFlowInnerProps> = ({ selectedId }) => {
+const ArchitectureFlowInner: React.FC<ArchitectureFlowInnerProps> = ({ selectedNodeIds }) => {
     const { setNodes } = useReactFlow();
-    const prevSelectedIdRef = React.useRef<string | null>(null);
+    const prevSelectedRef = React.useRef<Set<string>>(new Set());
 
     React.useEffect(() => {
-        const prev = prevSelectedIdRef.current;
-        prevSelectedIdRef.current = selectedId;
-        if (prev === selectedId) return;
+        const prev = prevSelectedRef.current;
+        const next = new Set(selectedNodeIds);
+        prevSelectedRef.current = next;
+        if (prev.size === next.size && selectedNodeIds.every(id => prev.has(id))) return;
 
         setNodes(nds => nds.map(n => {
-            const shouldBeSelected = n.id === selectedId;
-            const wasSelected = n.id === prev;
-            if (!shouldBeSelected && !wasSelected) return n;
+            const shouldBeSelected = next.has(n.id);
+            const wasSelected = prev.has(n.id);
+            if (shouldBeSelected === wasSelected) return n;
             return { ...n, selected: shouldBeSelected };
         }));
-    }, [selectedId, setNodes]);
+    }, [selectedNodeIds, setNodes]);
 
     return null;
 };
@@ -90,6 +94,7 @@ const mapIgnitionToReactFlowNodes = (
             else if (isTextNode) type = nodeData.paletteId;
 
             const isUnlocked = nodeData.configs?.unlocked === true;
+            const isViewNode = !isContainer && !isTextNode && !!palette?.viewPath;
 
             return {
                 id, type, selected: false,
@@ -102,7 +107,7 @@ const mapIgnitionToReactFlowNodes = (
                 },
                 dragHandle: (isContainer && !isUnlocked) ? '.custom-drag-handle' : undefined,
                 data: {
-                    label: nodeData.label || 'Unknown', image: paletteImage || nodeData.image || '', text: nodeData.text || '', tooltip: nodeData.tooltip || '', configs: nodeData.configs || {},
+                    label: nodeData.label || 'Unknown', image: paletteImage || nodeData.image || '', viewPath: palette?.viewPath || undefined, viewParams: palette?.viewParams ? extractDeep(palette.viewParams) : undefined, text: nodeData.text || '', tooltip: nodeData.tooltip || '', configs: nodeData.configs || {},
                     style: nodeData.style || {}, labelStyle: nodeData.labelStyle || {}, textStyle: nodeData.textStyle || {},
                     paletteId: nodeData.paletteId || 'unknown', inactive: nodeData.inactive || false,
                     hideHandles: nodeData.hideHandles, globalHideHandles, handleCount: globalHandleCount,
@@ -110,9 +115,9 @@ const mapIgnitionToReactFlowNodes = (
                     actionIcons: nodeData.actionIcons,
                     isEditable,
                     unlockMovement: isUnlocked,
-                    enableResize: isContainer || isTextNode,
+                    enableResize: isContainer || isTextNode || isViewNode,
                     onGearClick: handleGearClick, onTextChange: handleTextChange,
-                    onResizeEnd: (isContainer || isTextNode) ? handleResizeEnd : undefined,
+                    onResizeEnd: (isContainer || isTextNode || isViewNode) ? handleResizeEnd : undefined,
                     onActionIconClick: handleActionIconClick,
                 },
             };
@@ -120,8 +125,8 @@ const mapIgnitionToReactFlowNodes = (
 };
 
 const isInsideContainer = (item: any, container: any): boolean => {
-    const iw = item.paletteId === 'container' ? (item.width || 300) : 150;
-    const ih = item.paletteId === 'container' ? (item.height || 300) : 150;
+    const iw = item.width || (item.paletteId === 'container' ? 300 : 150);
+    const ih = item.height || (item.paletteId === 'container' ? 300 : 150);
     const cw = container.width || 300, ch = container.height || 300;
     if (iw >= cw || ih >= ch) return false;
     return item.x >= container.x && item.y >= container.y && item.x + iw <= container.x + cw && item.y + ih <= container.y + ch;
@@ -185,6 +190,7 @@ const computeHierarchyData = (nodesDict: any, edgesDict: any) => {
 export interface ArchitectureBuilderProps {
     enabled?: any; enableOnClickEvents?: any; hideHandles?: any; handleCount?: any;
     refreshHierarchy?: boolean; snapEnabled?: any; showGrid?: any; snapPixels?: any; edgeWidth?: any;
+    edgeHandleColor?: any; edgeHandleSize?: any;
     style?: any; connectionTypes: any; nodeTypeConnectionDefaults?: any; paletteItems: any[];
     nodes: any; edges: any; hierarchy?: any;
 }
@@ -199,9 +205,16 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
     const [reactFlowInstance, setReactFlowInstance] = React.useState<any>(null);
     const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
     const [styleEditorNodeId, setStyleEditorNodeId] = React.useState<string | null>(null);
+    // Edge whose label editor was requested via right-click → Config; cleared once the edge opens it.
+    const [editingEdgeId, setEditingEdgeId] = React.useState<string | null>(null);
     const [contextMenu, setContextMenu] = React.useState<ContextMenuState | null>(null);
+    const [quickAdd, setQuickAdd] = React.useState<QuickAddState | null>(null);
     const [activeSubMenu, setActiveSubMenu] = React.useState<'lineType' | 'connectionType' | 'animation' | 'swapNode' | 'order' | null>(null);
-    const [selectedId, setSelectedId] = React.useState<string | null>(null);
+    // selectedId: the single selected node or edge. selectedNodeIds: every selected node (Ctrl-click / box select).
+    // selectedId mirrors selectedNodeIds when exactly one node is selected, and is null for 2+.
+    const [selectedId, setSelectedIdRaw] = React.useState<string | null>(null);
+    const [selectedNodeIds, setSelectedNodeIds] = React.useState<string[]>([]);
+    const lastPointerRef = React.useRef<{ x: number; y: number } | null>(null);
     const [canvasSearchOpen, setCanvasSearchOpen] = React.useState(false);
     const [localNodes, setLocalNodes] = React.useState<any[]>([]);
     const [localEdges, setLocalEdges] = React.useState<any[]>([]);
@@ -295,7 +308,9 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
     // triggers re-renders when any of these values change in the Designer or Session.
     const rawConfigJson = React.useMemo(() => JSON.stringify({
         edgeWidth:             extractDeep(props.props.edgeWidth),
-        snapEnabled:           extractDeep(props.props.snapEnabled),
+        edgeHandleColor:       extractDeep(props.props.edgeHandleColor),
+        edgeHandleSize:        extractDeep(props.props.edgeHandleSize),
+        snapEnabled:          extractDeep(props.props.snapEnabled),
         showGrid:              extractDeep(props.props.showGrid),
         snapPixels:            extractDeep(props.props.snapPixels),
         hideHandles:           extractDeep(props.props.hideHandles),
@@ -303,7 +318,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
         enabled:               extractDeep(props.props.enabled),
         enableOnClickEvents:   extractDeep(props.props.enableOnClickEvents),
     }), [
-        props.props.edgeWidth, props.props.snapEnabled, props.props.showGrid, props.props.snapPixels,
+        props.props.edgeWidth, props.props.edgeHandleColor, props.props.edgeHandleSize, props.props.snapEnabled, props.props.showGrid, props.props.snapPixels,
         props.props.hideHandles, props.props.handleCount, props.props.enabled,
         props.props.enableOnClickEvents,
     ]);
@@ -323,6 +338,8 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
     const snapPixels = Number(rawConfig.snapPixels) || 15;
     const snapGrid = React.useMemo<[number, number]>(() => [snapPixels, snapPixels], [snapPixels]);
     const globalEdgeWidth = Math.max(1, Number(rawConfig.edgeWidth) || 6);
+    const edgeHandleColor = typeof rawConfig.edgeHandleColor === 'string' ? rawConfig.edgeHandleColor.trim() : '';
+    const edgeHandleSize = Math.max(0.5, Math.min(4, Number(rawConfig.edgeHandleSize) || 1));
 
     // ─── Undo/redo history ─────────────────────────────────────────────────
 
@@ -359,6 +376,37 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
         writeWithoutHistory('refreshHierarchy', false);
     }, [props.props.refreshHierarchy, props.store, writeWithoutHistory]);
 
+    // ─── Selection state ───────────────────────────────────────────────────
+    // Refs are updated synchronously by the setters so several selection updates in
+    // one event (React Flow's select changes, then onNodeClick) see each other.
+
+    const selectedIdRef = React.useRef<string | null>(null);
+    const selectedNodeIdsRef = React.useRef<string[]>([]);
+    const rawEdgesForSelectionRef = React.useRef<any>(rawEdgesDict);
+    rawEdgesForSelectionRef.current = rawEdgesDict;
+
+    // Select exactly these nodes (Ctrl-click, box select, paste).
+    const setSelectedNodes = React.useCallback((ids: string[]) => {
+        const prev = selectedNodeIdsRef.current;
+        if (ids.length === prev.length && ids.every((id, i) => id === prev[i])) return;
+        const single = ids.length === 1 ? ids[0] : null;
+        selectedNodeIdsRef.current = ids;
+        selectedIdRef.current = single;
+        setSelectedNodeIds(ids);
+        setSelectedIdRaw(single);
+    }, []);
+
+    // Select one node or edge, or clear (null). Drop-in for the previous plain useState setter.
+    const setSelectedId = React.useCallback((value: React.SetStateAction<string | null>) => {
+        const next = typeof value === 'function' ? (value as (p: string | null) => string | null)(selectedIdRef.current) : value;
+        selectedIdRef.current = next;
+        setSelectedIdRaw(next);
+        // A just-created node is not in rawNodesDict yet, so anything that is not an edge counts as a node.
+        const ids = next && !rawEdgesForSelectionRef.current?.[next] ? [next] : [];
+        selectedNodeIdsRef.current = ids;
+        setSelectedNodeIds(ids);
+    }, []);
+
     // ─── Handlers hook ─────────────────────────────────────────────────────
 
     const {
@@ -377,7 +425,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
         onNodesChange, onNodeDragStart, onNodeDrag, onNodeDragStop,
         onNodesDelete, onNodeContextMenu, onNodeClick,
         executeCopy, executePaste,
-        onDragOver, onDrop, onMoveStart, onPaneClick, onPaneContextMenu,
+        onDragOver, onDrop, addNodeFromEdgeDrop, onMoveStart, onPaneClick, onPaneContextMenu,
         handleNodeSwap, handleContextMenuAction,
     } = useArchitectureFlowHandlers({
         store: historyStore,
@@ -397,15 +445,28 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
         enableOnClickEvents: rawConfig.enableOnClickEvents !== false,
         selectedId,
         setSelectedId,
+        selectedNodeIdsRef,
+        setSelectedNodes,
         setLocalNodes,
         setLocalEdges,
         contextMenu,
         setContextMenu,
         setActiveSubMenu,
         setStyleEditorNodeId,
+        setEditingEdgeId,
         clipboardRef,
         draggedItemRef,
+        setQuickAdd,
     });
+
+    // Palette items the edge-drop menu offers: anything that shares a connection type with the source node.
+    const quickAddItems = React.useMemo(() => {
+        if (!quickAdd) return [];
+        const sourceTypes: string[] = rawNodesDict?.[quickAdd.sourceId]?.supportedConnections || [];
+        return (paletteItems || []).filter((item: any) =>
+            item.id !== 'container' && !TEXT_NODE_PALETTE_IDS.has(item.id) &&
+            (item.supportedConnections || []).some((c: string) => sourceTypes.includes(c)));
+    }, [quickAdd, rawNodesDict, paletteItems]);
 
     // ─── Derived flow data ─────────────────────────────────────────────────
 
@@ -453,15 +514,20 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
         [rawNodesDict, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled, handleActionIconClick]
     );
     const flowEdges = React.useMemo(() =>
-        mapIgnitionToReactFlowEdges(rawEdgesDict, rawNodesDict, connectionTypes, selectedId, handleWaypointsChange, handleLabelChange, snapEnabled, snapPixels, globalEdgeWidth),
-        [rawEdgesDict, rawNodesDict, connectionTypes, selectedId, handleWaypointsChange, handleLabelChange, snapEnabled, snapPixels, globalEdgeWidth]
+        mapIgnitionToReactFlowEdges(rawEdgesDict, rawNodesDict, connectionTypes, selectedId, handleWaypointsChange, handleLabelChange, snapEnabled, snapPixels, globalEdgeWidth, setEditingEdgeId, edgeHandleColor, edgeHandleSize),
+        [rawEdgesDict, rawNodesDict, connectionTypes, selectedId, handleWaypointsChange, handleLabelChange, snapEnabled, snapPixels, globalEdgeWidth, edgeHandleColor, edgeHandleSize]
     );
 
+    // Selection is read from the ref and is deliberately NOT a dependency: rebuilding every node on each selection
+    // change (e.g. continuously while box-selecting) hands React Flow fresh nodes with no measured width/height,
+    // and it treats zero-size nodes as inside any selection box, selecting everything. Selection changes are applied
+    // to the existing nodes by onNodesChange and ArchitectureFlowInner, which keep their measured size.
     React.useEffect(() => {
         if (!isDraggingNode) {
-            setLocalNodes(flowNodes.map((n: any) => ({ ...n, selected: n.id === selectedId })));
+            const selected = new Set(selectedNodeIdsRef.current);
+            setLocalNodes(flowNodes.map((n: any) => ({ ...n, selected: selected.has(n.id) })));
         }
-    }, [flowNodes, isDraggingNode, selectedId]);
+    }, [flowNodes, isDraggingNode]);
 
     // Tracks which history epoch the localEdges mirror was built for. The
     // render immediately after an undo pairs fresh flowEdges with the previous
@@ -567,24 +633,31 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
                 if (k === 'z') { e.preventDefault(); if (e.shiftKey) handleRedo(); else handleUndo(); return; }
                 if (k === 'y') { e.preventDefault(); handleRedo(); return; }
             }
-            if ((e.ctrlKey || e.metaKey) && e.key === 'c') { if (selectedId && rawNodesDictRef.current[selectedId]) executeCopy(selectedId); }
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+                const ids = selectedNodeIdsRef.current.filter(id => rawNodesDictRef.current[id]);
+                if (ids.length > 0) executeCopy(ids);
+            }
             if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId && rawEdgesDictRef.current[selectedId]) {
                 e.preventDefault();
                 deleteEdgeWithEvent(selectedId);
             }
-            if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
-                const clipboard = clipboardRef.current;
-                if (clipboard && props.store?.props) {
-                    const targetNode = clipboard.type === 'single' ? clipboard.node : Object.values(clipboard.nodes)[0];
-                    const dropX = (targetNode as any).x + (snapEnabled ? snapPixels * 2 : 30);
-                    const dropY = (targetNode as any).y + (snapEnabled ? snapPixels * 2 : 30);
-                    executePaste(dropX, dropY);
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+                if (clipboardRef.current && props.store?.props && reactFlowInstance && reactFlowWrapper.current) {
+                    // Paste centered on the mouse; fall back to the canvas center if the mouse is not over it.
+                    const rect = reactFlowWrapper.current.getBoundingClientRect();
+                    const p = lastPointerRef.current;
+                    const overCanvas = p && p.x >= rect.left && p.x <= rect.right && p.y >= rect.top && p.y <= rect.bottom;
+                    const flowPos = reactFlowInstance.screenToFlowPosition({
+                        x: overCanvas ? p!.x : rect.left + rect.width / 2,
+                        y: overCanvas ? p!.y : rect.top + rect.height / 2,
+                    });
+                    executePaste(flowPos.x, flowPos.y);
                 }
             }
         };
         document.addEventListener('keydown', handleKeyDown);
         return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [isEnabled, selectedId, snapEnabled, snapPixels, props.store, executeCopy, executePaste, closeContextMenu, deleteEdgeWithEvent, rawEdgesDictRef, handleUndo, handleRedo]);
+    }, [isEnabled, selectedId, props.store, reactFlowInstance, executeCopy, executePaste, closeContextMenu, deleteEdgeWithEvent, rawEdgesDictRef, handleUndo, handleRedo]);
 
     const flyToNode = React.useCallback((nodeId: string, x: number, y: number, w: number, h: number) => {
         if (reactFlowInstance) {
@@ -793,15 +866,19 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
                 .arch-moving-edge   .arch-node-handle.connecting:not(.valid):hover { cursor: not-allowed !important; }
                 .arch-creating-edge .arch-node-handle.connecting:not(.valid):hover::after,
                 .arch-moving-edge   .arch-node-handle.connecting:not(.valid):hover::after { background: #ef4444 !important; border-color: #dc2626 !important; }
+                /* Keep the group selection outline visible but let clicks/drags reach the nodes under it,
+                   so individual nodes can still be ctrl-clicked, right-clicked and dragged (drags move all selected). */
+                .react-flow__nodesselection-rect { pointer-events: none !important; }
                 .react-flow__attribution a { min-height: 24px; min-width: 24px; display: inline-flex; align-items: center; padding: 0 6px; }
                 `}</style>
 
                 <div className="arch-theme-wrapper">
                     {isEnabled && <Sidebar paletteItems={paletteItems} isOpen={isSidebarOpen} toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} onDragStartItem={(item) => { draggedItemRef.current = item; }} onItemClick={handlePaletteItemClick} />}
 
-                    <div role="main" aria-label="Architecture Builder Canvas" style={{ flexGrow: 1, height: '100%', position: 'relative', overflow: 'hidden' }} ref={reactFlowWrapper} className={isUpdatingEdge ? 'arch-moving-edge' : ''} {...longPressHandlers}>
+                    <div role="main" aria-label="Architecture Builder Canvas" style={{ flexGrow: 1, height: '100%', position: 'relative', overflow: 'hidden' }} ref={reactFlowWrapper} className={isUpdatingEdge ? 'arch-moving-edge' : ''} {...longPressHandlers} onMouseMove={(e) => { lastPointerRef.current = { x: e.clientX, y: e.clientY }; }}>
+                        <ViewParentContext.Provider value={props.store}>
                         <ReactFlowProvider>
-                            <ArchitectureFlowInner selectedId={selectedId} />
+                            <ArchitectureFlowInner selectedNodeIds={selectedNodeIds} />
                             <ReactFlow
                                 nodes={localNodes} edges={displayEdges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
                                 isValidConnection={isValidConnection} onInit={setReactFlowInstance}
@@ -828,6 +905,8 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
                                 zoomOnScroll={true}
                                 panOnDrag={true}
                                 selectionOnDrag={false}
+                                multiSelectionKeyCode={['Control', 'Meta', 'Shift']}
+                                selectionKeyCode={['Shift', 'Control', 'Meta']}
                                 deleteKeyCode={['Delete', 'Backspace']}
                                 proOptions={{ hideAttribution: true }}
                             >
@@ -870,6 +949,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
                                 </Controls>
                             </ReactFlow>
                         </ReactFlowProvider>
+                        </ViewParentContext.Provider>
 
                         {canvasSearchOpen && (
                             <CanvasSearch
@@ -894,6 +974,29 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
                                     setStyleEditorNodeId(null);
                                 }}
                                 onCancel={() => setStyleEditorNodeId(null)}
+                            />
+                        )}
+
+                        {editingEdgeId && rawEdgesDict[editingEdgeId] && (
+                            <EdgeLabelDialog
+                                key={editingEdgeId}
+                                initialText={flowEdges.find((e: any) => e.id === editingEdgeId)?.label ?? ''}
+                                onSave={(text) => {
+                                    const current = flowEdges.find((e: any) => e.id === editingEdgeId)?.label ?? '';
+                                    if (text !== current) handleLabelChange(editingEdgeId, text);
+                                    setEditingEdgeId(null);
+                                }}
+                                onCancel={() => setEditingEdgeId(null)}
+                            />
+                        )}
+
+                        {quickAdd && quickAddItems.length > 0 && (
+                            <QuickAddMenu
+                                quickAdd={quickAdd}
+                                items={quickAddItems}
+                                wrapperRef={reactFlowWrapper}
+                                onSelect={(item) => addNodeFromEdgeDrop(item, quickAdd)}
+                                onClose={closeContextMenu}
                             />
                         )}
 

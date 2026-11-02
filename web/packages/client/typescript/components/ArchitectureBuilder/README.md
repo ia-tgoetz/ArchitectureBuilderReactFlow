@@ -42,6 +42,8 @@ All props are defined in `architecturebuilder.props.json`.
 | `defaultConnectionType` | string | Connection type auto-selected when multiple valid types exist. |
 | `snapEnabled` | boolean | Enables snap-to-grid when dragging nodes (default true). |
 | `snapPixels` | number | Grid size in pixels (default 15). |
+| `edgeHandleColor` | string | CSS color of the segment drag handles on a selected edge. Empty (default) uses the theme accent at 60% opacity; a custom color is used as-is. |
+| `edgeHandleSize` | number | Size multiplier for the segment drag handles (0.5–4, default 1). |
 | `connectionTypes` | object | Map of connection type IDs to type definitions (see below). |
 | `nodeTypeConnectionDefaults` | object | Preferred connection type per node-type pair. Keys are `typeA__typeB`; values are connection type IDs (see below). |
 | `paletteItems` | array | List of palette items available in the sidebar (see below). |
@@ -350,7 +352,7 @@ Right-click on a node, edge, or the canvas pane to open the context menu.
 | Swap Node | Replaces node type with a compatible palette item (from `swappableWith`). Removes edges incompatible with the new type. |
 | Order (containers only) | Bring to Front / Bring Forward / Send Backward / Send to Back. |
 | Toggle Link (containers only) | Toggles whether dragging the container moves its children. |
-| Copy | Copies the node (or container + all its contents + internal edges) to the clipboard. |
+| Copy | Copies the node (or container + all its contents + internal edges) to the clipboard. If the node is part of a multi-selection, copies every selected node. |
 | Delete | Removes the node and all its connected edges. |
 | Delete with Contents (containers only) | Removes the container and all enclosed nodes and edges. |
 
@@ -373,7 +375,7 @@ Right-click on a node, edge, or the canvas pane to open the context menu.
 
 | Action | Description |
 |---|---|
-| Paste | Pastes the clipboard content at the right-click position. |
+| Paste | Pastes the clipboard content centered on the right-click position. |
 
 ---
 
@@ -393,8 +395,10 @@ The color picker supports a standard 63-color palette swatch grid and a custom t
 
 | Shortcut | Action |
 |---|---|
-| `Ctrl+C` / `Cmd+C` | Copy selected node (or container group). |
-| `Ctrl+V` / `Cmd+V` | Paste clipboard offset by one snap-grid step. |
+| `Ctrl+C` / `Cmd+C` | Copy all selected nodes (container contents and internal edges included). |
+| `Ctrl+V` / `Cmd+V` | Paste centered on the mouse position (canvas center if the mouse is elsewhere), snapped to the grid. The pasted nodes become the selection. |
+| `Ctrl` / `Cmd` / `Shift` + click | Add or remove a node from the selection. |
+| `Ctrl` / `Cmd` / `Shift` + drag on empty canvas | Box-select nodes fully inside the box. |
 | `Delete` / `Backspace` | Delete selected node(s) or edge(s). |
 | `Escape` | Close context menu or style editor. |
 
@@ -438,7 +442,17 @@ Nodes with `paletteId` of `"Note"` or `"Label"` render a `<textarea>` instead of
 
 ### Custom SVG Images
 
-Both `image` and drag ghost images support raw SVG markup (detected by leading `<`) or `data:` URIs. Raw SVG is encoded as a `data:image/svg+xml,` URL.
+`image` and `overrideImage` accept an image path or URL (e.g. `/system/images/ArchitectureBuilder/aws.svg`, `https://...`), raw SVG markup (detected by leading `<`), or `data:` URIs. Paths and URLs are loaded with `<img>` so the browser caches them; this is preferred over embedding base64 in the view. Raw SVG is encoded as a `data:image/svg+xml,` URL for drag ghosts. Other URL schemes (`javascript:` etc.) are ignored.
+
+### Embedded Perspective Views
+
+A palette item can set `viewPath` (project-relative view path) and optional `viewParams`. Its nodes then render that view live (a standard embedded `View`, so bindings and params work) instead of the image; `image` is still shown if the view cannot be shown. Notes:
+
+- View nodes are resizable: select the node and drag a handle. Size is saved as `width`/`height` on the node (default 150×150, minimum 100×100). Edges follow the new size.
+- The view is display-only inside a node (pointer events are disabled so drag, select and right-click keep working).
+- Below 35% zoom the view is unmounted and the image is shown, to save DOM; it mounts again on zoom-in.
+- Every view node mounts a full view, so cost grows with view complexity. A trivial view measured about 35 DOM elements and about 0.5 MB heap per node (200 nodes: smooth panning).
+- The Architecture Builder is passed as the view's `parent`, so Perspective's own cycle detection applies if a view embeds the builder.
 
 ### Snap to Grid
 

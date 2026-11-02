@@ -1,5 +1,4 @@
 import * as React from 'react';
-import * as ReactDOM from 'react-dom';
 // @ts-ignore
 import { BaseEdge, getBezierPath, getStraightPath, EdgeLabelRenderer, useReactFlow } from 'reactflow';
 import { buildPolylinePath, computeAutoWaypoints } from './EdgeUtils';
@@ -17,7 +16,15 @@ interface DragState {
     snapEnabled: boolean;
     snapPixels: number;
     onWaypointsChange: ((wps: Waypoint[]) => void) | undefined;
+    // Segment index the user grabbed vs. where it sits after stub waypoints were
+    // inserted (terminal segments); used to keep the handle element stable.
+    origSeg: number;
+    curSeg: number;
 }
+
+const STUB = 25;
+const dirOf = (pos: string) =>
+    pos === 'right' ? { x: 1, y: 0 } : pos === 'left' ? { x: -1, y: 0 } : pos === 'top' ? { x: 0, y: -1 } : { x: 0, y: 1 };
 
 export const CustomEdge = React.memo(({
     sourceX, sourceY, targetX, targetY,
@@ -32,9 +39,13 @@ export const CustomEdge = React.memo(({
     // Calculate dynamic interaction width (selection/drag zone)
     const dynamicInteractionWidth = Math.max(20, Math.round(24 / zoom));
 
-    // Calculate dynamic segment handle dimensions (colored pills)
-    const hWidth = Math.max(24, Math.round(36 / zoom));
-    const hHeight = Math.max(10, Math.round(14 / zoom));
+    // Calculate dynamic segment handle dimensions (colored pills), scaled by the
+    // edgeHandleSize prop. An empty edgeHandleColor keeps the theme accent at 60%.
+    const hScale = data?.handleSize ?? 1;
+    const hWidth = Math.max(16 * hScale, Math.round(24 * hScale / zoom));
+    const hHeight = Math.max(6 * hScale, Math.round(8 * hScale / zoom));
+    const hColor = data?.handleColor || 'var(--callToAction)';
+    const hOpacity = data?.handleColor ? 1 : 0.6;
 
     // terminal points (native reactflow coordinates)
     const sx = sourceX;
@@ -45,9 +56,6 @@ export const CustomEdge = React.memo(({
     // null = at rest (derive from props); non-null = user is actively dragging.
     const [liveWaypoints, setLiveWaypoints] = React.useState<Waypoint[] | null>(null);
     const dragState = React.useRef<DragState | null>(null);
-
-    const [isEditing, setIsEditing] = React.useState(false);
-    const [editingText, setEditingText] = React.useState(label);
 
     const isStepType = data?.lineType === 'step' || data?.lineType === 'smoothstep' || !data?.lineType;
     const isHorizSrc = sourcePosition === 'right' || sourcePosition === 'left';
@@ -146,18 +154,42 @@ export const CustomEdge = React.memo(({
         e.preventDefault();
         e.currentTarget.setPointerCapture(e.pointerId);
 
-        const startWps = pinnedWaypoints;
+        // Terminal segments touch a node handle and are pinned to its axis, so they
+        // cannot slide on their own. Insert a short stub leaving the handle (two
+        // coincident waypoints) so the segment beyond the stub can move instead.
+        let startWps = pinnedWaypoints;
+        let wp0Idx = segIdx - 1;
+        let wp1Idx = segIdx;
+        let curSeg = segIdx;
+        const lastSeg = pinnedWaypoints.length;
+        if (segIdx === 0) {
+            const first = pinnedWaypoints[0];
+            const len = Math.abs(first.x - sx) + Math.abs(first.y - sy);
+            const d = dirOf(sourcePosition), s = Math.min(STUB, len / 2);
+            const stub = { x: sx + d.x * s, y: sy + d.y * s };
+            startWps = [stub, { ...stub }, ...pinnedWaypoints];
+            wp0Idx = 1; wp1Idx = 2; curSeg = 2;
+        } else if (segIdx === lastSeg) {
+            const last = pinnedWaypoints[lastSeg - 1];
+            const len = Math.abs(last.x - tx) + Math.abs(last.y - ty);
+            const d = dirOf(targetPosition), s = Math.min(STUB, len / 2);
+            const stub = { x: tx + d.x * s, y: ty + d.y * s };
+            startWps = [...pinnedWaypoints, { ...stub }, stub];
+            wp0Idx = lastSeg - 1; wp1Idx = lastSeg;
+        }
         dragState.current = {
             startClientX: e.clientX,
             startClientY: e.clientY,
-            startCoord: isH ? startWps[segIdx - 1].y : startWps[segIdx - 1].x,
-            wp0Idx: segIdx - 1,
-            wp1Idx: segIdx,
+            startCoord: isH ? startWps[wp0Idx].y : startWps[wp0Idx].x,
+            wp0Idx,
+            wp1Idx,
             isH,
             baseWaypoints: startWps,
             snapEnabled: data?.snapEnabled ?? true,
             snapPixels: data?.snapPixels ?? 15,
             onWaypointsChange: data?.onWaypointsChange,
+            origSeg: segIdx,
+            curSeg,
         };
         setLiveWaypoints(startWps);
     };
@@ -171,7 +203,10 @@ export const CustomEdge = React.memo(({
         const ref = dragState.current;
         if (!ref) return;
         e.currentTarget.releasePointerCapture(e.pointerId);
-        ref.onWaypointsChange?.(applyDelta(ref, e.clientX, e.clientY));
+        const result = applyDelta(ref, e.clientX, e.clientY);
+        // A click without movement must not commit (it would persist the stub waypoints).
+        const moved = ref.isH ? result[ref.wp0Idx].y !== ref.startCoord : result[ref.wp0Idx].x !== ref.startCoord;
+        if (moved) ref.onWaypointsChange?.(result);
         dragState.current = null;
         setLiveWaypoints(null);
     };
@@ -185,36 +220,17 @@ export const CustomEdge = React.memo(({
 
     // ─── Label editing ───────────────────────────────────────────────────
 
+    // The edit dialog is owned by ArchitectureBuilder (see EdgeLabelDialog) so it
+    // is not lost if this edge remounts; the edge only asks for it to open.
     const handleLabelDoubleClick = () => {
-        setIsEditing(true);
-        setEditingText(label);
+        data?.onRequestEdit?.();
     };
-
-
-    const handleSave = () => {
-        if (editingText !== label && data?.onLabelChange) {
-            data.onLabelChange(editingText);
-        }
-        setIsEditing(false);
-    };
-
-    const handleLabelInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if (e.key === 'Enter' && e.ctrlKey) {
-            e.preventDefault();
-            handleSave();
-        } else if (e.key === 'Escape') {
-            e.preventDefault();
-            setIsEditing(false);
-        }
-    };
-
-    const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        setEditingText(e.target.value);
-    };
-
 
     // ─── Render ───────────────────────────────────────────────────────────
 
+    const drag = dragState.current;
+    // A segment must span at least 2 grid dots to get a handle.
+    const minSegLen = 2 * (data?.snapPixels ?? 15);
     const segHandlePts = React.useMemo<Waypoint[]>(
         () => [{ x: sx, y: sy }, ...pinnedWaypoints, { x: tx, y: ty }],
         [pinnedWaypoints, sx, sy, tx, ty]
@@ -315,100 +331,19 @@ export const CustomEdge = React.memo(({
                     </div>
                 </EdgeLabelRenderer>
             )}
-            {isEditing && ReactDOM.createPortal(
-                (
-                    <div
-                        className="nodrag nopan"
-                        onClick={(e) => e.stopPropagation()}
-                        style={{
-                            position: 'fixed',
-                            top: 0, left: 0, right: 0, bottom: 0,
-                            backgroundColor: 'rgba(0, 0, 0, 0.45)',
-                            zIndex: 9999,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            pointerEvents: 'auto',
-                        }}
-                    >
-                        <div style={{
-                            backgroundColor: 'var(--neutral-10)',
-                            borderRadius: '8px',
-                            padding: '16px',
-                            border: '1px solid var(--neutral-40)',
-                            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.35)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '10px',
-                            minWidth: '220px',
-                        }}>
-                            <div style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--neutral-70)' }}>
-                                Edit Label
-                            </div>
-                            <textarea
-                                value={editingText}
-                                onChange={handleTextareaChange}
-                                onKeyDown={handleLabelInputKeyDown}
-                                autoFocus
-                                rows={3}
-                                style={{
-                                    backgroundColor: 'var(--neutral-20)',
-                                    padding: '6px 8px',
-                                    borderRadius: '4px',
-                                    border: '1px solid var(--neutral-40)',
-                                    fontSize: '12px',
-                                    color: 'var(--neutral-90)',
-                                    outline: 'none',
-                                    resize: 'vertical',
-                                    fontFamily: 'inherit',
-                                    pointerEvents: 'auto',
-                                }}
-                            />
-                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                                <button
-                                    onClick={() => setIsEditing(false)}
-                                    style={{
-                                        padding: '4px 14px', borderRadius: '4px',
-                                        border: '1px solid var(--neutral-40)',
-                                        backgroundColor: 'var(--neutral-20)',
-                                        color: 'var(--neutral-90)',
-                                        fontSize: '12px', cursor: 'pointer',
-                                    }}
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleSave}
-                                    style={{
-                                        padding: '4px 14px', borderRadius: '4px',
-                                        border: 'none',
-                                        backgroundColor: 'var(--callToAction)',
-                                        color: 'white',
-                                        fontSize: '12px', fontWeight: 'bold', cursor: 'pointer',
-                                    }}
-                                >
-                                    Confirm
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                ),
-                document.body
-            )}
-            {canEdit && segHandlePts.length >= 4 && (
+            {canEdit && segHandlePts.length >= 3 && (
                 <EdgeLabelRenderer>
                     {segHandlePts.slice(0, -1).map((pt, i) => {
                         const next = segHandlePts[i + 1];
-                        if (i === 0 || i === segHandlePts.length - 2) return null;
                         const dx = Math.abs(next.x - pt.x);
                         const dy = Math.abs(next.y - pt.y);
-                        if (dx + dy < 10) return null;
+                        if (dx + dy < minSegLen) return null;
                         const isH = dx > dy;
                         const mx = (pt.x + next.x) / 2;
                         const my = (pt.y + next.y) / 2;
                         return (
                             <div
-                                key={`seg-${i}`}
+                                key={`seg-${i === drag?.curSeg ? drag.origSeg : i === drag?.origSeg ? drag.curSeg : i}`}
                                 className="nodrag nopan"
                                 onPointerDown={(e) => handlePointerDown(e, i, isH)}
                                 onPointerMove={handlePointerMove}
@@ -421,13 +356,13 @@ export const CustomEdge = React.memo(({
                                     width: isH ? `${hWidth}px` : `${hHeight}px`,
                                     height: isH ? `${hHeight}px` : `${hWidth}px`,
                                     borderRadius: `${hHeight / 2}px`,
-                                    backgroundColor: 'var(--callToAction)',
-                                    opacity: 0.85,
+                                    backgroundColor: hColor,
+                                    opacity: hOpacity,
                                     cursor: isH ? 'ns-resize' : 'ew-resize',
                                     zIndex: (zIndex ?? 5000) + 100,
                                     pointerEvents: 'all',
                                     touchAction: 'none',
-                                    boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.3)',
                                 }}
                             />
                         );

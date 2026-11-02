@@ -30,6 +30,8 @@ export class ArchitectureBuilderMeta implements ComponentMeta {
             showGrid: tree.read('showGrid', true),
             snapPixels: tree.read('snapPixels', 15),
             edgeWidth: tree.read('edgeWidth', 6),
+            edgeHandleColor: tree.read('edgeHandleColor', ''),
+            edgeHandleSize: tree.read('edgeHandleSize', 1),
             hideHandles: tree.read('hideHandles', false),
             handleCount: clampedHandleCount,
             refreshHierarchy: tree.read('refreshHierarchy', false),

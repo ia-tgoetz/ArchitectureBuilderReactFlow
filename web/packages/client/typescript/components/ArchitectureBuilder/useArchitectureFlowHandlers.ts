@@ -2,7 +2,8 @@ import * as React from 'react';
 // @ts-ignore
 import { NodeChange, applyNodeChanges } from 'reactflow';
 import { getHandlePixelPos, computeAutoWaypoints } from './EdgeUtils';
-import { ContextMenuState } from './types';
+import { ContextMenuState, QuickAddState } from './types';
+import { createPaletteNodeData } from './nodeFactory';
 import { useEdgeHandlers } from './useEdgeHandlers';
 import { generateShortId } from './utils';
 
@@ -23,8 +24,8 @@ const getNodesInside = (containerId: string, allNodes: any): string[] => {
         if (id === containerId) return;
         const node = allNodes[id];
         if (!node) return;
-        const nw = node.paletteId === 'container' ? (node.width || 300) : 150;
-        const nh = node.paletteId === 'container' ? (node.height || 300) : 150;
+        const nw = node.width || (node.paletteId === 'container' ? 300 : 150);
+        const nh = node.height || (node.paletteId === 'container' ? 300 : 150);
         if (nw >= cWidth || nh >= cHeight) return;
         if (node.x >= cx1 && node.y >= cy1 && node.x + nw <= cx2 && node.y + nh <= cy2) inside.push(id);
     });
@@ -49,14 +50,20 @@ export interface UseArchitectureFlowHandlersParams {
     enableOnClickEvents: boolean;
     selectedId: string | null;
     setSelectedId: React.Dispatch<React.SetStateAction<string | null>>;
+    /** Every selected node (ref, so handlers read the latest value mid-event). */
+    selectedNodeIdsRef: React.MutableRefObject<string[]>;
+    /** Select exactly these nodes. */
+    setSelectedNodes: (ids: string[]) => void;
     setLocalNodes: React.Dispatch<React.SetStateAction<any[]>>;
     setLocalEdges: React.Dispatch<React.SetStateAction<any[]>>;
     contextMenu: ContextMenuState | null;
     setContextMenu: React.Dispatch<React.SetStateAction<ContextMenuState | null>>;
     setActiveSubMenu: React.Dispatch<React.SetStateAction<any>>;
     setStyleEditorNodeId: React.Dispatch<React.SetStateAction<string | null>>;
+    setEditingEdgeId: React.Dispatch<React.SetStateAction<string | null>>;
     clipboardRef: React.MutableRefObject<any>;
     draggedItemRef: React.MutableRefObject<any>;
+    setQuickAdd: (state: QuickAddState | null) => void;
 }
 
 export const useArchitectureFlowHandlers = ({
@@ -77,14 +84,18 @@ export const useArchitectureFlowHandlers = ({
     enableOnClickEvents,
     selectedId,
     setSelectedId,
+    selectedNodeIdsRef,
+    setSelectedNodes,
     setLocalNodes,
     setLocalEdges,
     contextMenu,
     setContextMenu,
     setActiveSubMenu,
     setStyleEditorNodeId,
+    setEditingEdgeId,
     clipboardRef,
     draggedItemRef,
+    setQuickAdd,
 }: UseArchitectureFlowHandlersParams) => {
     const [isDraggingNode, setIsDraggingNode] = React.useState(false);
     const dragStartPos = React.useRef<DragStartState | null>(null);
@@ -99,7 +110,8 @@ export const useArchitectureFlowHandlers = ({
     const closeContextMenu = React.useCallback(() => {
         setContextMenu(null);
         setActiveSubMenu(null);
-    }, [setContextMenu, setActiveSubMenu]);
+        setQuickAdd(null);
+    }, [setContextMenu, setActiveSubMenu, setQuickAdd]);
 
     // ─── Edge handlers (delegated) ────────────────────────────────────────────
 
@@ -120,7 +132,10 @@ export const useArchitectureFlowHandlers = ({
         wrapperBoundsRef,
         closeContextMenu,
         enableOnClickEvents,
+        setQuickAdd,
+        handleCount: globalHandleCount,
     });
+    const { createEdgeToNewNode, quickAddOpenedAtRef } = edgeHandlers;
 
     // ─── Node handlers ────────────────────────────────────────────────────────
 
@@ -178,23 +193,39 @@ export const useArchitectureFlowHandlers = ({
 
     const onNodesChange = React.useCallback((changes: NodeChange[]) => {
         setLocalNodes((nds) => applyNodeChanges(changes, nds));
-    }, [setLocalNodes]);
 
-    const onNodeDragStart = React.useCallback((event: any, node: any) => {
+        // React Flow reports Ctrl/Shift-click toggles and box selections as 'select' changes.
+        // Mirror them into our selection state (which is what drives each node's `selected`).
+        const selectChanges = changes.filter((c: any) => c.type === 'select');
+        if (selectChanges.length === 0) return;
+        const next = new Set(selectedNodeIdsRef.current);
+        selectChanges.forEach((c: any) => { if (c.selected) next.add(c.id); else next.delete(c.id); });
+        setSelectedNodes(Array.from(next));
+    }, [setLocalNodes, setSelectedNodes, selectedNodeIdsRef]);
+
+    // `draggedNodes` is every node React Flow is moving (all selected nodes when dragging a selected one).
+    // Besides those, linked containers carry the nodes inside them, and edges with pinned waypoints
+    // (inside a moving container, or between two moving nodes) carry those waypoints.
+    const onNodeDragStart = React.useCallback((event: any, node: any, draggedNodes?: any[]) => {
         closeContextMenu();
         setIsDraggingNode(true);
-        const rawNode = rawNodesDict[node.id];
-        if (rawNode?.paletteId === 'container' && !rawNode?.configs?.unlinked) {
-            const cWidth = rawNode.width || 300;
-            const cHeight = rawNode.height || 300;
+        const dragged: any[] = draggedNodes && draggedNodes.length > 0 ? draggedNodes : [node];
+        const nodePositions: Record<string, { x: number; y: number }> = {};
+        const edgeWaypoints: Record<string, { x: number; y: number }[]> = {};
+        const movingIds = new Set<string>(dragged.map(n => n.id));
+
+        dragged.forEach(d => {
+            const rawNode = rawNodesDict[d.id];
+            if (rawNode?.paletteId !== 'container' || rawNode?.configs?.unlinked) return;
             const cx1 = rawNode.x, cy1 = rawNode.y;
-            const cx2 = cx1 + cWidth, cy2 = cy1 + cHeight;
+            const cx2 = cx1 + (rawNode.width || 300), cy2 = cy1 + (rawNode.height || 300);
 
-            const insideIds = getNodesInside(node.id, rawNodesDict);
-            const nodePositions: Record<string, { x: number; y: number }> = {};
-            insideIds.forEach(id => { nodePositions[id] = { x: rawNodesDict[id].x, y: rawNodesDict[id].y }; });
+            getNodesInside(d.id, rawNodesDict).forEach(id => {
+                movingIds.add(id);
+                // Nodes React Flow already moves (selected) keep their own drag; only carry the rest.
+                if (!dragged.some(n => n.id === id)) nodePositions[id] = { x: rawNodesDict[id].x, y: rawNodesDict[id].y };
+            });
 
-            const edgeWaypoints: Record<string, { x: number; y: number }[]> = {};
             Object.entries(rawEdgesDict).forEach(([edgeId, edgeVal]: any) => {
                 if (!edgeVal || !Array.isArray(edgeVal.waypoints) || edgeVal.waypoints.length === 0) return;
                 const anyInside = edgeVal.waypoints.some((wp: any) =>
@@ -202,16 +233,23 @@ export const useArchitectureFlowHandlers = ({
                 );
                 if (anyInside) edgeWaypoints[edgeId] = edgeVal.waypoints;
             });
+        });
 
-            dragStartPos.current = { nodes: nodePositions, edges: edgeWaypoints };
-        } else {
-            dragStartPos.current = null;
+        // Edges between two moving nodes keep their shape: carry their pinned waypoints too.
+        if (movingIds.size > 1) {
+            Object.entries(rawEdgesDict).forEach(([edgeId, edgeVal]: any) => {
+                if (!edgeVal || edgeWaypoints[edgeId] || !Array.isArray(edgeVal.waypoints) || edgeVal.waypoints.length === 0) return;
+                if (movingIds.has(edgeVal.source) && movingIds.has(edgeVal.target)) edgeWaypoints[edgeId] = edgeVal.waypoints;
+            });
         }
+
+        const hasWork = Object.keys(nodePositions).length > 0 || Object.keys(edgeWaypoints).length > 0;
+        dragStartPos.current = hasWork ? { nodes: nodePositions, edges: edgeWaypoints } : null;
     }, [rawNodesDict, rawEdgesDict]);
 
     const onNodeDrag = React.useCallback((event: any, node: any) => {
         const currentDrag = dragStartPos.current;
-        if (currentDrag && currentDrag.nodes && rawNodesDict[node.id]?.paletteId === 'container') {
+        if (currentDrag && currentDrag.nodes && rawNodesDict[node.id]) {
             const dx = node.position.x - rawNodesDict[node.id].x;
             const dy = node.position.y - rawNodesDict[node.id].y;
 
@@ -235,20 +273,25 @@ export const useArchitectureFlowHandlers = ({
         }
     }, [rawNodesDict, setLocalNodes, setLocalEdges]);
 
-    const onNodeDragStop = React.useCallback((event: any, node: any) => {
+    const onNodeDragStop = React.useCallback((event: any, node: any, draggedNodes?: any[]) => {
         try {
             if (store?.props) {
                 const nextNodes = { ...rawNodesDict };
-                if (!nextNodes[node.id]) return;
-                const isContainer = nextNodes[node.id].paletteId === 'container';
+                if (!nextNodes[node.id]) { setTimeout(() => setIsDraggingNode(false), 250); return; }
                 const dx = Math.round(node.position.x) - nextNodes[node.id].x;
                 const dy = Math.round(node.position.y) - nextNodes[node.id].y;
-                nextNodes[node.id] = { ...nextNodes[node.id], x: Math.round(node.position.x), y: Math.round(node.position.y) };
+
+                // Persist every node React Flow moved (all selected nodes), not just the one grabbed.
+                const dragged: any[] = draggedNodes && draggedNodes.length > 0 ? draggedNodes : [node];
+                dragged.forEach(d => {
+                    if (!nextNodes[d.id]) return;
+                    nextNodes[d.id] = { ...nextNodes[d.id], x: Math.round(d.position.x), y: Math.round(d.position.y) };
+                });
 
                 const nextEdges = { ...rawEdgesDict };
                 let edgesChanged = false;
 
-                if (isContainer && dragStartPos.current && (dx !== 0 || dy !== 0)) {
+                if (dragStartPos.current && (dx !== 0 || dy !== 0)) {
                     Object.keys(dragStartPos.current.nodes).forEach(childId => {
                         if (nextNodes[childId]) {
                             nextNodes[childId] = { ...nextNodes[childId], x: dragStartPos.current!.nodes[childId].x + dx, y: dragStartPos.current!.nodes[childId].y + dy };
@@ -306,54 +349,63 @@ export const useArchitectureFlowHandlers = ({
                     }
                 });
                 delete nextNodes[n.id];
-                if (n.id === selectedId) setSelectedId(null);
                 if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
                     componentEvents.fireComponentEvent('onNodeDeleted', { deletedNodeUuid: n.id, connectedNodeUuids, affectedNodes: connectedNodeUuids });
                 }
             });
             store.props.write('nodes', nextNodes);
             if (edgesChanged) store.props.write('edges', nextEdges);
+            const deletedIds = new Set(deleted.map(n => n.id));
+            setSelectedNodes(selectedNodeIdsRef.current.filter(id => !deletedIds.has(id)));
         } catch (error: any) {
             console.error("Error in onNodesDelete:", error);
         }
-    }, [store, rawNodesDict, rawEdgesDict, selectedId, setSelectedId, componentEvents, enableOnClickEvents]);
+    }, [store, rawNodesDict, rawEdgesDict, setSelectedNodes, selectedNodeIdsRef, componentEvents, enableOnClickEvents]);
 
     const onNodeContextMenu = React.useCallback((event: any, node: any) => {
         event.preventDefault();
-        setSelectedId(node.id);
+        // Right-clicking a node that is part of a multi-selection keeps the selection (so Copy applies to all of it).
+        if (!selectedNodeIdsRef.current.includes(node.id)) setSelectedId(node.id);
         const bounds = wrapperBoundsRef.current;
         const isContainer = rawNodesDict[node.id]?.paletteId === 'container';
         setContextMenu({ id: node.id, top: event.clientY - bounds.top, left: event.clientX - bounds.left, type: 'node', isContainer, clientX: event.clientX, clientY: event.clientY });
         setActiveSubMenu(null);
-    }, [rawNodesDict, wrapperBoundsRef, setSelectedId, setContextMenu, setActiveSubMenu]);
+    }, [rawNodesDict, wrapperBoundsRef, setSelectedId, selectedNodeIdsRef, setContextMenu, setActiveSubMenu]);
 
     const onNodeClick = React.useCallback((event: any, node: any) => {
         closeContextMenu();
-        setSelectedId(node.id);
+        // Ctrl/Cmd/Shift-click toggles membership; React Flow's select change (see onNodesChange) already applied it.
+        const isMultiClick = event?.ctrlKey || event?.metaKey || event?.shiftKey;
+        if (!isMultiClick) setSelectedId(node.id);
         const rawNode = rawNodesDict[node.id];
         if (componentEvents) componentEvents.fireComponentEvent('onNodeClick', { id: node.id, paletteId: rawNode?.paletteId, typeId: rawNode?.typeId, type: 'node' });
     }, [componentEvents, rawNodesDict, setSelectedId, closeContextMenu]);
 
     // ─── Clipboard ────────────────────────────────────────────────────────────
 
-    const executeCopy = React.useCallback((id: string) => {
-        const isContainer = rawNodesDict[id]?.paletteId === 'container';
-        if (isContainer) {
-            const insideIds = getNodesInside(id, rawNodesDict);
-            const copiedNodes: any = { [id]: rawNodesDict[id] };
-            insideIds.forEach(childId => { copiedNodes[childId] = rawNodesDict[childId]; });
-            const copiedEdges: any = {};
-            Object.keys(rawEdgesDict).forEach(edgeId => {
-                const edge = rawEdgesDict[edgeId];
-                if (copiedNodes[edge.source] && copiedNodes[edge.target]) copiedEdges[edgeId] = edge;
-            });
-            clipboardRef.current = { type: 'group', nodes: copiedNodes, edges: copiedEdges };
-        } else {
-            clipboardRef.current = { type: 'single', node: rawNodesDict[id] };
-        }
+    // Copies every node in `ids`, everything inside any copied container, and the edges between copied nodes.
+    const executeCopy = React.useCallback((ids: string[]) => {
+        const copiedNodes: any = {};
+        ids.forEach(id => {
+            const node = rawNodesDict[id];
+            if (!node) return;
+            copiedNodes[id] = node;
+            if (node.paletteId === 'container') {
+                getNodesInside(id, rawNodesDict).forEach(childId => { copiedNodes[childId] = rawNodesDict[childId]; });
+            }
+        });
+        if (Object.keys(copiedNodes).length === 0) return;
+        const copiedEdges: any = {};
+        Object.keys(rawEdgesDict).forEach(edgeId => {
+            const edge = rawEdgesDict[edgeId];
+            if (edge && copiedNodes[edge.source] && copiedNodes[edge.target]) copiedEdges[edgeId] = edge;
+        });
+        clipboardRef.current = { type: 'group', nodes: copiedNodes, edges: copiedEdges };
     }, [rawNodesDict, rawEdgesDict, clipboardRef]);
 
-    const executePaste = React.useCallback((dropX: number, dropY: number) => {
+    // Pastes the clipboard centered on (anchorX, anchorY), a flow-space point such as the mouse position.
+    // The group keeps its internal layout; its top-left is snapped to the grid when snapping is on.
+    const executePaste = React.useCallback((anchorX: number, anchorY: number) => {
         try {
             const clipboard = clipboardRef.current;
             if (!clipboard || !store?.props) return;
@@ -362,34 +414,38 @@ export const useArchitectureFlowHandlers = ({
 
             const createdNodes: { nodeUuid: string; typeId: string; paletteId: string }[] = [];
 
-            if (clipboard.type === 'single') {
-                const newNodeId = generateShortId();
-                nextNodes[newNodeId] = JSON.parse(JSON.stringify({ ...clipboard.node, x: dropX, y: dropY }));
-                setSelectedId(newNodeId);
-                createdNodes.push({ nodeUuid: newNodeId, typeId: clipboard.node.typeId, paletteId: clipboard.node.paletteId });
-            } else if (clipboard.type === 'group') {
-                let minX = Infinity, minY = Infinity;
-                Object.values(clipboard.nodes).forEach((n: any) => { if (n.x < minX) minX = n.x; if (n.y < minY) minY = n.y; });
-                const dx = dropX - minX, dy = dropY - minY;
-                const idMap: any = {};
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            Object.values(clipboard.nodes).forEach((n: any) => {
+                const isContainer = n.paletteId === 'container';
+                minX = Math.min(minX, n.x);
+                minY = Math.min(minY, n.y);
+                maxX = Math.max(maxX, n.x + (n.width || (isContainer ? 300 : 150)));
+                maxY = Math.max(maxY, n.y + (n.height || (isContainer ? 300 : 150)));
+            });
+            let targetX = anchorX - (maxX - minX) / 2;
+            let targetY = anchorY - (maxY - minY) / 2;
+            if (snapEnabled) { targetX = Math.round(targetX / snapPixels) * snapPixels; targetY = Math.round(targetY / snapPixels) * snapPixels; }
+            const dx = Math.round(targetX - minX), dy = Math.round(targetY - minY);
+            const idMap: any = {};
 
-                Object.keys(clipboard.nodes).forEach(oldId => {
-                    const newId = generateShortId();
-                    idMap[oldId] = newId;
-                    const oldNode = clipboard.nodes[oldId];
-                    nextNodes[newId] = JSON.parse(JSON.stringify({ ...oldNode, x: oldNode.x + dx, y: oldNode.y + dy }));
-                    createdNodes.push({ nodeUuid: newId, typeId: oldNode.typeId, paletteId: oldNode.paletteId });
-                });
+            Object.keys(clipboard.nodes).forEach(oldId => {
+                const newId = generateShortId();
+                idMap[oldId] = newId;
+                const oldNode = clipboard.nodes[oldId];
+                nextNodes[newId] = JSON.parse(JSON.stringify({ ...oldNode, x: oldNode.x + dx, y: oldNode.y + dy }));
+                createdNodes.push({ nodeUuid: newId, typeId: oldNode.typeId, paletteId: oldNode.paletteId });
+            });
 
-                Object.keys(clipboard.edges).forEach(oldEdgeId => {
-                    const newEdgeId = generateShortId();
-                    const oldEdge = clipboard.edges[oldEdgeId];
-                    nextEdges[newEdgeId] = JSON.parse(JSON.stringify({ ...oldEdge, source: idMap[oldEdge.source], target: idMap[oldEdge.target] }));
-                });
-            }
+            Object.keys(clipboard.edges).forEach(oldEdgeId => {
+                const newEdgeId = generateShortId();
+                const oldEdge = clipboard.edges[oldEdgeId];
+                const waypoints = Array.isArray(oldEdge.waypoints) ? oldEdge.waypoints.map((wp: any) => ({ x: wp.x + dx, y: wp.y + dy })) : oldEdge.waypoints;
+                nextEdges[newEdgeId] = JSON.parse(JSON.stringify({ ...oldEdge, source: idMap[oldEdge.source], target: idMap[oldEdge.target], waypoints }));
+            });
 
             store.props.write('nodes', nextNodes);
             store.props.write('edges', nextEdges);
+            setSelectedNodes(Object.values(idMap) as string[]);
 
             if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
                 createdNodes.forEach(n => componentEvents.fireComponentEvent('onNodeCreated', { ...n, affectedNodes: [n.nodeUuid] }));
@@ -397,7 +453,7 @@ export const useArchitectureFlowHandlers = ({
         } catch (error: any) {
             console.error("Error in executePaste:", error);
         }
-    }, [store, rawNodesDict, rawEdgesDict, setSelectedId, clipboardRef, componentEvents, enableOnClickEvents]);
+    }, [store, rawNodesDict, rawEdgesDict, snapEnabled, snapPixels, setSelectedNodes, clipboardRef, componentEvents, enableOnClickEvents]);
 
     // ─── Pane handlers ────────────────────────────────────────────────────────
 
@@ -419,28 +475,9 @@ export const useArchitectureFlowHandlers = ({
             let dropX = Math.round(position.x - nodeW / 2);
             let dropY = Math.round(position.y - nodeH / 2);
             if (snapEnabled) { dropX = Math.round(dropX / snapPixels) * snapPixels; dropY = Math.round(dropY / snapPixels) * snapPixels; }
-            const initialConfigs = JSON.parse(JSON.stringify(paletteItem.defaultConfigs || {}));
-            const initialStyle = JSON.parse(JSON.stringify(paletteItem.style || { classes: '' }));
-            const initialLabelStyle = JSON.parse(JSON.stringify(paletteItem.labelStyle || { classes: '' }));
             if (store?.props) {
                 const newNodeId = generateShortId();
-                const newNodeData: any = {
-                    paletteId: paletteItem.id,
-                    typeId: paletteItem.typeId,
-                    label: paletteItem.label,
-                    tooltip: paletteItem.tooltip,
-                    x: dropX,
-                    y: dropY,
-                    hideHandles: paletteItem.hideHandles === true,
-                    style: initialStyle,
-                    labelStyle: initialLabelStyle,
-                    configs: initialConfigs,
-                    supportedConnections: paletteItem.supportedConnections || [],
-                    useOverrideImage: paletteItem.useOverrideImage || false,
-                    inactive: paletteItem.inactive || false,
-                    actionIcons: JSON.parse(JSON.stringify(paletteItem.actionIcons || [])),
-                };
-                if (paletteItem.id === 'container') { newNodeData.width = 300; newNodeData.height = 300; newNodeData.zIndex = -500; }
+                const newNodeData = createPaletteNodeData(paletteItem, dropX, dropY);
                 const nextNodes = { ...rawNodesDict };
                 nextNodes[newNodeId] = newNodeData;
                 store.props.write('nodes', nextNodes);
@@ -461,17 +498,48 @@ export const useArchitectureFlowHandlers = ({
         }
     }, [store, rawNodesDict, snapEnabled, snapPixels, reactFlowInstance, setSelectedId, draggedItemRef, componentEvents, enableOnClickEvents]);
 
+    // Picks a palette item from the menu shown after an edge is dropped on empty canvas: places the node
+    // centered on the drop point (snapped like a normal drop) and connects the dragged edge to it.
+    const addNodeFromEdgeDrop = React.useCallback((paletteItem: any, quickAdd: QuickAddState) => {
+        try {
+            if (!store?.props || !reactFlowInstance) return;
+            const position = reactFlowInstance.screenToFlowPosition({ x: quickAdd.clientX, y: quickAdd.clientY });
+            let x = Math.round(position.x - 75);
+            let y = Math.round(position.y - 75);
+            if (snapEnabled) { x = Math.round(x / snapPixels) * snapPixels; y = Math.round(y / snapPixels) * snapPixels; }
+            const newNodeId = generateShortId();
+            const newNodeData = createPaletteNodeData(paletteItem, x, y);
+            store.props.write('nodes', { ...rawNodesDict, [newNodeId]: newNodeData });
+            createEdgeToNewNode(quickAdd.sourceId, quickAdd.sourceHandle, newNodeId, newNodeData);
+            setSelectedId(newNodeId);
+            if (enableOnClickEvents && componentEvents?.fireComponentEvent) {
+                componentEvents.fireComponentEvent('onNodeCreated', {
+                    nodeUuid: newNodeId,
+                    typeId: paletteItem.typeId,
+                    paletteId: paletteItem.id,
+                    affectedNodes: [newNodeId],
+                });
+            }
+        } catch (error: any) {
+            console.error("Error in addNodeFromEdgeDrop:", error);
+        } finally {
+            setQuickAdd(null);
+        }
+    }, [store, rawNodesDict, reactFlowInstance, snapEnabled, snapPixels, createEdgeToNewNode, setSelectedId, componentEvents, enableOnClickEvents, setQuickAdd]);
+
     const onMoveStart = React.useCallback(() => {
         closeContextMenu();
     }, [closeContextMenu]);
 
     const onPaneClick = React.useCallback(() => {
+        // Ignore the click the browser sends right after an edge was dropped on the pane (it would close the new menu).
+        if (performance.now() - quickAddOpenedAtRef.current < 400) return;
         setSelectedId(null);
         closeContextMenu();
         if (componentEvents) {
             componentEvents.fireComponentEvent('onPaneClick', { type: 'pane' });
         }
-    }, [setSelectedId, closeContextMenu, componentEvents]);
+    }, [setSelectedId, closeContextMenu, componentEvents, quickAddOpenedAtRef]);
 
     const onPaneContextMenu = React.useCallback((event: any) => {
         event.preventDefault();
@@ -584,6 +652,14 @@ export const useArchitectureFlowHandlers = ({
                 }
                 closeContextMenu(); return;
             }
+            if (action === 'config' && isEdge) {
+                const currentEdge = rawEdgesDict[contextMenu.id];
+                if (currentEdge && store?.props && currentEdge.showLabel !== true) {
+                    store.props.write('edges', { ...rawEdgesDict, [contextMenu.id]: { ...currentEdge, showLabel: true } });
+                }
+                setEditingEdgeId(contextMenu.id);
+                closeContextMenu(); return;
+            }
 
             if (action === 'editStyle' && isNode) { setStyleEditorNodeId(contextMenu.id); closeContextMenu(); return; }
 
@@ -615,7 +691,11 @@ export const useArchitectureFlowHandlers = ({
                 closeContextMenu(); return;
             }
 
-            if (action === 'copy' && isNode) { executeCopy(contextMenu.id); closeContextMenu(); return; }
+            if (action === 'copy' && isNode) {
+                const selected = selectedNodeIdsRef.current;
+                executeCopy(selected.includes(contextMenu.id) ? selected : [contextMenu.id]);
+                closeContextMenu(); return;
+            }
 
             if (action === 'toggleLink' && contextMenu.isContainer) {
                 if (store?.props) {
@@ -629,9 +709,7 @@ export const useArchitectureFlowHandlers = ({
             if (action === 'paste' && (contextMenu.type === 'pane' || contextMenu.isContainer)) {
                 if (reactFlowInstance && contextMenu.clientX && contextMenu.clientY) {
                     const position = reactFlowInstance.screenToFlowPosition({ x: contextMenu.clientX, y: contextMenu.clientY });
-                    let dropX = position.x, dropY = position.y;
-                    if (snapEnabled) { dropX = Math.round(dropX / snapPixels) * snapPixels; dropY = Math.round(dropY / snapPixels) * snapPixels; }
-                    executePaste(dropX, dropY);
+                    executePaste(position.x, position.y);
                 }
                 closeContextMenu(); return;
             }
@@ -746,7 +824,7 @@ export const useArchitectureFlowHandlers = ({
         } catch (error: any) {
             console.error("Error in handleContextMenuAction:", error);
         }
-    }, [contextMenu, rawNodesDict, rawEdgesDict, selectedId, snapEnabled, snapPixels, reactFlowInstance, store, componentEvents, enableOnClickEvents, setStyleEditorNodeId, executeCopy, executePaste, closeContextMenu, setSelectedId]);
+    }, [contextMenu, rawNodesDict, rawEdgesDict, selectedId, snapEnabled, snapPixels, reactFlowInstance, store, componentEvents, enableOnClickEvents, setStyleEditorNodeId, setEditingEdgeId, executeCopy, executePaste, closeContextMenu, setSelectedId]);
 
     return {
         // State
@@ -777,6 +855,7 @@ export const useArchitectureFlowHandlers = ({
         // Pane
         onDragOver,
         onDrop,
+        addNodeFromEdgeDrop,
         onMoveStart,
         onPaneClick,
         onPaneContextMenu,

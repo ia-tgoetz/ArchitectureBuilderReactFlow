@@ -1,6 +1,7 @@
 import React from 'react';
 // @ts-ignore
-import { NodeProps, NodeResizer, useViewport } from 'reactflow';
+import { NodeProps, NodeResizer } from 'reactflow';
+import { useResizerSize } from './zoomSelectors';
 
 export interface ContainerNodeData {
     label: string;
@@ -40,7 +41,7 @@ const areContainerNodePropsEqual = (
 };
 
 export const ContainerNode = React.memo(({ id, data, selected }: NodeProps<ContainerNodeData>) => {
-    const { zoom } = useViewport();
+    const resizerSize = useResizerSize();
     const finalLabelBg = data.labelStyle?.backgroundColor || 'var(--neutral-30)';
     const finalLabelColor = data.labelStyle?.color || 'var(--neutral-90)';
     const finalGearColor = data.labelStyle?.fill || finalLabelColor; 
@@ -72,9 +73,6 @@ export const ContainerNode = React.memo(({ id, data, selected }: NodeProps<Conta
         outlineOffset: '2px',
         // Panning fall-through handled at the node-wrapper level in ArchitectureBuilder.tsx
     };
-
-    // Calculate dynamic resizer handle size based on zoom.
-    const resizerSize = Math.max(10, Math.round(16 / zoom));
 
     return (
         <>

@@ -126,15 +126,31 @@ export function extractSvgMarkup(value: string, scopeId?: string): string | null
 }
 
 /**
- * Return a safe data URI for use in <img src> or as a drag-ghost source.
- * Raw SVG markup is sanitized before encoding. Non-SVG data URIs pass through.
+ * True for an image path/URL (e.g. "/system/images/foo.svg", "images/foo.png",
+ * "https://host/foo.svg"). False for data URIs, raw markup, and any other URL scheme
+ * (javascript:, vbscript:, file:, ...). Such values are only ever used as <img src>,
+ * which never executes script, even for SVG.
+ */
+export function isImageUrl(value: string): boolean {
+    const v = value.trim();
+    if (!v || v.startsWith('<') || v.startsWith('data:')) return false;
+    const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(v);
+    return !scheme || /^https?$/i.test(scheme[1]);
+}
+
+/**
+ * Return a safe URI for use in <img src> or as a drag-ghost source.
+ * Raw SVG markup is sanitized before encoding. Non-SVG data URIs and image paths/URLs pass through.
  * Returns null for unrecognised or empty values.
  *
- * Use this only where a URL is required (drag ghost images).
- * For normal rendering, prefer extractSvgMarkup() + dangerouslySetInnerHTML.
+ * Used for data/URL images and drag ghost images.
+ * For inline SVG markup, prefer extractSvgMarkup() + dangerouslySetInnerHTML.
  */
 export function toSafeDataUri(value: string): string | null {
     if (!value) return null;
+
+    // Image path or http(s) URL: the browser fetches and caches it.
+    if (isImageUrl(value)) return value.trim();
 
     // Non-SVG data URIs (PNG, JPEG, GIF …) carry no executable markup.
     if (value.startsWith('data:')) return value;

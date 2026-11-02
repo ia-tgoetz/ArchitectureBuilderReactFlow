@@ -13,7 +13,7 @@ const CONTAINER_STYLE: React.CSSProperties = { position: 'absolute', zIndex: 10,
 
 // ─── SwapIcon ─────────────────────────────────────────────────────────────────
 
-const SwapIcon = ({ image, label }: { image: string, label: string }) => {
+export const SwapIcon = ({ image, label }: { image: string, label: string }) => {
     const scopeId = React.useMemo(() => nextSvgScopeId(), []);
     const svgHtml = React.useMemo(() => extractSvgMarkup(image, scopeId), [image, scopeId]);
     if (svgHtml) return <div id={scopeId} style={{ width: '100%', height: '100%', overflow: 'hidden' }} dangerouslySetInnerHTML={{ __html: svgHtml }} title={label} />;
