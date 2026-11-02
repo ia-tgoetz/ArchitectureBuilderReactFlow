@@ -24,7 +24,7 @@ if (signPropsFile.exists()) {
 }
 
 allprojects {
-    version = "1.1.4.20260804" //Documented identifier model; palette labels ignore labelStyle.fontSize
+    version = "1.1.5.20261102" //Configurable edge segment handle color/size (edgeHandleColor, edgeHandleSize)
     group = "com.wargoetz.reactflow"
 }
 
