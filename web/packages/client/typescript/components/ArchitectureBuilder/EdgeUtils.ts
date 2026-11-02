@@ -107,7 +107,9 @@ export const mapIgnitionToReactFlowEdges = (
     snapEnabled?: boolean,
     snapPixels?: number,
     globalEdgeWidth?: number,
-    onRequestEdit?: (id: string) => void
+    onRequestEdit?: (id: string) => void,
+    handleColor?: string,
+    handleSize?: number
 ) => {
     const baseWidth = globalEdgeWidth ?? 6;
     if (!ignitionEdges) return [];
@@ -149,6 +151,8 @@ export const mapIgnitionToReactFlowEdges = (
                     snapEnabled: snapEnabled ?? true,
                     snapPixels: snapPixels ?? 15,
                     dashed: edgeData.dashed === true,
+                    handleColor: handleColor || '',
+                    handleSize: handleSize ?? 1,
                     onRequestEdit: onRequestEdit ? () => onRequestEdit(id) : undefined,
                     onWaypointsChange: onWaypointsChange
                         ? (wps: { x: number; y: number }[]) => onWaypointsChange(id, wps)

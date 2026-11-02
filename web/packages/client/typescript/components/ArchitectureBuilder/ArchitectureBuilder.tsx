@@ -190,6 +190,7 @@ const computeHierarchyData = (nodesDict: any, edgesDict: any) => {
 export interface ArchitectureBuilderProps {
     enabled?: any; enableOnClickEvents?: any; hideHandles?: any; handleCount?: any;
     refreshHierarchy?: boolean; snapEnabled?: any; showGrid?: any; snapPixels?: any; edgeWidth?: any;
+    edgeHandleColor?: any; edgeHandleSize?: any;
     style?: any; connectionTypes: any; nodeTypeConnectionDefaults?: any; paletteItems: any[];
     nodes: any; edges: any; hierarchy?: any;
 }
@@ -307,7 +308,9 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
     // triggers re-renders when any of these values change in the Designer or Session.
     const rawConfigJson = React.useMemo(() => JSON.stringify({
         edgeWidth:             extractDeep(props.props.edgeWidth),
-        snapEnabled:           extractDeep(props.props.snapEnabled),
+        edgeHandleColor:       extractDeep(props.props.edgeHandleColor),
+        edgeHandleSize:        extractDeep(props.props.edgeHandleSize),
+        snapEnabled:          extractDeep(props.props.snapEnabled),
         showGrid:              extractDeep(props.props.showGrid),
         snapPixels:            extractDeep(props.props.snapPixels),
         hideHandles:           extractDeep(props.props.hideHandles),
@@ -315,7 +318,7 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
         enabled:               extractDeep(props.props.enabled),
         enableOnClickEvents:   extractDeep(props.props.enableOnClickEvents),
     }), [
-        props.props.edgeWidth, props.props.snapEnabled, props.props.showGrid, props.props.snapPixels,
+        props.props.edgeWidth, props.props.edgeHandleColor, props.props.edgeHandleSize, props.props.snapEnabled, props.props.showGrid, props.props.snapPixels,
         props.props.hideHandles, props.props.handleCount, props.props.enabled,
         props.props.enableOnClickEvents,
     ]);
@@ -335,6 +338,8 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
     const snapPixels = Number(rawConfig.snapPixels) || 15;
     const snapGrid = React.useMemo<[number, number]>(() => [snapPixels, snapPixels], [snapPixels]);
     const globalEdgeWidth = Math.max(1, Number(rawConfig.edgeWidth) || 6);
+    const edgeHandleColor = typeof rawConfig.edgeHandleColor === 'string' ? rawConfig.edgeHandleColor.trim() : '';
+    const edgeHandleSize = Math.max(0.5, Math.min(4, Number(rawConfig.edgeHandleSize) || 1));
 
     // ─── Undo/redo history ─────────────────────────────────────────────────
 
@@ -509,8 +514,8 @@ export const ArchitectureBuilder = observer((props: ComponentProps<ArchitectureB
         [rawNodesDict, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled, handleActionIconClick]
     );
     const flowEdges = React.useMemo(() =>
-        mapIgnitionToReactFlowEdges(rawEdgesDict, rawNodesDict, connectionTypes, selectedId, handleWaypointsChange, handleLabelChange, snapEnabled, snapPixels, globalEdgeWidth, setEditingEdgeId),
-        [rawEdgesDict, rawNodesDict, connectionTypes, selectedId, handleWaypointsChange, handleLabelChange, snapEnabled, snapPixels, globalEdgeWidth]
+        mapIgnitionToReactFlowEdges(rawEdgesDict, rawNodesDict, connectionTypes, selectedId, handleWaypointsChange, handleLabelChange, snapEnabled, snapPixels, globalEdgeWidth, setEditingEdgeId, edgeHandleColor, edgeHandleSize),
+        [rawEdgesDict, rawNodesDict, connectionTypes, selectedId, handleWaypointsChange, handleLabelChange, snapEnabled, snapPixels, globalEdgeWidth, edgeHandleColor, edgeHandleSize]
     );
 
     // Selection is read from the ref and is deliberately NOT a dependency: rebuilding every node on each selection

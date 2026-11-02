@@ -39,9 +39,13 @@ export const CustomEdge = React.memo(({
     // Calculate dynamic interaction width (selection/drag zone)
     const dynamicInteractionWidth = Math.max(20, Math.round(24 / zoom));
 
-    // Calculate dynamic segment handle dimensions (colored pills)
-    const hWidth = Math.max(16, Math.round(24 / zoom));
-    const hHeight = Math.max(6, Math.round(8 / zoom));
+    // Calculate dynamic segment handle dimensions (colored pills), scaled by the
+    // edgeHandleSize prop. An empty edgeHandleColor keeps the theme accent at 60%.
+    const hScale = data?.handleSize ?? 1;
+    const hWidth = Math.max(16 * hScale, Math.round(24 * hScale / zoom));
+    const hHeight = Math.max(6 * hScale, Math.round(8 * hScale / zoom));
+    const hColor = data?.handleColor || 'var(--callToAction)';
+    const hOpacity = data?.handleColor ? 1 : 0.6;
 
     // terminal points (native reactflow coordinates)
     const sx = sourceX;
@@ -352,8 +356,8 @@ export const CustomEdge = React.memo(({
                                     width: isH ? `${hWidth}px` : `${hHeight}px`,
                                     height: isH ? `${hHeight}px` : `${hWidth}px`,
                                     borderRadius: `${hHeight / 2}px`,
-                                    backgroundColor: 'var(--callToAction)',
-                                    opacity: 0.6,
+                                    backgroundColor: hColor,
+                                    opacity: hOpacity,
                                     cursor: isH ? 'ns-resize' : 'ew-resize',
                                     zIndex: (zIndex ?? 5000) + 100,
                                     pointerEvents: 'all',

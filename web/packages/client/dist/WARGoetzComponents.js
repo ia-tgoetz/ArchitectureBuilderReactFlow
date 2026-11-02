@@ -2956,6 +2956,8 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
     // triggers re-renders when any of these values change in the Designer or Session.
     const rawConfigJson = React.useMemo(() => JSON.stringify({
         edgeWidth: extractDeep(props.props.edgeWidth),
+        edgeHandleColor: extractDeep(props.props.edgeHandleColor),
+        edgeHandleSize: extractDeep(props.props.edgeHandleSize),
         snapEnabled: extractDeep(props.props.snapEnabled),
         showGrid: extractDeep(props.props.showGrid),
         snapPixels: extractDeep(props.props.snapPixels),
@@ -2964,7 +2966,7 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
         enabled: extractDeep(props.props.enabled),
         enableOnClickEvents: extractDeep(props.props.enableOnClickEvents),
     }), [
-        props.props.edgeWidth, props.props.snapEnabled, props.props.showGrid, props.props.snapPixels,
+        props.props.edgeWidth, props.props.edgeHandleColor, props.props.edgeHandleSize, props.props.snapEnabled, props.props.showGrid, props.props.snapPixels,
         props.props.hideHandles, props.props.handleCount, props.props.enabled,
         props.props.enableOnClickEvents,
     ]);
@@ -2982,6 +2984,8 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
     const snapPixels = Number(rawConfig.snapPixels) || 15;
     const snapGrid = React.useMemo(() => [snapPixels, snapPixels], [snapPixels]);
     const globalEdgeWidth = Math.max(1, Number(rawConfig.edgeWidth) || 6);
+    const edgeHandleColor = typeof rawConfig.edgeHandleColor === 'string' ? rawConfig.edgeHandleColor.trim() : '';
+    const edgeHandleSize = Math.max(0.5, Math.min(4, Number(rawConfig.edgeHandleSize) || 1));
     // ─── Undo/redo history ─────────────────────────────────────────────────
     // `historyStore` is substituted for props.store when constructing the
     // handler hooks, which routes all of their writes through the history
@@ -3111,7 +3115,7 @@ exports.ArchitectureBuilder = mobx_react_1.observer((props) => {
     }, [edgeTopologyJson]);
     const paletteMap = React.useMemo(() => new Map(paletteItems.map((p) => [p.id, p])), [paletteItems]);
     const flowNodes = React.useMemo(() => mapIgnitionToReactFlowNodes(rawNodesDict, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled, handleActionIconClick), [rawNodesDict, paletteMap, handleGearClick, handleResizeEnd, handleTextChange, globalHideHandles, globalHandleCount, highlightedHandlesMap, isEnabled, handleActionIconClick]);
-    const flowEdges = React.useMemo(() => EdgeUtils_1.mapIgnitionToReactFlowEdges(rawEdgesDict, rawNodesDict, connectionTypes, selectedId, handleWaypointsChange, handleLabelChange, snapEnabled, snapPixels, globalEdgeWidth, setEditingEdgeId), [rawEdgesDict, rawNodesDict, connectionTypes, selectedId, handleWaypointsChange, handleLabelChange, snapEnabled, snapPixels, globalEdgeWidth]);
+    const flowEdges = React.useMemo(() => EdgeUtils_1.mapIgnitionToReactFlowEdges(rawEdgesDict, rawNodesDict, connectionTypes, selectedId, handleWaypointsChange, handleLabelChange, snapEnabled, snapPixels, globalEdgeWidth, setEditingEdgeId, edgeHandleColor, edgeHandleSize), [rawEdgesDict, rawNodesDict, connectionTypes, selectedId, handleWaypointsChange, handleLabelChange, snapEnabled, snapPixels, globalEdgeWidth, edgeHandleColor, edgeHandleSize]);
     // Selection is read from the ref and is deliberately NOT a dependency: rebuilding every node on each selection
     // change (e.g. continuously while box-selecting) hands React Flow fresh nodes with no measured width/height,
     // and it treats zero-size nodes as inside any selection box, selecting everything. Selection changes are applied
@@ -4387,16 +4391,20 @@ const EdgeUtils_1 = __webpack_require__(/*! ./EdgeUtils */ "./typescript/compone
 const STUB = 25;
 const dirOf = (pos) => pos === 'right' ? { x: 1, y: 0 } : pos === 'left' ? { x: -1, y: 0 } : pos === 'top' ? { x: 0, y: -1 } : { x: 0, y: 1 };
 exports.CustomEdge = React.memo(({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, markerEnd, style, label, interactionWidth, zIndex, }) => {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     const storedWaypoints = (_a = data === null || data === void 0 ? void 0 : data.waypoints) !== null && _a !== void 0 ? _a : [];
     const showLabel = (data === null || data === void 0 ? void 0 : data.showLabel) === true;
     const { getZoom } = reactflow_1.useReactFlow();
     const zoom = getZoom();
     // Calculate dynamic interaction width (selection/drag zone)
     const dynamicInteractionWidth = Math.max(20, Math.round(24 / zoom));
-    // Calculate dynamic segment handle dimensions (colored pills)
-    const hWidth = Math.max(16, Math.round(24 / zoom));
-    const hHeight = Math.max(6, Math.round(8 / zoom));
+    // Calculate dynamic segment handle dimensions (colored pills), scaled by the
+    // edgeHandleSize prop. An empty edgeHandleColor keeps the theme accent at 60%.
+    const hScale = (_b = data === null || data === void 0 ? void 0 : data.handleSize) !== null && _b !== void 0 ? _b : 1;
+    const hWidth = Math.max(16 * hScale, Math.round(24 * hScale / zoom));
+    const hHeight = Math.max(6 * hScale, Math.round(8 * hScale / zoom));
+    const hColor = (data === null || data === void 0 ? void 0 : data.handleColor) || 'var(--callToAction)';
+    const hOpacity = (data === null || data === void 0 ? void 0 : data.handleColor) ? 1 : 0.6;
     // terminal points (native reactflow coordinates)
     const sx = sourceX;
     const sy = sourceY;
@@ -4562,10 +4570,10 @@ exports.CustomEdge = React.memo(({ sourceX, sourceY, targetX, targetY, sourcePos
     // ─── Render ───────────────────────────────────────────────────────────
     const drag = dragState.current;
     // A segment must span at least 2 grid dots to get a handle.
-    const minSegLen = 2 * ((_b = data === null || data === void 0 ? void 0 : data.snapPixels) !== null && _b !== void 0 ? _b : 15);
+    const minSegLen = 2 * ((_c = data === null || data === void 0 ? void 0 : data.snapPixels) !== null && _c !== void 0 ? _c : 15);
     const segHandlePts = React.useMemo(() => [{ x: sx, y: sy }, ...pinnedWaypoints, { x: tx, y: ty }], [pinnedWaypoints, sx, sy, tx, ty]);
     const isDashed = (data === null || data === void 0 ? void 0 : data.dashed) === true;
-    const animation = isDashed ? 'none' : ((_c = data === null || data === void 0 ? void 0 : data.animation) !== null && _c !== void 0 ? _c : 'none');
+    const animation = isDashed ? 'none' : ((_d = data === null || data === void 0 ? void 0 : data.animation) !== null && _d !== void 0 ? _d : 'none');
     const overlayBaseStyle = React.useMemo(() => (Object.assign(Object.assign({}, style), { fill: 'none', stroke: 'rgba(255, 255, 255, 0.95)', strokeWidth: Math.max(3, ((style === null || style === void 0 ? void 0 : style.strokeWidth) || 6) * 0.5), pointerEvents: 'none', strokeLinecap: 'round' })), [style]);
     return (React.createElement(React.Fragment, null,
         React.createElement(reactflow_1.BaseEdge, { path: edgePath, markerEnd: markerEnd, style: Object.assign(Object.assign({}, style), { fill: 'none', strokeLinecap: 'round', filter: 'drop-shadow(0px 1px 1px rgba(0,0,0,0.3))' }), interactionWidth: dynamicInteractionWidth }),
@@ -4614,8 +4622,8 @@ exports.CustomEdge = React.memo(({ sourceX, sourceY, targetX, targetY, sourcePos
                     width: isH ? `${hWidth}px` : `${hHeight}px`,
                     height: isH ? `${hHeight}px` : `${hWidth}px`,
                     borderRadius: `${hHeight / 2}px`,
-                    backgroundColor: 'var(--callToAction)',
-                    opacity: 0.6,
+                    backgroundColor: hColor,
+                    opacity: hOpacity,
                     cursor: isH ? 'ns-resize' : 'ew-resize',
                     zIndex: (zIndex !== null && zIndex !== void 0 ? zIndex : 5000) + 100,
                     pointerEvents: 'all',
@@ -4835,7 +4843,7 @@ const computeAutoWaypoints = (sx, sy, sp, tx, ty, tp) => {
     return [{ x: sx, y: ey }, { x: midX, y: ey }, { x: midX, y: fy }, { x: tx, y: fy }];
 };
 exports.computeAutoWaypoints = computeAutoWaypoints;
-const mapIgnitionToReactFlowEdges = (ignitionEdges, ignitionNodes, connectionTypes, selectedId, onWaypointsChange, onLabelChange, snapEnabled, snapPixels, globalEdgeWidth, onRequestEdit) => {
+const mapIgnitionToReactFlowEdges = (ignitionEdges, ignitionNodes, connectionTypes, selectedId, onWaypointsChange, onLabelChange, snapEnabled, snapPixels, globalEdgeWidth, onRequestEdit, handleColor, handleSize) => {
     const baseWidth = globalEdgeWidth !== null && globalEdgeWidth !== void 0 ? globalEdgeWidth : 6;
     if (!ignitionEdges)
         return [];
@@ -4870,6 +4878,8 @@ const mapIgnitionToReactFlowEdges = (ignitionEdges, ignitionNodes, connectionTyp
                 snapEnabled: snapEnabled !== null && snapEnabled !== void 0 ? snapEnabled : true,
                 snapPixels: snapPixels !== null && snapPixels !== void 0 ? snapPixels : 15,
                 dashed: edgeData.dashed === true,
+                handleColor: handleColor || '',
+                handleSize: handleSize !== null && handleSize !== void 0 ? handleSize : 1,
                 onRequestEdit: onRequestEdit ? () => onRequestEdit(id) : undefined,
                 onWaypointsChange: onWaypointsChange
                     ? (wps) => onWaypointsChange(id, wps)
@@ -7669,6 +7679,8 @@ class ArchitectureBuilderMeta {
             showGrid: tree.read('showGrid', true),
             snapPixels: tree.read('snapPixels', 15),
             edgeWidth: tree.read('edgeWidth', 6),
+            edgeHandleColor: tree.read('edgeHandleColor', ''),
+            edgeHandleSize: tree.read('edgeHandleSize', 1),
             hideHandles: tree.read('hideHandles', false),
             handleCount: clampedHandleCount,
             refreshHierarchy: tree.read('refreshHierarchy', false),

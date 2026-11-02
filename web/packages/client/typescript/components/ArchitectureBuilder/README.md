@@ -42,6 +42,8 @@ All props are defined in `architecturebuilder.props.json`.
 | `defaultConnectionType` | string | Connection type auto-selected when multiple valid types exist. |
 | `snapEnabled` | boolean | Enables snap-to-grid when dragging nodes (default true). |
 | `snapPixels` | number | Grid size in pixels (default 15). |
+| `edgeHandleColor` | string | CSS color of the segment drag handles on a selected edge. Empty (default) uses the theme accent at 60% opacity; a custom color is used as-is. |
+| `edgeHandleSize` | number | Size multiplier for the segment drag handles (0.5–4, default 1). |
 | `connectionTypes` | object | Map of connection type IDs to type definitions (see below). |
 | `nodeTypeConnectionDefaults` | object | Preferred connection type per node-type pair. Keys are `typeA__typeB`; values are connection type IDs (see below). |
 | `paletteItems` | array | List of palette items available in the sidebar (see below). |

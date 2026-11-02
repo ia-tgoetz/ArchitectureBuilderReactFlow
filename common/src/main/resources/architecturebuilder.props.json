@@ -1977,6 +1977,18 @@
       "description": "The global thickness of the edge lines. Selected edges render at edgeWidth + 2.",
       "default": 6
     },
+    "edgeHandleColor": {
+      "type": "string",
+      "description": "Color of the drag handles shown on segments of a selected edge (any CSS color). Leave empty to use the theme accent color at 60% opacity; a custom color is used exactly as given, so include alpha (e.g. rgba()) if transparency is wanted.",
+      "default": ""
+    },
+    "edgeHandleSize": {
+      "type": "number",
+      "description": "Size multiplier for the edge segment drag handles. 1 is the default size; 2 doubles it.",
+      "default": 1,
+      "minimum": 0.5,
+      "maximum": 4
+    },
     "hideHandles": {
       "type": "boolean",
       "description": "Globally hide all connection handles.",
