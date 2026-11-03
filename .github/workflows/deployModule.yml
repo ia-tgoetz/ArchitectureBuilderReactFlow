@@ -23,18 +23,29 @@ jobs:
           cache: gradle
 
       - name: Prepare signing files
-        run: |
-          echo "${{ secrets.SIGNING_KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/keystore.jks"
-          echo "${{ secrets.SIGNING_CHAIN_B64 }}" | base64 -d > "$RUNNER_TEMP/chain.p7b"
-
-      - name: Build signed module
         env:
-          ORG_GRADLE_PROJECT_signModule: 'true'
-          ORG_GRADLE_PROJECT_ignition.signing.keystoreFile: ${{ runner.temp }}/keystore.jks
-          ORG_GRADLE_PROJECT_ignition.signing.keystorePassword: ${{ secrets.SIGNING_KEYSTORE_PASSWORD }}
-          ORG_GRADLE_PROJECT_ignition.signing.certFile: ${{ runner.temp }}/chain.p7b
-          ORG_GRADLE_PROJECT_ignition.signing.certAlias: ${{ secrets.SIGNING_CERT_ALIAS }}
-          ORG_GRADLE_PROJECT_ignition.signing.certPassword: ${{ secrets.SIGNING_CERT_PASSWORD }}
+          KEYSTORE_B64: ${{ secrets.SIGNING_KEYSTORE_B64 }}
+          CHAIN_B64: ${{ secrets.SIGNING_CHAIN_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.SIGNING_KEYSTORE_PASSWORD }}
+          CERT_ALIAS: ${{ secrets.SIGNING_CERT_ALIAS }}
+          CERT_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/module-keystore.pfx"
+          echo "$CHAIN_B64" | base64 -d > "$RUNNER_TEMP/certificates.p7b"
+
+          mkdir -p ~/.gradle
+          {
+            echo "ignition.signing.keystoreFile=$RUNNER_TEMP/module-keystore.pfx"
+            echo "ignition.signing.keystorePassword=$KEYSTORE_PASSWORD"
+            echo "ignition.signing.certFile=$RUNNER_TEMP/certificates.p7b"
+            echo "ignition.signing.certAlias=$CERT_ALIAS"
+            echo "ignition.signing.certPassword=$CERT_PASSWORD"
+          } >> ~/.gradle/gradle.properties
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Build module
         run: ./gradlew build --no-daemon
 
       - name: Checkout Ignition repo
