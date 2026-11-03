@@ -42,9 +42,6 @@ jobs:
             echo "ignition.signing.certPassword=$CERT_PASSWORD"
           } >> ~/.gradle/gradle.properties
 
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
-
       - name: Build module
         run: ./gradlew build --no-daemon
 
