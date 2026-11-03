@@ -1,0 +1,65 @@
+name: Build module and publish to Ignition repo
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+concurrency:
+  group: publish-module
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Prepare signing files
+        run: |
+          echo "${{ secrets.SIGNING_KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/keystore.jks"
+          echo "${{ secrets.SIGNING_CHAIN_B64 }}" | base64 -d > "$RUNNER_TEMP/chain.p7b"
+
+      - name: Build signed module
+        env:
+          ORG_GRADLE_PROJECT_signModule: 'true'
+          ORG_GRADLE_PROJECT_ignition.signing.keystoreFile: ${{ runner.temp }}/keystore.jks
+          ORG_GRADLE_PROJECT_ignition.signing.keystorePassword: ${{ secrets.SIGNING_KEYSTORE_PASSWORD }}
+          ORG_GRADLE_PROJECT_ignition.signing.certFile: ${{ runner.temp }}/chain.p7b
+          ORG_GRADLE_PROJECT_ignition.signing.certAlias: ${{ secrets.SIGNING_CERT_ALIAS }}
+          ORG_GRADLE_PROJECT_ignition.signing.certPassword: ${{ secrets.SIGNING_CERT_PASSWORD }}
+        run: ./gradlew build --no-daemon
+
+      - name: Checkout Ignition repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ secrets.ARCH_BUILDER_REPO }}
+          path: ignition-repo
+          token: ${{ secrets.IGNITION_REPO_PAT }}
+
+      - name: Copy module into Ignition repo
+        run: |
+          mkdir -p ignition-repo/modules
+          find . -path ./ignition-repo -prune -o -name '*.modl' ! -name '*.unsigned.modl' -print \
+            -exec cp {} ignition-repo/module-init/ \;
+
+      - name: Commit and push
+        working-directory: ignition-repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add module-init/
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update module build from ${GITHUB_REPOSITORY}@${GITHUB_SHA::7}"
+            git pull --rebase
+            git push
+          fi
